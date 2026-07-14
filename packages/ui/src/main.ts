@@ -58,6 +58,21 @@ fieldCanvas.addEventListener("mousemove", (e) => {
 });
 fieldCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
 
+const sliceCanvas = $<HTMLCanvasElement>("slice");
+sliceCanvas.addEventListener("mousemove", (e) => {
+  const label = slice.hit(e.clientX, e.clientY);
+  const tip = $("tooltip");
+  if (label) {
+    tip.style.display = "block";
+    tip.style.left = `${e.clientX + 14}px`;
+    tip.style.top = `${e.clientY + 14}px`;
+    tip.textContent = label;
+  } else {
+    tip.style.display = "none";
+  }
+});
+sliceCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
+
 // Recorders with their real working limits drawn in status colors.
 const stripPower = new StripChart(
   $("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`,
@@ -77,7 +92,11 @@ const stripRho = new StripChart(
   360, 25,
   [{ v: 1, color: "#d03b3b", label: "prompt critical +1β", stretch: true }],
 );
-const stripXe = new StripChart($("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`);
+const stripXe = new StripChart(
+  $("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`,
+  360, undefined,
+  [{ v: 1, color: "#898781", label: "full-power equilibrium" }],
+);
 
 // ---------------------------------------------------------------------------
 // Event log feed
@@ -204,7 +223,8 @@ function rebuildSelRows(): void {
       `<span class="coord">${rodCoord(rod)}</span>` +
       `<span class="grp">${GRP_SHORT[rod.group]}</span>` +
       `<span class="bar"><i style="width:${rod.insertion * 100}%"></i></span>` +
-      `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>`;
+      `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>` +
+      `<span class="lim num"></span>`;
     const up = document.createElement("button");
     up.textContent = "▲";
     const down = document.createElement("button");
@@ -223,6 +243,18 @@ function refreshSelRows(): void {
     const rod = reactor.state.rods[Number(row.dataset.rod)]!;
     row.querySelector<HTMLElement>(".bar > i")!.style.width = `${rod.insertion * 100}%`;
     row.querySelector(".depth")!.textContent = `${(rod.insertion * 7).toFixed(2)}m`;
+    // Limit-switch lamps: VK = upper end stop (fully withdrawn),
+    // NK = lower end stop (fully inserted), like the real selsyn LEDs.
+    const lim = row.querySelector<HTMLElement>(".lim")!;
+    if (rod.insertion <= 0.003) {
+      lim.textContent = "ВК";
+      lim.style.color = "var(--warning)";
+    } else if (rod.insertion >= 0.997) {
+      lim.textContent = "НК";
+      lim.style.color = "var(--good)";
+    } else {
+      lim.textContent = "";
+    }
   }
 }
 

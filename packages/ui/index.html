@@ -106,10 +106,6 @@
   button.active { border-color: var(--accent); color: var(--ink); }
   button:disabled { opacity: 0.4; cursor: default; }
   input[type="range"] { accent-color: var(--accent); flex: 1; }
-  select {
-    background: var(--panel-2); color: var(--ink-2);
-    border: 1px solid var(--hairline); border-radius: 5px; padding: 5px 8px; font: inherit;
-  }
   .readout { color: var(--ink); font-weight: 600; min-width: 52px; text-align: right; }
 
   /* AZ-5 */
@@ -156,6 +152,7 @@
   .rod-row .bar { flex: 1; height: 8px; background: var(--panel-2); border: 1px solid var(--hairline); border-radius: 3px; position: relative; overflow: hidden; }
   .rod-row .bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #3987e5; }
   .rod-row .depth { width: 52px; text-align: right; color: var(--ink-2); }
+  .rod-row .lim { width: 22px; font-size: 10px; font-weight: 700; }
   .rod-row button { padding: 0 6px; font-size: 11px; line-height: 16px; }
   .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
   .divider { border-top: 1px solid var(--hairline); margin: 2px 0; }
@@ -205,13 +202,15 @@
     </section>
 
     <section class="panel" id="col-slice">
-      <h2>Axial slice — flux · void · rod banks</h2>
-      <canvas id="slice" width="330" height="470"></canvas>
+      <h2>Axial cutaway — core profile by depth (hover for values)</h2>
+      <canvas id="slice" width="440" height="560"></canvas>
       <div class="legend">
-        <span><span class="sw" style="background:#d95926"></span>flux</span>
-        <span><span class="sw" style="background:#9ec5f4"></span>void</span>
+        <span><span class="sw" style="background:#d95926"></span>flux profile</span>
+        <span><span class="sw" style="background:#9ec5f4"></span>void fraction (dashed)</span>
+        <span><span class="sw" style="background:#8c85dc"></span>coolant T strip</span>
         <span><span class="sw" style="background:#c3c2b7"></span>absorber</span>
         <span><span class="sw" style="background:#52514e"></span>displacer</span>
+        <span>▲▼ bank moving</span>
       </div>
     </section>
 

@@ -61,7 +61,6 @@ export class Reactor {
   /** Long-term flux shape (normalized, sums to 1) for decay-heat placement. */
   private decayShape: number[];
   private lastRhoByNode: number[] = new Array(N_AXIAL).fill(0);
-  private lastBreakdown: ReactivityBreakdown | null = null;
   /** EMA-smoothed inverse period (growth rate) [1/s]; period = 1/rate. */
   private smoothedRate = 0;
   private periodAlarmLatched = false;
@@ -102,6 +101,7 @@ export class Reactor {
   protection = { overpower: true, period: true };
   private lastBlockedWarnT = -Infinity;
   private lastPeriodBlockWarnT = -Infinity;
+  private lastRodAutoWarnT = -Infinity;
   private lastSilBlokT = -Infinity;
   private lastBandWarnT = -Infinity;
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
@@ -345,11 +345,14 @@ export class Reactor {
         this.arEnabled &&
         this.regulatorOwns(rod)
       ) {
-        this.log.warn(
-          this.state.time,
-          "ROD_AUTO",
-          `rod ${rod.id} is under automatic control - switch it to manual first`,
-        );
+        if (this.state.time - this.lastRodAutoWarnT > 5) {
+          this.lastRodAutoWarnT = this.state.time;
+          this.log.warn(
+            this.state.time,
+            "ROD_AUTO",
+            `rod ${rod.id} is under automatic control - switch it to manual first`,
+          );
+        }
         continue;
       }
       // Startup rule: rod withdrawal is blocked while the period is short

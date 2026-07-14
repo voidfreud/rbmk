@@ -2,27 +2,33 @@ import type { NodeState, RodGroup, RodState } from "@rbmk/sim-core";
 import {
   CORE_HEIGHT,
   N_AXIAL,
+  T_INLET,
+  T_SAT,
   absorberInterval,
   displacerInterval,
 } from "@rbmk/sim-core";
 
 const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
-const GROUP_SHORT: Record<RodGroup, string> = {
-  RR: "RR",
-  AR: "AR",
-  LAR: "LAR",
-  AZ: "AZ",
-  USP: "USP",
-};
+
+/** Layout constants (logical px). */
+const TOP = 26;
+const BOTTOM_PAD = 30;
+const SCALE_X = 30; // depth scale gutter
+const FLUX_W = 150; // flux/void plot width
+const TEMP_W = 16; // coolant temperature strip
+const BANK_W = 30; // per-bank column width
+const BANK_GAP = 10;
 
 /**
- * Axial cutaway: flux glow bands with a void overlay on the left,
- * per-group schematic rods (absorber / displacer / water) on the right.
+ * Axial cutaway of the core, top of core at the top of the plot:
+ * flux profile (filled area) + void curve + coolant temperature strip +
+ * one column per rod bank with true absorber/displacer geometry.
  */
 export class Slice {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly w: number;
   private readonly h: number;
+  private lastNodes: NodeState[] = [];
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     const dpr = window.devicePixelRatio || 1;
@@ -36,100 +42,158 @@ export class Slice {
     this.ctx.scale(dpr, dpr);
   }
 
+  private coreH(): number {
+    return this.h - TOP - BOTTOM_PAD;
+  }
+
+  private yAt(meters: number): number {
+    return TOP + (meters / CORE_HEIGHT) * this.coreH();
+  }
+
+  /** Node data under a client point, for the shared tooltip. */
+  hit(clientX: number, clientY: number): string | null {
+    const r = this.canvas.getBoundingClientRect();
+    const px = clientX - r.left;
+    const py = clientY - r.top;
+    if (py < TOP || py > TOP + this.coreH()) return null;
+    if (px < SCALE_X || px > SCALE_X + FLUX_W + TEMP_W + 6) return null;
+    const depth = ((py - TOP) / this.coreH()) * CORE_HEIGHT;
+    const k = Math.min(N_AXIAL - 1, Math.floor((depth / CORE_HEIGHT) * N_AXIAL));
+    const n = this.lastNodes[k];
+    if (!n) return null;
+    return (
+      `depth ${depth.toFixed(1)} m — flux ${n.flux.toFixed(2)}× · ` +
+      `void ${(n.voidFrac * 100).toFixed(0)}% · fuel ${Math.round(n.fuelTemp)}°C · ` +
+      `coolant ${n.coolantTemp.toFixed(1)}°C`
+    );
+  }
+
   draw(nodes: NodeState[], rods: RodState[]): void {
+    this.lastNodes = nodes;
     const g = this.ctx;
     g.clearRect(0, 0, this.w, this.h);
+    const coreH = this.coreH();
 
-    const top = 18;
-    const coreH = this.h - top - 26;
-    const bandH = coreH / N_AXIAL;
-    const fluxW = 116;
-    const fluxX = 34;
-
-    // Depth scale (meters from top).
+    // Section headers.
     g.fillStyle = "#898781";
-    g.font = "10px system-ui, sans-serif";
+    g.font = "600 10px system-ui, sans-serif";
+    g.textBaseline = "alphabetic";
+    g.textAlign = "left";
+    g.fillText("FLUX + VOID", SCALE_X, TOP - 12);
+    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 12);
+    g.fillText("ROD BANKS (absorber / displacer / water)", SCALE_X + FLUX_W + TEMP_W + 16, TOP - 12);
+
+    // Depth scale.
     g.textAlign = "right";
-    g.textBaseline = "middle";
+    g.font = "10px system-ui, sans-serif";
     for (let m = 0; m <= 7; m++) {
-      const y = top + (m / CORE_HEIGHT) * coreH;
-      g.fillText(`${m}`, fluxX - 6, y);
+      const y = this.yAt(m);
+      g.fillStyle = "#898781";
+      g.fillText(`${m}m`, SCALE_X - 5, y + 3);
       g.strokeStyle = "#2c2c2a";
       g.lineWidth = 1;
       g.beginPath();
-      g.moveTo(fluxX - 3, y);
-      g.lineTo(fluxX, y);
+      g.moveTo(SCALE_X, y);
+      g.lineTo(SCALE_X + FLUX_W, y);
       g.stroke();
     }
     g.textAlign = "left";
-    g.fillText("m", fluxX - 14, top - 9);
+    g.fillStyle = "#52514e";
+    g.font = "9px system-ui, sans-serif";
+    g.fillText("top of core", SCALE_X + 2, TOP + 9);
+    g.fillText("bottom", SCALE_X + 2, TOP + coreH - 3);
 
-    // Flux glow: orange, alpha by node flux (node 0 = top).
-    const maxFlux = Math.max(0.001, ...nodes.map((n) => n.flux));
+    // Flux profile as a filled area (x = flux, y = depth).
+    const maxFlux = Math.max(0.2, ...nodes.map((n) => n.flux));
+    const fx = (f: number) => SCALE_X + (f / maxFlux) * (FLUX_W - 8);
+    g.beginPath();
+    g.moveTo(SCALE_X, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
-      const y = top + k * bandH;
-      const f = nodes[k]!.flux;
-      const rel = f / maxFlux;
-      g.fillStyle = `rgba(217, 89, 38, ${0.06 + 0.82 * rel * rel})`;
-      g.fillRect(fluxX, y, fluxW * (0.35 + 0.65 * rel), bandH - 1);
-
-      // Void overlay: pale dots, density by void fraction.
-      const v = nodes[k]!.voidFrac;
-      if (v > 0.01) {
-        g.fillStyle = "rgba(158, 197, 244, 0.85)";
-        const dots = Math.round(v * 22);
-        for (let d = 0; d < dots; d++) {
-          // Deterministic pseudo-positions (no randomness in render).
-          const px = fluxX + 6 + ((d * 37 + k * 13) % (fluxW - 16));
-          const py = y + 2 + ((d * 23 + k * 7) % (bandH - 5));
-          g.fillRect(px, py, 2, 2);
-        }
-      }
+      const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
+      g.lineTo(fx(nodes[k]!.flux), y);
     }
-    g.strokeStyle = "rgba(255,255,255,0.10)";
-    g.strokeRect(fluxX, top, fluxW, coreH);
+    g.lineTo(SCALE_X, this.yAt(CORE_HEIGHT));
+    g.closePath();
+    const grad = g.createLinearGradient(SCALE_X, 0, SCALE_X + FLUX_W, 0);
+    grad.addColorStop(0, "rgba(217, 89, 38, 0.12)");
+    grad.addColorStop(1, "rgba(217, 89, 38, 0.55)");
+    g.fillStyle = grad;
+    g.fill();
+    g.strokeStyle = "#d95926";
+    g.lineWidth = 2;
+    g.stroke();
 
-    // Group rods: mean insertion per group, drawn with true geometry.
-    const rodW = 20;
-    const gap = 11;
-    let x = fluxX + fluxW + 16;
+    // Void curve (0..1 across the same width).
+    g.beginPath();
+    for (let k = 0; k < N_AXIAL; k++) {
+      const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
+      const x = SCALE_X + nodes[k]!.voidFrac * (FLUX_W - 8);
+      if (k === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.strokeStyle = "#9ec5f4";
+    g.lineWidth = 2;
+    g.setLineDash([4, 3]);
+    g.stroke();
+    g.setLineDash([]);
+
+    // Coolant temperature strip (inlet blue -> saturation amber).
+    const tx = SCALE_X + FLUX_W + 4;
+    for (let k = 0; k < N_AXIAL; k++) {
+      const y0 = this.yAt((k / N_AXIAL) * CORE_HEIGHT);
+      const y1 = this.yAt(((k + 1) / N_AXIAL) * CORE_HEIGHT);
+      const t = Math.min(
+        1,
+        Math.max(0, (nodes[k]!.coolantTemp - T_INLET) / (T_SAT - T_INLET)),
+      );
+      g.fillStyle = `rgba(${Math.round(60 + 141 * t)}, ${Math.round(120 + 13 * t)}, ${Math.round(220 - 220 * t + 0)}, 0.85)`;
+      g.fillRect(tx, y0, TEMP_W - 4, y1 - y0 + 0.5);
+    }
+    g.strokeStyle = "rgba(255,255,255,0.12)";
+    g.strokeRect(tx, TOP, TEMP_W - 4, coreH);
+
+    // Rod banks with true geometry, one column per group.
+    let x = SCALE_X + FLUX_W + TEMP_W + 16;
     g.textAlign = "center";
     for (const group of GROUPS) {
       const members = rods.filter((r) => r.group === group);
       const ins =
         members.reduce((a, r) => a + r.insertion, 0) / Math.max(1, members.length);
+      const moving = members.some((r) => Math.abs(r.target - r.insertion) > 1e-6);
+      const dirIn =
+        members.reduce((a, r) => a + (r.target - r.insertion), 0) > 0;
 
-      const yAt = (meters: number) => top + (meters / CORE_HEIGHT) * coreH;
+      // Channel water.
+      g.fillStyle = "rgba(57, 135, 229, 0.16)";
+      g.fillRect(x, TOP, BANK_W, coreH);
 
-      // Channel filled with water.
-      g.fillStyle = "rgba(57, 135, 229, 0.18)";
-      g.fillRect(x, top, rodW, coreH);
-
-      // True geometry from sim-core: displacer (standard rods) and absorber
-      // (from the top for RR/AR/LAR/AZ, from the BOTTOM for USP).
       const fake = { group, insertion: ins };
       const disp = displacerInterval(fake);
       if (disp) {
         g.fillStyle = "#52514e";
-        g.fillRect(x, yAt(disp[0]), rodW, yAt(disp[1]) - yAt(disp[0]));
+        g.fillRect(x, this.yAt(disp[0]), BANK_W, this.yAt(disp[1]) - this.yAt(disp[0]));
       }
       const abs = absorberInterval(fake);
       if (abs) {
         g.fillStyle = "#c3c2b7";
-        g.fillRect(x, yAt(abs[0]), rodW, yAt(abs[1]) - yAt(abs[0]));
+        g.fillRect(x, this.yAt(abs[0]), BANK_W, this.yAt(abs[1]) - this.yAt(abs[0]));
+      }
+      g.strokeStyle = "rgba(255,255,255,0.14)";
+      g.strokeRect(x, TOP, BANK_W, coreH);
+
+      // Labels: group, depth, motion arrow.
+      g.font = "600 10px system-ui, sans-serif";
+      g.fillStyle = "#c3c2b7";
+      g.fillText(group, x + BANK_W / 2, this.h - 18);
+      g.font = "10px system-ui, sans-serif";
+      g.fillStyle = "#898781";
+      g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m`, x + BANK_W / 2, this.h - 6);
+      if (moving) {
+        g.fillStyle = "#ffffff";
+        g.fillText(dirIn ? "▼" : "▲", x + BANK_W / 2, TOP - 2);
       }
 
-      g.strokeStyle = "rgba(255,255,255,0.14)";
-      g.strokeRect(x, top, rodW, coreH);
-
-      g.fillStyle = "#898781";
-      g.font = "10px system-ui, sans-serif";
-      g.textBaseline = "alphabetic";
-      g.fillText(GROUP_SHORT[group], x + rodW / 2, this.h - 12);
-      g.fillStyle = "#c3c2b7";
-      g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m`, x + rodW / 2, this.h - 1);
-
-      x += rodW + gap;
+      x += BANK_W + BANK_GAP;
     }
   }
 }

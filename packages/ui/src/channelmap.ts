@@ -71,7 +71,15 @@ export class ChannelMap {
     g.stroke();
 
     const cell = Math.max(2, (this.px(0.256) - this.px(0)) * 0.9);
-    const maxRel = 2.0;
+
+    // Relative field (as SKALA displayed it): normalize to the current max
+    // channel so the SHAPE is readable at any power; overall brightness
+    // still breathes with the power level so a dead core reads dim.
+    let maxRel = 0.001;
+    for (let c = 0; c < this.field.rel.length; c++) {
+      maxRel = Math.max(maxRel, this.field.rel[c]!);
+    }
+    const glow = 0.3 + 0.7 * Math.min(1, Math.max(0, powerFraction));
 
     // Mean coolant/fuel scale for the temp view.
     const avgFuel =
@@ -83,9 +91,8 @@ export class ChannelMap {
       const x = this.px(ch.x);
       const y = this.px(ch.y);
       if (this.view === "power") {
-        // Orange glow, alpha by local power x global power.
-        const v = Math.min(1, (rel * Math.max(0.02, powerFraction)) / maxRel);
-        g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * v})`;
+        const v = (rel / maxRel) * glow;
+        g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.min(1, v)})`;
       } else {
         // Channel-average fuel temperature estimate: scales with local power.
         const t = 270 + (avgFuel - 270) * rel * Math.max(0.02, powerFraction);

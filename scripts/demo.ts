@@ -15,7 +15,6 @@ import {
   N_AXIAL,
   Reactor,
   equilibriumIodineXenon,
-  xenonReactivity,
 } from "@rbmk/sim-core";
 
 const logDir = join(import.meta.dir, "..", "logs");
