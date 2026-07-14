@@ -1,4 +1,5 @@
 import {
+  BETA_EFF,
   N_AXIAL,
   Reactor,
   equilibriumIodineXenon,
@@ -59,7 +60,7 @@ fieldCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "
 
 const stripPower = new StripChart($("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`);
 const stripPeriod = new StripChart($("st-period") as HTMLCanvasElement, "#199e70", (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200);
-const stripRho = new StripChart($("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}$`, 360, 25);
+const stripRho = new StripChart($("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}β`, 360, 25);
 const stripXe = new StripChart($("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`);
 
 // ---------------------------------------------------------------------------
@@ -438,7 +439,10 @@ function frame(now: number): void {
     else stateTxt = "SUBCRITICAL";
     $("i-state").textContent = stateTxt;
     $("i-period").textContent = periodText();
-    $("i-rho").textContent = `${disp.rho.toFixed(2)} $`;
+    // Reactivity in beta units (the ZRT-A reactimeter's convention), with
+    // % dk/k as the secondary readout.
+    $("i-rho").textContent = `${disp.rho.toFixed(2)} β`;
+    $("i-rho-pct").textContent = `${(disp.rho * BETA_EFF * 100).toFixed(3)}% Δk/k`;
     // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
     // stale by design, and the age readout says how stale.
     const prizma = reactor.prizma();
