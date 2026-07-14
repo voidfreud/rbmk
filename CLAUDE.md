@@ -47,8 +47,9 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   BOTTOM (index N_AXIAL-1). Watch this in any axial code.
 - All integrators are implicit/semi-implicit; do not add an explicit-Euler
   update for anything stiff (that caused NaNs twice already).
-- Constants marked PRELIMINARY in constants.ts await reconciliation against
-  literature (docs/physics.md will hold the cited set).
+- Constants are reconciled against literature (citations in docs/physics.md);
+  the few marked ESTIMATED have no clean published figure - keep the flag if
+  you touch them.
 - Keep sim-core framework-free and deterministic: no Date.now(), no
   randomness without an injected seed, no I/O (logger sinks are injected).
 
