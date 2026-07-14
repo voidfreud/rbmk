@@ -76,7 +76,7 @@ reactor.log.addSink((e) => {
 });
 
 // Bring the plant to power AFTER the log sink is attached so INIT shows up.
-reactor.initAtPower(1.0, { manualInsertion: 0.45 });
+reactor.initAtPower(1.0, { manualInsertion: 0.55 });
 
 // ---------------------------------------------------------------------------
 // Rod selection & control
@@ -423,6 +423,12 @@ function frame(now: number): void {
     const pw = disp.power * 100;
     $("i-power").textContent =
       pw >= 0.1 ? `${pw.toFixed(1)}%` : `${pw.toExponential(1)}%`;
+    // Source range: the ISS count-rate meter (2..1e4 cps ~ 1e-11..1e-8 of
+    // nominal flux) is what a startup is actually flown on.
+    $("i-mw").textContent =
+      disp.power < 0.0025
+        ? `ISS ${Math.max(0, disp.power * 1e7).toFixed(0)} cps`
+        : `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
     // Plant state annunciator.
     const period = reactor.period();
     let stateTxt: string;
@@ -431,7 +437,6 @@ function frame(now: number): void {
     else if (period > 0 && period < 500) stateTxt = "SUPERCRITICAL - RISING";
     else stateTxt = "SUBCRITICAL";
     $("i-state").textContent = stateTxt;
-    $("i-mw").textContent = `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
     $("i-period").textContent = periodText();
     $("i-rho").textContent = `${disp.rho.toFixed(2)} $`;
     // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
