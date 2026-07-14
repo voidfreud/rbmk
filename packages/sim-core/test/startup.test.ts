@@ -25,14 +25,20 @@ describe("shutdown state and startup", () => {
     expect(r.state.scrammed).toBe(false);
   });
 
-  test("yanking the whole manual bank trips the period protection", () => {
+  test("yanking the whole manual bank is caught by the power interlock", () => {
     const r = new Reactor();
     r.initShutdown();
     r.setRodTarget("AZ", 0);
     r.tick(60, 0.1);
     r.setRodTarget("RR", 0.5); // 131 rods at once - reckless
-    r.tick(180, 0.1);
-    expect(r.state.scrammed).toBe(true);
+    r.tick(30, 0.1);
+    // Silovaya blokirovka halts the withdrawal before any excursion:
+    // no scram needed, the rods are stopped near where they were.
+    expect(r.log.all().some((e) => e.code === "SIL_BLOK")).toBe(true);
+    expect(r.state.scrammed).toBe(false);
+    const rr = r.state.rods.filter((rod) => rod.group === "RR");
+    const moved = rr.filter((rod) => rod.insertion < 0.95).length;
+    expect(moved).toBeLessThan(10);
   });
 
   test("a disciplined squad-by-squad startup reaches criticality without tripping", () => {

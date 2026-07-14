@@ -4,6 +4,7 @@ import {
   DECAY_FRACTION_TOTAL,
   FUEL_TEMP_COEFF,
   ORM_MIN_RODS,
+  PRIZMA_PERIOD,
   GRAPHITE_TEMP_COEFF,
   N_AXIAL,
   N_RODS,
@@ -79,8 +80,13 @@ export class Reactor {
    */
   arGradient = 0.0003;
   private arSetpointActive = 0;
-  /** Regulation source: the AR subgroups or the LAR bank. */
-  arMode: "AR" | "LAR" = "AR";
+  /**
+   * Regulation source and its valid power band (fractions of rated):
+   * ARM 0.0025-0.06 (low-power regulator, drives the active AR subgroup),
+   * AR 0.05-1.05 (main range, side chambers),
+   * LAR 0.10-1.0 (in-core chambers; BLIND below ~10% - it drops out).
+   */
+  arMode: "ARM" | "AR" | "LAR" = "AR";
   /** Active AR subgroup (1..3); standby groups take over on saturation. */
   arActiveGroup: 1 | 2 | 3 = 1;
   private arSaturatedFor = 0;
@@ -95,7 +101,12 @@ export class Reactor {
    */
   protection = { overpower: true, period: true };
   private lastBlockedWarnT = -Infinity;
-  private lastOrmAlarmT = -Infinity;
+  private lastPeriodBlockWarnT = -Infinity;
+  private lastSilBlokT = -Infinity;
+  private lastBandWarnT = -Infinity;
+  /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
+  private lastPrizma = { t: 0, orm: 0 };
+  private nextPrizmaT = 0;
 
   constructor(options: ReactorOptions = {}) {
     this.log = options.log ?? new EventLog();
@@ -205,6 +216,8 @@ export class Reactor {
     this.initializing = false;
     this.smoothedRate = 0;
     s.time = 0;
+    this.nextPrizmaT = 0;
+    this.lastPrizma = { t: 0, orm: this.ormRods() };
     this.log.info(s.time, "INIT", `initialized at ${Math.round(fraction * 100)}% power`, {
       rhoBase: s.rhoBase,
     });
@@ -249,6 +262,8 @@ export class Reactor {
     this.initializing = false;
     this.smoothedRate = 0;
     s.time = 0;
+    this.nextPrizmaT = 0;
+    this.lastPrizma = { t: 0, orm: this.ormRods() };
     this.log.info(
       s.time,
       "INIT",
@@ -337,6 +352,26 @@ export class Reactor {
         );
         continue;
       }
+      // Startup rule: rod withdrawal is blocked while the period is short
+      // (< 60 s) in the startup range - wait for the period to recover.
+      if (
+        t < rod.insertion &&
+        powerFraction(this.state.nodes) < 0.05 &&
+        !this.initializing
+      ) {
+        const period = this.period();
+        if (period > 0 && period < 60) {
+          if (this.state.time - this.lastPeriodBlockWarnT > 10) {
+            this.lastPeriodBlockWarnT = this.state.time;
+            this.log.warn(
+              this.state.time,
+              "PERIOD_BLOCK",
+              "withdrawal blocked: period below 60 s - wait for it to recover",
+            );
+          }
+          continue;
+        }
+      }
       rod.target = t;
     }
   }
@@ -371,7 +406,15 @@ export class Reactor {
   private regulatorOwns(rod: RodState): boolean {
     if (!rod.autoControlled) return false;
     if (this.arMode === "LAR") return rod.group === "LAR";
+    // ARM and AR both drive the active AR subgroup.
     return rod.group === "AR" && rod.arSubgroup === this.arActiveGroup;
+  }
+
+  /** Valid power band [lo, hi] (fraction of rated) for the current mode. */
+  private regulatorBand(): [number, number] {
+    if (this.arMode === "ARM") return [0.0025, 0.06];
+    if (this.arMode === "LAR") return [0.1, 1.0];
+    return [0.05, 1.05];
   }
 
   /**
@@ -464,6 +507,30 @@ export class Reactor {
     const s = this.state;
     const pBefore = powerFraction(s.nodes);
 
+    // Regulator band enforcement: LAR's in-core chambers are blind below
+    // ~10% - it DROPS OUT (the 00:28 accident-night failure mode). Other
+    // modes warn when the plant is outside their band.
+    if (this.arEnabled && !s.scrammed) {
+      const [lo] = this.regulatorBand();
+      if (pBefore < lo * 0.9) {
+        if (this.arMode === "LAR") {
+          this.arEnabled = false;
+          this.log.alarm(
+            s.time,
+            "LAR_DROPOUT",
+            "LAR dropped out: in-core chambers blind below 10% - regulation LOST",
+          );
+        } else if (s.time - this.lastBandWarnT > ALARM_COOLDOWN) {
+          this.lastBandWarnT = s.time;
+          this.log.warn(
+            s.time,
+            "AR_BAND",
+            `power below the ${this.arMode} band - switch to a lower-range regulator`,
+          );
+        }
+      }
+    }
+
     if (this.arEnabled && !s.scrammed && this.arSetpoint > 0) {
       // The active setpoint ramps toward the target at the gradient limit.
       const d = this.arSetpoint - this.arSetpointActive;
@@ -483,7 +550,7 @@ export class Reactor {
       // either end of its range, hand regulation to the next subgroup
       // (real behavior: standby group takes over when the active one runs
       // out of authority or fails).
-      if (this.arMode === "AR") {
+      if (this.arMode !== "LAR") {
         if (this.arTarget <= 0 || this.arTarget >= 1) {
           this.arSaturatedFor += dt;
           if (this.arSaturatedFor > 5) {
@@ -503,6 +570,26 @@ export class Reactor {
           }
         } else {
           this.arSaturatedFor = 0;
+        }
+      }
+    }
+
+    // "Silovaya blokirovka": if 8 or more RR/USP/AR/LAR rods are being
+    // withdrawn simultaneously, the power interlock halts them all and
+    // annunciates (real panel logic; AZ rods excluded).
+    if (!this.initializing) {
+      const withdrawing = s.rods.filter(
+        (r) => r.group !== "AZ" && r.target < r.insertion - 1e-6,
+      );
+      if (withdrawing.length >= 8) {
+        for (const rod of withdrawing) rod.target = rod.insertion;
+        if (s.time - this.lastSilBlokT > ALARM_COOLDOWN) {
+          this.lastSilBlokT = s.time;
+          this.log.alarm(
+            s.time,
+            "SIL_BLOK",
+            `power interlock: ${withdrawing.length} rods withdrawing - all halted, selection cleared`,
+          );
         }
       }
     }
@@ -571,18 +658,32 @@ export class Reactor {
         this.scram("AZM: power above 110% rated");
       } else this.warnBlocked("AZM (overpower) trip condition met");
     }
-    // ORM floor: below 15 equivalent rods the core must be shut down
-    // (pre-1986 rule; routinely violated in practice).
-    if (
-      power > 0.1 &&
-      this.ormRods() < ORM_MIN_RODS &&
-      s.time - this.lastOrmAlarmT > 300
-    ) {
-      this.lastOrmAlarmT = s.time;
-      this.log.alarm(s.time, "ORM", "ORM below 15 equivalent rods - shutdown required", {
-        orm: Number(this.ormRods().toFixed(1)),
-      });
+    // PRIZMA ORM printout: pre-1986 there was NO live ORM gauge and NO
+    // ORM-based protection - the operator got a printout every few minutes.
+    // The 15-rod floor was purely administrative.
+    if (s.time >= this.nextPrizmaT) {
+      this.nextPrizmaT = s.time + PRIZMA_PERIOD;
+      const orm = this.ormRods();
+      this.lastPrizma = { t: s.time, orm };
+      if (orm < ORM_MIN_RODS && power > 0.1) {
+        this.log.warn(
+          s.time,
+          "PRIZMA",
+          `printout: ORM ${orm.toFixed(1)} equivalent rods - BELOW the administrative floor of 15`,
+        );
+      } else {
+        this.log.info(
+          s.time,
+          "PRIZMA",
+          `printout: ORM ${orm.toFixed(1)} equivalent rods`,
+        );
+      }
     }
+  }
+
+  /** Latest PRIZMA printout {t, orm} - the only ORM the operator gets. */
+  prizma(): { t: number; orm: number } {
+    return this.lastPrizma;
   }
 
   private warnBlocked(what: string): void {

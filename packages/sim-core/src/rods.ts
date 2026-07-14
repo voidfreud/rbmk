@@ -6,6 +6,7 @@ import {
   ROD_ABS_WORTH_PER_M,
   ROD_DISP_WORTH_PER_M,
   ROD_SPEED,
+  ROD_SPEED_LAR_OUT,
   USP_ABS_LENGTH,
   WATER_GAP,
 } from "./constants";
@@ -87,11 +88,13 @@ export function rodReactivityByNode(rods: RodState[]): number[] {
   return rho;
 }
 
-/** Advance every rod drive toward its target at ROD_SPEED. */
+/** Advance every rod drive toward its target (LAR withdraws at half speed). */
 export function stepRodDrives(rods: RodState[], dt: number): void {
-  const maxStep = (ROD_SPEED * dt) / CORE_HEIGHT;
   for (const rod of rods) {
     const delta = rod.target - rod.insertion;
+    const speed =
+      rod.group === "LAR" && delta < 0 ? ROD_SPEED_LAR_OUT : ROD_SPEED;
+    const maxStep = (speed * dt) / CORE_HEIGHT;
     if (Math.abs(delta) <= maxStep) {
       rod.insertion = rod.target;
     } else {

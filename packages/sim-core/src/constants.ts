@@ -132,6 +132,10 @@ export const GRAPHITE_TEMP_COEFF = 6.0e-6;
  * independent sources).
  */
 export const ROD_SPEED = 0.4;
+/** LAR rods WITHDRAW at half speed [m/s] (TEZ L.24 spec). */
+export const ROD_SPEED_LAR_OUT = 0.2;
+/** PRIZMA ORM printout cycle [s] - pre-1986 ORM was NOT a live gauge. */
+export const PRIZMA_PERIOD = 300;
 /** Graphite displacer length [m] (INSAG-7, direct). */
 export const DISPLACER_LENGTH = 4.5;
 /** USP shortened-absorber length [m] (budan/accidont: 3050 mm), from below. */

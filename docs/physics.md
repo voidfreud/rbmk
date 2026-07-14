@@ -60,8 +60,12 @@ sources). Summary of what is cited vs estimated.
 | AR structure | 3 redundant subgroups of 4, one active, automatic changeover on saturation | chernobylcritical + corroborating reconstructions; changeover numeric conditions not found - 5 s saturation used (ESTIMATED) | medium-high |
 | Setpoint gradient | active setpoint ramps at 0.03 %/s default (panel gauge 0-0.35 %/s) | reference simulator's gradient gauge; real numeric limit unconfirmed | medium |
 | Protections | AZS (period < 10 s), AZM (power > 110%), both operator-blockable with logged warnings; AZ-1 setback drives AZ bank + setpoint to 50%; AZ-5 full scram excl. USP | Terminology (AZS/AZM) from operator-manual reconstructions; numeric setpoints ESTIMATED (not found in open sources); blockability documented by INSAG-7 | low-medium (numbers), high (structure) |
-| ORM rule | alarm below 15 equivalent rods | INSAG-7 (15-rod minimum; ~8 at the accident) | high |
-| Simultaneous rod motion | UI unrestricted; the real panel allowed ~4 rods at once (the demo operator honors this) | operator-manual reconstruction | medium |
+| ORM | PRIZMA printout every ~5 min ONLY - no live gauge, no ORM protection pre-1986; 15-rod floor administrative | accidont.ru/ozr.html; controls research (docs/research/controls.md) | high |
+| Withdrawal restriction | >=5 rods selected: withdrawal refused (insertion never restricted); >=8 rods withdrawing: power interlock halts all + annunciates ("silovaya blokirovka") | TEZ L.24 (studfile SUZ manual mirror) | high |
+| Regulator ladder | ARM 0.25-6% / AR 5-105% (one of 3 subgroups active) / LAR 10-100% (PRIMARY at power, in-core chambers, BLIND below ~10% - drops out) | pavrda.cz/62, topwar 269168, Gospromatomnadzor 1991 (00:28 failure) | high |
+| Rod speeds | 0.4 m/s all drives; LAR WITHDRAWS at 0.2 m/s | TEZ L.24 | high |
+| Startup period rule | withdrawal blocked while period < 60 s (below 5% power); AZ-5 trip floor 10 s (sources spread 5-10 s) | poznayka s27313, consultant.ru NP rule | medium-high |
+| Rod complement (3rd variant) | The 00:39 SKALA printout header reads "127 RR + 48 AZ + 12 AR + 24 USP = 211" (48 AZ likely 24 AZ + 24 PK-AZ; no separate LAR line). Three compositions now compete; we keep NIKIET 131/12/12/24/32 | accidont.ru/datable.html | unresolved |
 
 ## Known simplifications (v0)
 

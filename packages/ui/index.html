@@ -143,7 +143,7 @@
     <div class="tile"><div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div></div>
     <div class="tile"><div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub">doubling ~T·0.7</div></div>
     <div class="tile"><div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub">dollars (β)</div></div>
-    <div class="tile"><div class="label">ORM</div><div class="value num" id="i-orm">—</div><div class="sub">equivalent rods in</div></div>
+    <div class="tile"><div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">printout pending</div></div>
     <div class="tile"><div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div></div>
     <div class="tile"><div class="label">Void</div><div class="value num" id="i-void">—</div><div class="sub">core average</div></div>
     <div class="tile"><div class="label">Flow</div><div class="value num" id="i-flow">—</div><div class="sub">of rated</div></div>
@@ -217,8 +217,9 @@
       <h2>Automatic regulation</h2>
       <div class="row">
         <button id="ar-toggle" class="active">engaged</button>
-        <button id="ar-mode-ar" class="active">AR mode</button>
-        <button id="ar-mode-lar">LAR mode</button>
+        <button id="ar-mode-arm" title="low-power regulator, 0.25-6% band">ARM</button>
+        <button id="ar-mode-ar" class="active" title="main range, 5-105%, side chambers">AR</button>
+        <button id="ar-mode-lar" title="local (in-core chambers), 10-100% - BLIND below 10%">LAR</button>
         <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
       </div>
       <div class="row">

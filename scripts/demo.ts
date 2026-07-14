@@ -102,11 +102,12 @@ function operatorTrim(): void {
   if (ar > 0.85) dir = +1;
   else if (ar < 0.15 && dir === 0) dir = -1;
   if (dir === 0) return;
-  // Urgency scaling: a bigger squad and deeper steps as the error grows
-  // (several pairs of hands on the panel when the plant is getting away).
+  // Urgency scaling within the panel rules: withdrawal is restricted to
+  // <=5 rods at once (and >=8 withdrawing trips the power interlock), so
+  // urgency shows up as deeper steps; insertion is never count-restricted.
   const mag = Math.abs(err);
-  const squad = mag > 0.06 ? 16 : mag > 0.03 ? 8 : 4;
-  const step = mag > 0.06 ? 0.1 : 0.05;
+  const squad = dir < 0 ? 4 : mag > 0.06 ? 16 : mag > 0.03 ? 8 : 4;
+  const step = mag > 0.06 ? 0.15 : mag > 0.03 ? 0.1 : 0.05;
   for (let j = 0; j < squad; j++) {
     const rod = rrRods[(rrCursor + j) % rrRods.length]!;
     const t = Math.min(0.9, Math.max(0.02, rod.target + dir * step));

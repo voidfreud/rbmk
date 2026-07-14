@@ -212,8 +212,19 @@ function updateSelInfo(): void {
 
 const STEP = 0.05; // 35 cm
 
-/** Drive command for the selection: continuous lever, pulse step, or stop. */
+/** Drive command for the selection: continuous lever, pulse step, or stop.
+ * Panel rule (TEZ L.24): WITHDRAWAL is restricted with 5+ rods selected;
+ * insertion is never count-restricted. */
 function driveSelected(cmd: "out" | "in" | "stop" | number): void {
+  const isWithdrawal = cmd === "out" || (typeof cmd === "number" && cmd < 0);
+  if (isWithdrawal && selected.size > 5) {
+    reactor.log.warn(
+      reactor.state.time,
+      "SEL_LIMIT",
+      `withdrawal restricted: ${selected.size} rods selected (max 5 for withdrawal)`,
+    );
+    return;
+  }
   for (const id of selected) {
     const rod = reactor.state.rods[id]!;
     if (cmd === "stop") reactor.setRodTarget(id, rod.insertion);
@@ -249,16 +260,15 @@ arToggle.onclick = () => {
   arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
 };
 
-$("ar-mode-ar").onclick = () => {
-  reactor.arMode = "AR";
-  $("ar-mode-ar").classList.add("active");
-  $("ar-mode-lar").classList.remove("active");
-};
-$("ar-mode-lar").onclick = () => {
-  reactor.arMode = "LAR";
-  $("ar-mode-lar").classList.add("active");
-  $("ar-mode-ar").classList.remove("active");
-};
+function setArMode(mode: "ARM" | "AR" | "LAR"): void {
+  reactor.arMode = mode;
+  for (const m of ["arm", "ar", "lar"]) {
+    $(`ar-mode-${m}`).classList.toggle("active", m === mode.toLowerCase());
+  }
+}
+$("ar-mode-arm").onclick = () => setArMode("ARM");
+$("ar-mode-ar").onclick = () => setArMode("AR");
+$("ar-mode-lar").onclick = () => setArMode("LAR");
 
 // AR subgroup auto/manual switches: off = the 4 rods of that subgroup are
 // released to manual control (and the regulator skips them).
@@ -424,13 +434,21 @@ function frame(now: number): void {
     $("i-mw").textContent = `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
     $("i-period").textContent = periodText();
     $("i-rho").textContent = `${disp.rho.toFixed(2)} $`;
-    $("i-orm").textContent = reactor.ormRods().toFixed(1);
+    // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
+    // stale by design, and the age readout says how stale.
+    const prizma = reactor.prizma();
+    $("i-orm").textContent = prizma.orm.toFixed(1);
+    const age = Math.max(0, t - prizma.t);
+    $("i-orm-age").textContent = `printout ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} ago`;
     $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
     $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
     $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
     $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
     $("ar-active").textContent =
       reactor.arMode === "LAR" ? "LAR" : `AR-${reactor.arActiveGroup}`;
+    // The regulator can disengage itself (LAR dropout) - reflect it.
+    arToggle.classList.toggle("active", reactor.arEnabled);
+    arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
     $("setpoint-val").textContent =
       `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
     if (selected.size > 0) updateSelInfo();

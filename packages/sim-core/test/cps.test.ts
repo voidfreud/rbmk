@@ -64,6 +64,39 @@ describe("control and protection system", () => {
     expect(warns.length).toBe(1);
   });
 
+  test("silovaya blokirovka: 8+ rods withdrawing are halted", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const rr = r.state.rods.filter((rod) => rod.group === "RR").slice(0, 10);
+    for (const rod of rr) r.setRodTarget(rod.id, 0);
+    r.tick(2);
+    // The interlock reset their targets to their positions: nobody at 0.
+    for (const rod of rr) expect(rod.target).toBeGreaterThan(0.1);
+    expect(r.log.all().some((e) => e.code === "SIL_BLOK")).toBe(true);
+  });
+
+  test("ORM arrives only as periodic PRIZMA printouts", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const t0 = r.prizma().t;
+    r.tick(301, 0.1);
+    const p = r.prizma();
+    expect(p.t).toBeGreaterThan(t0);
+    expect(p.orm).toBeGreaterThan(0);
+    expect(r.log.all().some((e) => e.code === "PRIZMA")).toBe(true);
+  });
+
+  test("LAR drops out below its band (in-core chambers blind)", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.arMode = "LAR";
+    r.arGradient = 0.01;
+    r.arSetpoint = 0.05;
+    r.tick(220, 0.1);
+    expect(r.arEnabled).toBe(false);
+    expect(r.log.all().some((e) => e.code === "LAR_DROPOUT")).toBe(true);
+  });
+
   test("blocked protections warn instead of scramming", () => {
     const r = new Reactor();
     r.initAtPower(1.0);
