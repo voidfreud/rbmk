@@ -1,9 +1,12 @@
 {
   "name": "rbmk",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "test": "bun test",
-    "demo": "bun run scripts/demo.ts"
+    "demo": "bun run scripts/demo.ts",
+    "ui": "bun run scripts/serve.ts"
   }
 }

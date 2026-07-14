@@ -1,0 +1,9 @@
+{
+  "name": "@rbmk/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@rbmk/sim-core": "workspace:*"
+  }
+}

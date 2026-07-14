@@ -31,6 +31,10 @@ export interface RodState {
   insertion: number;
   /** Target insertion the drive is moving toward. */
   target: number;
+  /** Lattice position [pitch units from core center]; cosmetic in the 1D
+   * axial model (all rods act core-wide), used by the UI cartogram. */
+  x: number;
+  y: number;
 }
 
 export interface DecayHeatState {

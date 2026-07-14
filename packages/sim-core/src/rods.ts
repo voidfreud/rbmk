@@ -88,15 +88,28 @@ export function stepRodDrives(rods: RodState[], dt: number): void {
   }
 }
 
-/** Build the standard rod set: mostly manual, one auto group, emergency set. */
+/** Build the standard rod set: mostly manual, one auto group, emergency set.
+ * Rods get deterministic lattice positions on a square grid clipped to the
+ * core circle (radial sweep ordering), used by the UI cartogram. */
 export function buildRods(count: number): RodState[] {
+  // Enough lattice points for any reasonable count: 17x17 grid, radius 8.6.
+  const points: { x: number; y: number; d: number; a: number }[] = [];
+  for (let y = -8; y <= 8; y++) {
+    for (let x = -8; x <= 8; x++) {
+      const d = Math.hypot(x, y);
+      if (d <= 8.6) points.push({ x, y, d, a: Math.atan2(y, x) });
+    }
+  }
+  points.sort((p, q) => p.d - q.d || p.a - q.a);
+
   const rods: RodState[] = [];
   for (let i = 0; i < count; i++) {
     let group: RodGroup = "manual";
     if (i % 9 === 0) group = "auto";
     else if (i % 11 === 0) group = "emergency";
     else if (i % 7 === 0) group = "shortened";
-    rods.push({ id: i, group, insertion: 1, target: 1 });
+    const p = points[i] ?? { x: 0, y: 0 };
+    rods.push({ id: i, group, insertion: 1, target: 1, x: p.x, y: p.y });
   }
   return rods;
 }

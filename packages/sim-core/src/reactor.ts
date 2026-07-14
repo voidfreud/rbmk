@@ -226,6 +226,19 @@ export class Reactor {
     this.log.alarm(this.state.time, "AZ5", `SCRAM: ${reason}`);
   }
 
+  /** Reset the scram latch (rods stay where they are; re-enables AR). */
+  resetScram(): void {
+    if (!this.state.scrammed) return;
+    this.state.scrammed = false;
+    for (const rod of this.state.rods) rod.target = rod.insertion;
+    this.log.info(this.state.time, "AZ5_RESET", "scram latch reset");
+  }
+
+  /** Operating reactivity margin, crudely, in equivalent inserted rods. */
+  ormRods(): number {
+    return this.state.rods.reduce((a, r) => a + r.insertion, 0);
+  }
+
   setFlowFraction(fraction: number): void {
     this.state.flowFraction = Math.min(1.2, Math.max(0, fraction));
     this.log.info(this.state.time, "FLOW", `pump flow ${Math.round(fraction * 100)}%`);

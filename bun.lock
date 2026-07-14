@@ -9,8 +9,17 @@
       "name": "@rbmk/sim-core",
       "version": "0.1.0",
     },
+    "packages/ui": {
+      "name": "@rbmk/ui",
+      "version": "0.1.0",
+      "dependencies": {
+        "@rbmk/sim-core": "workspace:*",
+      },
+    },
   },
   "packages": {
     "@rbmk/sim-core": ["@rbmk/sim-core@workspace:packages/sim-core"],
+
+    "@rbmk/ui": ["@rbmk/ui@workspace:packages/ui"],
   }
 }

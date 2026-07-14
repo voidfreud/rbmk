@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RBMK-1000 — Unit Control Room</title>
+<style>
+  :root {
+    --page: #0d0d0d;
+    --panel: #131312;
+    --panel-2: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --hairline: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--page);
+    color: var(--ink-2);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 1180px;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  header {
+    display: flex; gap: 10px; align-items: stretch;
+  }
+  .tile {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 8px 14px;
+    min-width: 108px;
+  }
+  .tile .label { color: var(--muted); font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .tile .value { color: var(--ink); font-size: 22px; font-weight: 600; }
+  .tile .sub { color: var(--muted); font-size: 11px; }
+  .tile.brand { display: flex; flex-direction: column; justify-content: center; min-width: 170px; }
+  .tile.brand .value { font-size: 15px; letter-spacing: 1px; }
+
+  main { display: flex; gap: 10px; flex: 1; min-height: 0; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    padding: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .panel h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  canvas { display: block; }
+
+  #col-map { flex: 0 0 auto; }
+  #col-slice { flex: 0 0 auto; }
+  #col-ctl { flex: 1; min-width: 300px; overflow: auto; }
+
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button {
+    background: var(--panel-2); color: var(--ink-2);
+    border: 1px solid var(--hairline); border-radius: 5px;
+    padding: 6px 10px; font: inherit; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); color: var(--ink); }
+  button.active { border-color: var(--accent); color: var(--ink); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  input[type="range"] { accent-color: var(--accent); flex: 1; }
+  select {
+    background: var(--panel-2); color: var(--ink-2);
+    border: 1px solid var(--hairline); border-radius: 5px; padding: 5px 8px; font: inherit;
+  }
+  .readout { color: var(--ink); font-weight: 600; min-width: 52px; text-align: right; }
+
+  /* AZ-5 */
+  #az5-wrap { position: relative; width: 116px; height: 116px; margin: 2px auto; }
+  #az5 {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, #e05252, #8c1f1f 70%);
+    border: 3px solid #5a1414; color: #fff;
+    font-weight: 700; font-size: 15px; letter-spacing: 1px;
+  }
+  #az5-cover {
+    position: absolute; inset: -6px; border-radius: 10px;
+    background: rgba(230, 210, 140, 0.16);
+    border: 2px solid rgba(230, 210, 140, 0.55);
+    backdrop-filter: blur(1px);
+    color: #e6d28c; font-size: 10px; letter-spacing: 1.2px;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 4px; cursor: pointer; user-select: none;
+  }
+  #az5-cover.open { transform: translateY(-104%) rotate(-8deg); transition: transform 0.25s; }
+  #az5-cover { transition: transform 0.25s; }
+
+  footer { display: flex; gap: 10px; height: 190px; }
+  footer .panel { flex: 1; min-width: 0; }
+  #alarms { flex: 0 0 300px; overflow: hidden; }
+  #alarm-list { list-style: none; overflow-y: auto; flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; padding: 0; }
+  #alarm-list li { padding: 2px 4px; border-radius: 3px; font-size: 12px; }
+  #alarm-list .alarm { color: var(--critical); }
+  #alarm-list .warn { color: var(--warning); }
+  #alarm-list .info { color: var(--muted); }
+
+  #tooltip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--panel-2); border: 1px solid var(--hairline); border-radius: 5px;
+    padding: 5px 8px; font-size: 12px; color: var(--ink);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  .legend { display: flex; gap: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+  .divider { border-top: 1px solid var(--hairline); margin: 2px 0; }
+</style>
+</head>
+<body>
+  <header id="instruments">
+    <div class="tile brand">
+      <div class="value">RBMK-1000 · UNIT 4</div>
+      <div class="sub num" id="i-time">t = 00:00:00</div>
+    </div>
+    <div class="tile"><div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div></div>
+    <div class="tile"><div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub">doubling ~T·0.7</div></div>
+    <div class="tile"><div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub">dollars (β)</div></div>
+    <div class="tile"><div class="label">ORM</div><div class="value num" id="i-orm">—</div><div class="sub">equivalent rods in</div></div>
+    <div class="tile"><div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div></div>
+    <div class="tile"><div class="label">Void</div><div class="value num" id="i-void">—</div><div class="sub">core average</div></div>
+    <div class="tile"><div class="label">Flow</div><div class="value num" id="i-flow">—</div><div class="sub">of rated</div></div>
+  </header>
+
+  <main>
+    <section class="panel" id="col-map">
+      <h2>Core map — rod depths (click to select, drag to multi-select)</h2>
+      <canvas id="cartogram" width="470" height="470"></canvas>
+      <div class="legend" id="map-legend">
+        <span><span class="sw" style="background:#86b6ef"></span>inserted</span>
+        <span><span class="sw" style="background:#184f95"></span>withdrawn</span>
+        <span>A auto</span><span>E emergency</span><span>S shortened</span>
+        <span style="color:#fff">□ selected</span>
+      </div>
+    </section>
+
+    <section class="panel" id="col-slice">
+      <h2>Axial slice — flux · void · rod banks</h2>
+      <canvas id="slice" width="330" height="470"></canvas>
+      <div class="legend">
+        <span><span class="sw" style="background:#d95926"></span>flux</span>
+        <span><span class="sw" style="background:#9ec5f4"></span>void</span>
+        <span><span class="sw" style="background:#c3c2b7"></span>absorber</span>
+        <span><span class="sw" style="background:#52514e"></span>displacer</span>
+      </div>
+    </section>
+
+    <section class="panel" id="col-ctl">
+      <h2>Rod control</h2>
+      <div class="row">
+        <button id="sel-manual">manual bank</button>
+        <button id="sel-auto">auto (AR)</button>
+        <button id="sel-shortened">shortened</button>
+        <button id="sel-emergency">emergency</button>
+        <button id="sel-none">clear</button>
+      </div>
+      <div class="row">
+        <span id="sel-info" class="num" style="color:var(--ink)">no rods selected</span>
+      </div>
+      <div class="row">
+        <button id="rod-out">▲ withdraw</button>
+        <button id="rod-in">▼ insert</button>
+        <button id="rod-stop">stop</button>
+        <span style="color:var(--muted)">step 35 cm</span>
+      </div>
+      <div class="divider"></div>
+
+      <h2>Automatic regulator</h2>
+      <div class="row">
+        <button id="ar-toggle" class="active">AR engaged</button>
+        <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted)">setpoint</span>
+        <input type="range" id="setpoint" min="0" max="110" value="100" step="1" />
+        <span class="readout num" id="setpoint-val">100%</span>
+      </div>
+      <div class="divider"></div>
+
+      <h2>Main circulation pumps</h2>
+      <div class="row">
+        <span style="color:var(--muted)">flow</span>
+        <input type="range" id="flow" min="30" max="120" value="100" step="1" />
+        <span class="readout num" id="flow-val">100%</span>
+      </div>
+      <div class="divider"></div>
+
+      <h2>Simulation</h2>
+      <div class="row">
+        <button data-speed="0">pause</button>
+        <button data-speed="1" class="active">1×</button>
+        <button data-speed="10">10×</button>
+        <button data-speed="60">60×</button>
+        <button id="scram-reset">reset scram</button>
+      </div>
+      <div class="divider"></div>
+
+      <div id="az5-wrap">
+        <button id="az5" disabled>AZ-5</button>
+        <div id="az5-cover">SAFETY COVER</div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <section class="panel"><h2>Power %</h2><canvas class="strip" id="st-power"></canvas></section>
+    <section class="panel"><h2>Period s</h2><canvas class="strip" id="st-period"></canvas></section>
+    <section class="panel"><h2>Reactivity $</h2><canvas class="strip" id="st-rho"></canvas></section>
+    <section class="panel"><h2>Xenon ×eq</h2><canvas class="strip" id="st-xe"></canvas></section>
+    <section class="panel" id="alarms"><h2>Event log</h2><ul id="alarm-list"></ul></section>
+  </footer>
+
+  <div id="tooltip"></div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
