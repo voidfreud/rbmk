@@ -77,4 +77,9 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 
 - Update this file as the architecture evolves (owner request).
 - Private repo; pushing and merging to GitHub allowed without asking.
+- Commit AND push after every completed change/iteration (owner request) -
+  small checkpoints, not batched mega-commits.
 - Parallel work: use git worktrees when tasks are independent.
+- Plant systems (hydraulics/turbine) are deliberately deferred; reactor
+  control fidelity comes first (owner request 2026-07-15). Research
+  reports for the plant live in docs/research/ for when we get there.

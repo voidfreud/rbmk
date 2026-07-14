@@ -89,12 +89,30 @@ export class Cartogram {
 
     for (const rod of this.rods) {
       const [x, y] = this.rodCenter(rod);
-      const idx = Math.max(0, Math.min(RAMP.length - 1, Math.round(rod.insertion * (RAMP.length - 1))));
-      g.fillStyle = RAMP[idx]!;
       const c = this.cell;
+      const idx = Math.max(0, Math.min(RAMP.length - 1, Math.round(rod.insertion * (RAMP.length - 1))));
+
+      // Selsyn-style level indicator: the cell is the 7 m channel, the fill
+      // is the absorber depth - from the top for standard rods, from the
+      // BOTTOM for USP shortened absorbers.
+      g.fillStyle = "#1f1f1e";
       g.beginPath();
       g.roundRect(x - c / 2, y - c / 2, c, c, 3);
       g.fill();
+      const fillH = c * rod.insertion;
+      if (fillH > 0.5) {
+        g.fillStyle = RAMP[idx]!;
+        if (rod.group === "USP") {
+          g.fillRect(x - c / 2, y + c / 2 - fillH, c, fillH);
+        } else {
+          g.fillRect(x - c / 2, y - c / 2, c, fillH);
+        }
+      }
+      g.strokeStyle = "rgba(255,255,255,0.13)";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.roundRect(x - c / 2, y - c / 2, c, c, 3);
+      g.stroke();
 
       if (rod.target !== rod.insertion) {
         // Drive in motion: small moving tick on the edge.
@@ -104,11 +122,11 @@ export class Cartogram {
 
       const glyph = GROUP_GLYPH[rod.group]!;
       if (glyph) {
-        g.fillStyle = rod.insertion > 0.55 ? "#0d366b" : "#c3c2b7";
-        g.font = "9px system-ui, sans-serif";
+        g.fillStyle = "#c3c2b7";
+        g.font = "8px system-ui, sans-serif";
         g.textAlign = "center";
         g.textBaseline = "middle";
-        g.fillText(glyph, x, y + 0.5);
+        g.fillText(glyph, x + c / 2 - 4, y - c / 2 + 4.5);
       }
 
       if (selected.has(rod.id)) {
