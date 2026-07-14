@@ -64,7 +64,7 @@ function sample(note = ""): void {
     t: s.time,
     power: p,
     periodS: Math.abs(period) >= 1e5 ? null : period,
-    reactivityDollars: reactor.reactivityDollars(),
+    reactivityBeta: reactor.reactivityBeta(),
     xenonRel: xe,
     voidAvg,
     thermalMW: reactor.thermalPowerW() / 1e6,
@@ -72,7 +72,7 @@ function sample(note = ""): void {
   appendFileSync(logPath, JSON.stringify(row) + "\n");
   console.log(
     `${hms(s.time)}  P=${(p * 100).toFixed(1).padStart(5)}%  ` +
-      `T=${periodStr}s  rho=${reactor.reactivityDollars().toFixed(2).padStart(6)}$  ` +
+      `T=${periodStr}s  rho=${reactor.reactivityBeta().toFixed(2).padStart(6)}$  ` +
       `Xe=${xe.toFixed(2)}  void=${voidAvg.toFixed(2)}  |${fluxBar()}| ${note}`,
   );
 }

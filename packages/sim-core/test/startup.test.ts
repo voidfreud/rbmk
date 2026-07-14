@@ -8,7 +8,7 @@ describe("shutdown state and startup", () => {
     const p0 = r.powerFraction();
     expect(p0).toBeGreaterThan(1e-7);
     expect(p0).toBeLessThan(1e-3);
-    expect(r.reactivityDollars()).toBeLessThan(-1);
+    expect(r.reactivityBeta()).toBeLessThan(-1);
     r.tick(120, 0.1);
     expect(Math.abs(r.powerFraction() / p0 - 1)).toBeLessThan(0.2);
   });

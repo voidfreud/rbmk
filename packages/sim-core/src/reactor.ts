@@ -2,8 +2,14 @@ import {
   BETA_EFF,
   CORE_HEIGHT,
   DECAY_FRACTION_TOTAL,
+  DELAYED_BETA,
+  DELAYED_LAMBDA,
   FUEL_TEMP_COEFF,
+  GEN_TIME,
+  NEUTRON_SOURCE,
   ORM_MIN_RODS,
+  PHOTO_BETA,
+  PHOTO_LAMBDA,
   PRIZMA_PERIOD,
   GRAPHITE_TEMP_COEFF,
   N_AXIAL,
@@ -91,7 +97,16 @@ export class Reactor {
   private arSaturatedFor = 0;
   private arErrPrev = 0;
   private arTarget = 0.5;
-  private rhoInstrumentZero = 0;
+
+  /**
+   * Inverse-point-kinetics reactimeter (the ZRT-A principle): global
+   * precursor and photoneutron states integrated from the measured power,
+   * so the meter solves rho from flux history + source. Reads true
+   * subcriticality at shutdown and zero at criticality by construction.
+   */
+  private ipkC = new Array<number>(6).fill(0);
+  private ipkPhoto = [0, 0];
+  private lastRhoIpk = 0;
 
   /**
    * Protection enables. The real plant allowed operators to block certain
@@ -215,6 +230,7 @@ export class Reactor {
     this.tick(8);
     this.initializing = false;
     this.smoothedRate = 0;
+    this.resetIpk();
     s.time = 0;
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
@@ -261,6 +277,7 @@ export class Reactor {
     this.tick(60, 0.1);
     this.initializing = false;
     this.smoothedRate = 0;
+    this.resetIpk();
     s.time = 0;
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
@@ -316,14 +333,6 @@ export class Reactor {
       else lo = mid;
     }
     s.rhoBase = (lo + hi) / 2;
-
-    // Zero the reactivity instrument at the calibrated critical state: the
-    // flux-squared-weighted node average is nonzero even at criticality
-    // (it does not see leakage), so the meter reads relative to this.
-    const rho = rodReactivityByNode(s.rods).map(
-      (r, k) => s.rhoBase + s.rhoExtra + r + frozenFeedback[k]!,
-    );
-    this.rhoInstrumentZero = globalReactivity(s.nodes, rho);
   }
 
   // -------------------------------------------------------------------------
@@ -637,6 +646,31 @@ export class Reactor {
       pBefore > 0 && pAfter > 0 ? Math.log(pAfter / pBefore) / dt : 0;
     const alpha = Math.min(1, dt / TAU_PERIOD);
     this.smoothedRate += (rate - this.smoothedRate) * alpha;
+
+    // Reactimeter (inverse point kinetics): advance the instrument's own
+    // precursor/photoneutron trackers from measured power, then solve
+    //   rho = beta + L*(dn/dt)/n - (L/n)(sum lambda*c + S).
+    const n = Math.max(pAfter, 1e-12);
+    let delayed = 0;
+    for (let i = 0; i < 6; i++) {
+      const lam = DELAYED_LAMBDA[i]!;
+      this.ipkC[i] =
+        (this.ipkC[i]! + (dt * DELAYED_BETA[i]! * n) / GEN_TIME) /
+        (1 + dt * lam);
+      delayed += lam * this.ipkC[i]!;
+    }
+    for (let i = 0; i < 2; i++) {
+      const lam = PHOTO_LAMBDA[i]!;
+      this.ipkPhoto[i] =
+        (this.ipkPhoto[i]! + (dt * PHOTO_BETA[i]! * n) / GEN_TIME) /
+        (1 + dt * lam);
+      delayed += lam * this.ipkPhoto[i]!;
+    }
+    this.lastRhoIpk =
+      BETA_EFF +
+      GEN_TIME * this.smoothedRate -
+      (GEN_TIME / n) * (delayed + NEUTRON_SOURCE);
+
     this.checkAlarms(pAfter);
   }
 
@@ -787,13 +821,26 @@ export class Reactor {
     return Math.max(-1e6, Math.min(1e6, 1 / r));
   }
 
-  /** Global net reactivity in units of beta (dollars), zeroed at calibration. */
-  reactivityDollars(): number {
-    return (
-      (globalReactivity(this.state.nodes, this.lastRhoByNode) -
-        this.rhoInstrumentZero) /
-      BETA_EFF
-    );
+  /**
+   * Reactimeter reading in units of beta: inverse point kinetics from the
+   * measured flux history (the ZRT-A principle). Exact 0 at steady
+   * criticality; true negative subcriticality at shutdown (n = S*L/-rho).
+   */
+  reactivityBeta(): number {
+    return this.lastRhoIpk / BETA_EFF;
+  }
+
+  /** Seed the reactimeter's trackers to equilibrium with current power. */
+  private resetIpk(): void {
+    const n = Math.max(powerFraction(this.state.nodes), 1e-12);
+    for (let i = 0; i < 6; i++) {
+      this.ipkC[i] =
+        (DELAYED_BETA[i]! * n) / (GEN_TIME * DELAYED_LAMBDA[i]!);
+    }
+    for (let i = 0; i < 2; i++) {
+      this.ipkPhoto[i] = (PHOTO_BETA[i]! * n) / (GEN_TIME * PHOTO_LAMBDA[i]!);
+    }
+    this.lastRhoIpk = -(GEN_TIME * NEUTRON_SOURCE) / n;
   }
 
   /** Per-node reactivity contributions for instruments/UI. */

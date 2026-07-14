@@ -163,16 +163,17 @@ window.addEventListener("mouseup", (e) => {
   const additive = e.shiftKey || e.metaKey || e.ctrlKey;
   if (dist < 5) {
     const rod = cartogram.hit(e.clientX, e.clientY);
-    if (rod) {
+    if (rod && (!selFilterRR || rod.group === "RR")) {
       if (!additive) selected.clear();
       if (selected.has(rod.id)) selected.delete(rod.id);
       else selected.add(rod.id);
-    } else if (!additive) {
+    } else if (!rod && !additive) {
       selected.clear();
     }
   } else {
     if (!additive) selected.clear();
     for (const rod of cartogram.rodsInRect(dragStart[0], dragStart[1], e.clientX, e.clientY)) {
+      if (selFilterRR && rod.group !== "RR") continue;
       selected.add(rod.id);
     }
   }
@@ -212,6 +213,31 @@ $("sel-none").onclick = () => {
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
+};
+
+// "Next RR squad": the real startup withdrawal order was computer-planned -
+// groups of four, spread across the core. Deterministic spread sequence via
+// a coprime stride; one click selects the next squad.
+const rrSeq = (() => {
+  const rr = reactor.state.rods.filter((r) => r.group === "RR");
+  return rr.map((_, i) => rr[(i * 53) % rr.length]!);
+})();
+let squadCursor = 0;
+$("sel-squad").onclick = () => {
+  selected.clear();
+  for (let j = 0; j < 4; j++) {
+    selected.add(rrSeq[(squadCursor + j) % rrSeq.length]!.id);
+  }
+  squadCursor = (squadCursor + 4) % rrSeq.length;
+  rebuildSelRows();
+  updateSelInfo();
+};
+
+// RR-only selection filter: map clicks and drag-boxes ignore other classes.
+let selFilterRR = false;
+$("sel-filter").onclick = () => {
+  selFilterRR = !selFilterRR;
+  $("sel-filter").classList.toggle("active", selFilterRR);
 };
 
 const GRP_SHORT: Record<string, string> = {
@@ -395,7 +421,7 @@ gradient.oninput = () => {
 /** Snap damped instrument displays to the actual state (used on re-init). */
 function snapDisplays(): void {
   disp.power = reactor.powerFraction();
-  disp.rho = reactor.reactivityDollars();
+  disp.rho = reactor.reactivityBeta();
   disp.xe =
     reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
   disp.voidAvg =
@@ -537,7 +563,7 @@ const disp = { power: 1, rho: 0, xe: 1, voidAvg: 0.35, periodRate: 0 };
 function smooth(wallDt: number): void {
   const a = Math.min(1, wallDt / 0.5);
   disp.power += (reactor.powerFraction() - disp.power) * a;
-  disp.rho += (reactor.reactivityDollars() - disp.rho) * a;
+  disp.rho += (reactor.reactivityBeta() - disp.rho) * a;
   const xe =
     reactor.state.nodes.reduce((a2, n) => a2 + n.xenon, 0) / N_AXIAL / XE_EQ;
   disp.xe += (xe - disp.xe) * a;
