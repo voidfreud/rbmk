@@ -120,6 +120,15 @@
     box-shadow: 0 4px 14px rgba(0,0,0,0.5);
   }
   .legend { display: flex; gap: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+  /* Per-rod servo rows for the current selection (selsyn-style readouts). */
+  #sel-rows { display: flex; flex-direction: column; gap: 3px; max-height: 132px; overflow-y: auto; }
+  .rod-row { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .rod-row .coord { color: var(--ink); font-weight: 600; width: 46px; }
+  .rod-row .grp { color: var(--muted); width: 30px; }
+  .rod-row .bar { flex: 1; height: 8px; background: var(--panel-2); border: 1px solid var(--hairline); border-radius: 3px; position: relative; overflow: hidden; }
+  .rod-row .bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #3987e5; }
+  .rod-row .depth { width: 52px; text-align: right; color: var(--ink-2); }
+  .rod-row button { padding: 0 6px; font-size: 11px; line-height: 16px; }
   .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
   .divider { border-top: 1px solid var(--hairline); margin: 2px 0; }
 </style>
@@ -187,10 +196,12 @@
       <div class="row">
         <span id="sel-info" class="num" style="color:var(--ink)">no rods selected</span>
       </div>
+      <div id="sel-rows"></div>
       <div class="row">
         <button id="rod-out">▲ withdraw</button>
         <button id="rod-in">▼ insert</button>
         <button id="rod-stop">stop</button>
+        <button id="rod-stop-all">stop all</button>
         <span style="color:var(--muted)">step 35 cm</span>
       </div>
       <div class="divider"></div>

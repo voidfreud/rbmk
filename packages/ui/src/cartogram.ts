@@ -136,7 +136,14 @@ export class Cartogram {
   }
 }
 
+/** Real-style rod coordinate name, column-row on the lattice (e.g. "33-27"). */
+export function rodCoord(rod: RodState): string {
+  const col = (rod.x + 9) * 3;
+  const row = (rod.y + 9) * 3;
+  return `${String(col).padStart(2, "0")}-${String(row).padStart(2, "0")}`;
+}
+
 export function depthLabel(rod: RodState): string {
   const m = (rod.insertion * CORE_HEIGHT).toFixed(2);
-  return `${rod.group} rod #${rod.id} — inserted ${m} m (${Math.round(rod.insertion * 100)}%)`;
+  return `${rodCoord(rod)} ${rod.group} — inserted ${m} m (${Math.round(rod.insertion * 100)}%)`;
 }

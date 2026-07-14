@@ -4,7 +4,7 @@ import {
   equilibriumIodineXenon,
   type RodGroup,
 } from "@rbmk/sim-core";
-import { Cartogram, depthLabel } from "./cartogram";
+import { Cartogram, depthLabel, rodCoord } from "./cartogram";
 import { ChannelMap } from "./channelmap";
 import { Slice } from "./slice";
 import { StripChart, hms } from "./strips";
@@ -115,6 +115,7 @@ window.addEventListener("mouseup", (e) => {
   }
   dragStart = null;
   dragNow = null;
+  rebuildSelRows();
   updateSelInfo();
 });
 
@@ -136,6 +137,7 @@ function selectGroup(group: RodGroup): void {
   for (const rod of reactor.state.rods) {
     if (rod.group === group) selected.add(rod.id);
   }
+  rebuildSelRows();
   updateSelInfo();
 }
 $("sel-manual").onclick = () => selectGroup("manual");
@@ -144,8 +146,51 @@ $("sel-shortened").onclick = () => selectGroup("shortened");
 $("sel-emergency").onclick = () => selectGroup("emergency");
 $("sel-none").onclick = () => {
   selected.clear();
+  rebuildSelRows();
   updateSelInfo();
 };
+
+const GRP_SHORT: Record<string, string> = {
+  manual: "RR",
+  auto: "AR",
+  shortened: "USP",
+  emergency: "AZ",
+};
+
+/** Per-rod servo rows (selsyn-style) for up to 30 selected rods. */
+function rebuildSelRows(): void {
+  const wrap = $("sel-rows");
+  wrap.textContent = "";
+  if (selected.size === 0 || selected.size > 30) return;
+  for (const id of [...selected].sort((a, b) => a - b)) {
+    const rod = reactor.state.rods[id]!;
+    const row = document.createElement("div");
+    row.className = "rod-row";
+    row.dataset.rod = String(id);
+    row.innerHTML =
+      `<span class="coord">${rodCoord(rod)}</span>` +
+      `<span class="grp">${GRP_SHORT[rod.group]}</span>` +
+      `<span class="bar"><i style="width:${rod.insertion * 100}%"></i></span>` +
+      `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>`;
+    const up = document.createElement("button");
+    up.textContent = "▲";
+    const down = document.createElement("button");
+    down.textContent = "▼";
+    repeatWhileHeld(up, () => reactor.setRodTarget(id, reactor.state.rods[id]!.target - STEP));
+    repeatWhileHeld(down, () => reactor.setRodTarget(id, reactor.state.rods[id]!.target + STEP));
+    row.append(up, down);
+    wrap.append(row);
+  }
+}
+
+/** Refresh bars/depths in place (no DOM rebuild) at instrument rate. */
+function refreshSelRows(): void {
+  for (const row of document.querySelectorAll<HTMLElement>(".rod-row")) {
+    const rod = reactor.state.rods[Number(row.dataset.rod)]!;
+    row.querySelector<HTMLElement>(".bar > i")!.style.width = `${rod.insertion * 100}%`;
+    row.querySelector(".depth")!.textContent = `${(rod.insertion * 7).toFixed(2)}m`;
+  }
+}
 
 function updateSelInfo(): void {
   const info = $("sel-info");
@@ -159,8 +204,8 @@ function updateSelInfo(): void {
     const avg = rods.reduce((a, r) => a + r.insertion, 0) / rods.length;
     info.textContent = `${rods.length} rods — mean insertion ${(avg * 7).toFixed(2)} m`;
   }
+  refreshSelRows();
 }
-updateSelInfo();
 
 const STEP = 0.05; // 35 cm
 function driveSelected(delta: number | "stop"): void {
@@ -189,6 +234,9 @@ function repeatWhileHeld(el: HTMLElement, fn: () => void): void {
 repeatWhileHeld($("rod-out"), () => driveSelected(-STEP));
 repeatWhileHeld($("rod-in"), () => driveSelected(+STEP));
 $("rod-stop").onclick = () => driveSelected("stop");
+$("rod-stop-all").onclick = () => {
+  for (const rod of reactor.state.rods) reactor.setRodTarget(rod.id, rod.insertion);
+};
 
 // ---------------------------------------------------------------------------
 // AR, setpoint, flow, speed, AZ-5
