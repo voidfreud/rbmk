@@ -106,51 +106,92 @@ export function stepRodDrives(rods: RodState[], dt: number): void {
 /**
  * Build the real 2nd-generation rod complement (NIKIET textbook breakdown):
  * 131 RR + 12 AR (3 subgroups x 4) + 12 LAR + 24 AZ + 32 USP = 211.
- * Groups are scattered deterministically over the lattice via a coprime
- * permutation; positions come from a radially sorted grid clipped to the
- * core circle.
+ *
+ * Layout is the ENGINEERED, symmetric pattern of a real CPS map rather than
+ * a scatter: a rounded-square lattice footprint, LAR at the 12 local-zone
+ * centers, AR subgroups at 4-fold rotationally symmetric positions, AZ
+ * spread evenly over two rings, USP on two regular rings of their own,
+ * RR everywhere else. (The exact per-cell ChNPP-4 map exists on the 00:39
+ * printout; this is a faithful-pattern approximation with correct counts.)
  */
 export function buildRods(count = 211): RodState[] {
-  const points: { x: number; y: number; d: number; a: number }[] = [];
-  for (let y = -8; y <= 8; y++) {
-    for (let x = -8; x <= 8; x++) {
-      const d = Math.hypot(x, y);
-      if (d <= 8.6) points.push({ x, y, d, a: Math.atan2(y, x) });
+  // Round footprint d <= 8.07 gives 213 lattice positions; 211 cannot be
+  // 4-fold symmetric (210 is not divisible by 4 - the real map was not
+  // perfectly symmetric either), so drop one 180-degree pair to get an
+  // exactly 2-fold-symmetric 211-position footprint.
+  const all: { x: number; y: number; d: number; a: number }[] = [];
+  for (let y = -9; y <= 9; y++) {
+    for (let x = -9; x <= 9; x++) {
+      if (count === 211 && ((x === 8 && y === 1) || (x === -8 && y === -1)))
+        continue;
+      all.push({ x, y, d: Math.hypot(x, y), a: Math.atan2(y, x) });
     }
   }
-  points.sort((p, q) => p.d - q.d || p.a - q.a);
+  all.sort((p, q) => p.d - q.d || p.a - q.a);
+  const points = all.slice(0, count);
 
-  // Group cutoffs as fractions of the real 211-rod complement.
-  const nAR = Math.round((12 / 211) * count);
-  const nLAR = Math.round((12 / 211) * count);
-  const nAZ = Math.round((24 / 211) * count);
-  const nUSP = Math.round((32 / 211) * count);
+  // Geometric group targets (radius in lattice units, angle in degrees),
+  // matched to the nearest unassigned lattice position.
+  const targets: { group: RodGroup; sub?: 1 | 2 | 3; r: number; deg: number }[] = [];
+  for (let k = 0; k < 12; k++) {
+    targets.push({ group: "LAR", r: 5.0, deg: 15 + 30 * k });
+  }
+  for (const [sub, r, off] of [
+    [1, 2.9, 0],
+    [2, 4.2, 30],
+    [3, 5.6, 60],
+  ] as const) {
+    for (let k = 0; k < 4; k++) {
+      targets.push({ group: "AR", sub, r, deg: off + 90 * k });
+    }
+  }
+  for (let k = 0; k < 8; k++) {
+    targets.push({ group: "AZ", r: 1.8, deg: 22.5 + 45 * k });
+  }
+  for (let k = 0; k < 16; k++) {
+    targets.push({ group: "AZ", r: 7.0, deg: 11.25 + 22.5 * k });
+  }
+  for (let k = 0; k < 12; k++) {
+    targets.push({ group: "USP", r: 3.5, deg: 30 * k });
+  }
+  for (let k = 0; k < 20; k++) {
+    targets.push({ group: "USP", r: 6.2, deg: 9 + 18 * k });
+  }
+
+  const groups = new Array<{ group: RodGroup; sub?: 1 | 2 | 3 }>(points.length)
+    .fill({ group: "RR" });
+  const taken = new Array<boolean>(points.length).fill(false);
+  for (const t of targets) {
+    const tx = t.r * Math.cos((t.deg * Math.PI) / 180);
+    const ty = t.r * Math.sin((t.deg * Math.PI) / 180);
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      if (taken[i]) continue;
+      const d = Math.hypot(points[i]!.x - tx, points[i]!.y - ty);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best >= 0) {
+      taken[best] = true;
+      groups[best] = { group: t.group, sub: t.sub };
+    }
+  }
 
   const rods: RodState[] = [];
-  for (let i = 0; i < count; i++) {
-    // Coprime scatter so classes are spread over the whole core.
-    const s = (i * 89) % count;
-    let group: RodGroup;
-    let arSubgroup: 1 | 2 | 3 | undefined;
-    if (s < nAR) {
-      group = "AR";
-      arSubgroup = (Math.floor(s / Math.max(1, nAR / 3)) + 1) as 1 | 2 | 3;
-      if (arSubgroup > 3) arSubgroup = 3;
-    } else if (s < nAR + nLAR) group = "LAR";
-    else if (s < nAR + nLAR + nAZ) group = "AZ";
-    else if (s < nAR + nLAR + nAZ + nUSP) group = "USP";
-    else group = "RR";
-
-    const p = points[i] ?? { x: 0, y: 0 };
+  for (let i = 0; i < points.length; i++) {
+    const g = groups[i]!;
     rods.push({
       id: i,
-      group,
-      arSubgroup,
-      autoControlled: group === "AR" || group === "LAR",
+      group: g.group,
+      arSubgroup: g.sub,
+      autoControlled: g.group === "AR" || g.group === "LAR",
       insertion: 1,
       target: 1,
-      x: p.x,
-      y: p.y,
+      x: points[i]!.x,
+      y: points[i]!.y,
     });
   }
   return rods;
