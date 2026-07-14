@@ -222,6 +222,14 @@ export const DECAY_FRACTION_TOTAL = DECAY_HEAT_FRACTIONS.reduce(
 // ---------------------------------------------------------------------------
 
 /**
+ * Intrinsic neutron source [relative flux units / s]: spontaneous fission
+ * plus photoneutrons keep a shut-down core's flux nonzero, so subcritical
+ * multiplication (and thus a real startup) works. Sized so an all-rods-in
+ * core sits near ~1e-5 of full-power flux. PRELIMINARY magnitude.
+ */
+export const NEUTRON_SOURCE = 1.0e-3;
+
+/**
  * Inter-node neutronic coupling coefficient [dimensionless reactivity scale,
  * applied as (COUPLING/GEN_TIME) * discrete Laplacian of flux]. Sized so the
  * fundamental-mode leakage reactivity ~ M^2 B^2 ~ 6e-3 for a 7 m graphite

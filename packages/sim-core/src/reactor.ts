@@ -11,6 +11,7 @@ import {
   P_RATED,
   T_FUEL_REF,
   T_GRAPHITE_REF,
+  T_INLET,
   VOID_COEFF,
 } from "./constants";
 import {
@@ -210,6 +211,53 @@ export class Reactor {
   }
 
   /**
+   * Shut-down hot standby: all rods in, fresh (xenon-free) core at inlet
+   * temperature, flux at the intrinsic-source level. From here the reactor
+   * can be STARTED: withdraw AZ first, then RR squads, watch subcritical
+   * multiplication (1/M), reach criticality, and raise power gently.
+   * rhoBase is taken from a reference full-power calibration so the core's
+   * physical worth bookkeeping matches operating conditions.
+   */
+  initShutdown(): void {
+    const s = this.state;
+    // Reference calibration (also produces a physically consistent rhoBase).
+    this.initAtPower(1.0);
+    for (const rod of s.rods) {
+      rod.insertion = 1;
+      rod.target = 1;
+    }
+    for (const node of s.nodes) {
+      node.flux = 1e-6;
+      node.iodine = 0;
+      node.xenon = 0;
+      node.fuelTemp = T_INLET;
+      node.graphiteTemp = T_INLET;
+      node.coolantTemp = T_INLET;
+      node.quality = 0;
+      node.voidFrac = 0;
+    }
+    equilibriumPrecursors(s.nodes);
+    s.decayHeat.groups = [0, 0, 0];
+    s.scrammed = false;
+    this.arEnabled = false;
+    this.arSetpoint = 0;
+    this.arSetpointActive = 0;
+    this.smoothedRate = 0;
+    // Let the flux settle to the true source-multiplication level.
+    this.initializing = true;
+    this.tick(60, 0.1);
+    this.initializing = false;
+    this.smoothedRate = 0;
+    s.time = 0;
+    this.log.info(
+      s.time,
+      "INIT",
+      "shutdown hot standby: all rods in, fresh core, source-level flux",
+      { fluxRel: Number(powerFraction(s.nodes).toExponential(2)) },
+    );
+  }
+
+  /**
    * Find rhoBase so the current configuration is exactly critical:
    * bisection on the growth rate of a kinetics-only trial integration with
    * all feedback state frozen.
@@ -290,6 +338,32 @@ export class Reactor {
         continue;
       }
       rod.target = t;
+    }
+  }
+
+  /**
+   * Manual override of automatic rods: take AR/LAR rods out of (or return
+   * them to) automatic control. While overridden the operator drives them;
+   * on return the regulator reclaims them and drives them back to its bank
+   * target - the classic release-and-reclaim reactivity swing.
+   */
+  setAutoControl(ids: number[], auto: boolean): void {
+    const affected: number[] = [];
+    for (const id of ids) {
+      const rod = this.state.rods[id];
+      if (!rod || (rod.group !== "AR" && rod.group !== "LAR")) continue;
+      if (rod.autoControlled !== auto) affected.push(id);
+      rod.autoControlled = auto;
+      if (!auto) rod.target = rod.insertion;
+    }
+    if (affected.length > 0) {
+      this.log.info(
+        this.state.time,
+        "AR_OVERRIDE",
+        auto
+          ? `rods returned to automatic control (${affected.length})`
+          : `manual override of automatic rods (${affected.length})`,
+      );
     }
   }
 

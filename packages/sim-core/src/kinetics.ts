@@ -5,6 +5,7 @@ import {
   GEN_TIME,
   N_AXIAL,
   N_DELAYED_GROUPS,
+  NEUTRON_SOURCE,
   NODE_COUPLING,
 } from "./constants";
 import type { NodeState } from "./types";
@@ -51,7 +52,9 @@ export function stepKinetics(
       node.precursors[i] = c;
       delayedSource += lam * c;
     }
-    rhs[k] = fluxOld + dt * delayedSource;
+    // The intrinsic source keeps a shut-down core alive: this is what makes
+    // subcritical multiplication (1/M startup) physically emerge.
+    rhs[k] = fluxOld + dt * (delayedSource + NEUTRON_SOURCE);
   }
 
   // Flux: single backward-Euler solve of the coupled prompt + diffusion
