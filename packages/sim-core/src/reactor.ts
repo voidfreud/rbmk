@@ -388,6 +388,15 @@ export class Reactor {
     );
   }
 
+  /**
+   * Current auto-regulator bank target insertion 0..1. Near the ends of its
+   * range the AR is out of authority and the operator should "release" it
+   * by moving manual rods (standard procedure).
+   */
+  arInsertion(): number {
+    return this.arTarget;
+  }
+
   /** Smoothed reactor period [s] (clamped to +-1e6 for display). */
   period(): number {
     const r = this.smoothedRate;

@@ -87,11 +87,16 @@ let manualTarget = 0.45;
 function operatorTrim(): void {
   const err = reactor.arSetpoint - reactor.powerFraction();
   const tol = 0.01 * Math.max(0.1, reactor.arSetpoint);
-  if (err > tol) {
-    manualTarget = Math.max(0.02, manualTarget - 0.015);
-    reactor.setRodTarget("manual", manualTarget);
-  } else if (err < -tol) {
-    manualTarget = Math.min(0.5, manualTarget + 0.015);
+  let move = 0;
+  if (err > tol) move = -0.015;
+  else if (err < -tol) move = 0.03; // insert faster than you withdraw
+  // "Release the AR": when the auto bank nears either end of its range,
+  // shift the load onto the manual bank so the AR regains authority.
+  const ar = reactor.arInsertion();
+  if (ar > 0.85) move = Math.max(move, 0.02);
+  else if (ar < 0.15 && err > 0) move = Math.min(move, -0.02);
+  if (move !== 0) {
+    manualTarget = Math.min(0.85, Math.max(0.02, manualTarget + move));
     reactor.setRodTarget("manual", manualTarget);
   }
 }
@@ -132,7 +137,7 @@ while (reactor.arSetpoint < 1.0 && !reactor.state.scrammed) {
   runFor(240, 60, { operator: true, printEvery: 4 });
 }
 console.log("    ... one hour holding full power, xenon burning off ...");
-runFor(3600, 60, { operator: true, printEvery: 30 });
+runFor(3600, 30, { operator: true, printEvery: 60 });
 console.log(`    manual bank now at insertion ${manualTarget.toFixed(2)} (0.45 at shift start)`);
 
 console.log("\n--- Phase 4: AZ-5 ---");

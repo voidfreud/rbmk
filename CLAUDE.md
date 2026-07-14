@@ -55,7 +55,7 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 ## Roadmap
 
 1. sim-core v0: nodal kinetics + xenon + rods + thermal (DONE, tested)
-2. Constants reconciliation vs literature (docs/physics.md)
+2. Constants reconciliation vs literature (DONE, docs/physics.md)
 3. packages/ui: canvas control room - channel cartogram (SKALA-style),
    axial slice with translucent flux glow, strip-chart recorders, rod
    keypad, AZ-5 under a cover
