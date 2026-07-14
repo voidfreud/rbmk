@@ -75,10 +75,23 @@ sliceCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "
 
 // Recorders with their real working limits drawn in status colors.
 const stripPower = new StripChart(
-  $("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`,
+  $("st-power") as HTMLCanvasElement, "#3987e5",
+  (v) => (v >= 0.1 ? `${v.toFixed(1)}%` : `${v.toExponential(0)}%`),
   360, undefined,
   [{ v: 110, color: "#d03b3b", label: "AZM trip 110%", stretch: true }],
 );
+
+// Power channel scale: auto follows the plant (log below 0.5%, like having
+// both the linear and log channels of the real instrumentation).
+let pwMode: "auto" | "lin" | "log" = "auto";
+for (const m of ["auto", "lin", "log"] as const) {
+  $(`pw-${m}`).onclick = () => {
+    pwMode = m;
+    for (const b of ["auto", "lin", "log"]) {
+      $(`pw-${b}`).classList.toggle("active", b === m);
+    }
+  };
+}
 const stripPeriod = new StripChart(
   $("st-period") as HTMLCanvasElement, "#199e70",
   (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200,
@@ -390,9 +403,13 @@ function snapDisplays(): void {
   disp.periodRate = 0;
 }
 
+/** True after a cold start: the startup checklist tracks live progress. */
+let startupMode = false;
+
 $("init-power").onclick = () => {
   reactor.initAtPower(1.0, { manualInsertion: 0.55 });
   setpoint.value = "100";
+  startupMode = false;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
@@ -401,11 +418,45 @@ $("init-power").onclick = () => {
 $("init-shutdown").onclick = () => {
   reactor.initShutdown();
   setpoint.value = "0";
+  startupMode = true;
+  $<HTMLDetailsElement>("guide").open = true;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
   snapDisplays();
 };
+
+/** Startup checklist: each step checks itself off from the plant's state. */
+function updateChecklist(): void {
+  const rods = reactor.state.rods;
+  const power = reactor.powerFraction();
+  const period = reactor.period();
+  const azOut = rods
+    .filter((r) => r.group === "AZ")
+    .every((r) => r.insertion < 0.05);
+  const rrMean =
+    rods.filter((r) => r.group === "RR").reduce((a, r) => a + r.insertion, 0) /
+    131;
+  const done = [
+    startupMode,
+    startupMode && azOut,
+    startupMode && azOut && rrMean < 0.92,
+    startupMode && ((period > 0 && period < 150) || power > 0.0025),
+    startupMode && reactor.arEnabled && reactor.arSetpoint > 0,
+    startupMode &&
+      reactor.arEnabled &&
+      power > 0.0025 &&
+      Math.abs(power - reactor.activeSetpoint()) < 0.02 * Math.max(0.05, reactor.activeSetpoint()),
+  ];
+  let currentSet = false;
+  for (let i = 0; i < 6; i++) {
+    const li = $(`ck-${i + 1}`);
+    li.classList.toggle("done", done[i]!);
+    const isCurrent = !done[i] && !currentSet && startupMode;
+    if (isCurrent) currentSet = true;
+    li.classList.toggle("current", isCurrent);
+  }
+}
 
 const flow = $<HTMLInputElement>("flow");
 flow.oninput = () => {
@@ -597,6 +648,11 @@ function frame(now: number): void {
 
     // AR imbalance galvanometer ("zaichik"): power minus active setpoint.
     drawImbalance(reactor.powerFraction() - reactor.activeSetpoint());
+
+    // Power-channel scale and the startup checklist.
+    stripPower.logMode =
+      pwMode === "log" || (pwMode === "auto" && disp.power < 0.005);
+    updateChecklist();
     $("setpoint-val").textContent =
       `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
     if (selected.size > 0) updateSelInfo();

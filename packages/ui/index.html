@@ -95,6 +95,10 @@
   #guide { font-size: 12px; color: var(--muted); }
   #guide summary { cursor: pointer; color: var(--ink-2); }
   #guide ol { margin: 6px 0 0 18px; display: flex; flex-direction: column; gap: 2px; }
+  #guide li.done { color: var(--good); }
+  #guide li.done::after { content: " ✓"; }
+  #guide li.current { color: var(--ink); }
+  footer .panel h2 button { padding: 1px 7px; font-size: 10px; }
 
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   button {
@@ -239,13 +243,13 @@
       </div>
       <details id="guide">
         <summary>startup procedure</summary>
-        <ol>
-          <li>cold start — core subcritical, watch the ИСС counts</li>
-          <li>select AZ bank, hold ▲▲ until fully out</li>
-          <li>pull RR rods in squads of ≤5, pausing between squads</li>
-          <li>period alive (&lt;150 s): stop pulling, let power rise</li>
-          <li>engage ARM below 6%; hand to AR above 5%, LAR above 10%</li>
-          <li>set setpoint + gradient; trim with manual rods as needed</li>
+        <ol id="checklist">
+          <li id="ck-1">cold start — core subcritical, watch the ИСС counts</li>
+          <li id="ck-2">select AZ bank, hold ▲▲ until fully out</li>
+          <li id="ck-3">pull RR rods in squads of ≤5, pausing between squads</li>
+          <li id="ck-4">period alive (&lt;150 s): stop pulling, let power rise</li>
+          <li id="ck-5">engage ARM (setpoint &gt; 0) below 6%</li>
+          <li id="ck-6">hand to AR above 5%, LAR above 10%; power at setpoint</li>
         </ol>
         <p style="margin-top:6px"><b style="color:var(--ink-2)">after a scram:</b> reset scram,
         then restart as above — but mind the xenon: for hours after a
@@ -357,7 +361,11 @@
   </section>
 
   <footer>
-    <section class="panel"><h2>Power %</h2><canvas class="strip" id="st-power"></canvas></section>
+    <section class="panel"><h2>Power %
+      <button id="pw-auto" class="active" style="margin-left:6px">auto</button>
+      <button id="pw-lin">lin</button>
+      <button id="pw-log" title="log scale: exponential rise draws a straight line, slope = period">log</button>
+    </h2><canvas class="strip" id="st-power"></canvas></section>
     <section class="panel"><h2>Period s</h2><canvas class="strip" id="st-period"></canvas></section>
     <section class="panel"><h2>Reactivity β</h2><canvas class="strip" id="st-rho"></canvas></section>
     <section class="panel"><h2>Xenon ×eq</h2><canvas class="strip" id="st-xe"></canvas></section>

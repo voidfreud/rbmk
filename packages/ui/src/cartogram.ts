@@ -174,5 +174,9 @@ export function rodCoord(rod: RodState): string {
 
 export function depthLabel(rod: RodState): string {
   const m = (rod.insertion * CORE_HEIGHT).toFixed(2);
-  return `${rodCoord(rod)} ${rod.group} — inserted ${m} m (${Math.round(rod.insertion * 100)}%)`;
+  const moving =
+    Math.abs(rod.target - rod.insertion) > 1e-6
+      ? ` → ${(rod.target * CORE_HEIGHT).toFixed(2)} m`
+      : "";
+  return `${rodCoord(rod)} ${rod.group} — inserted ${m} m${moving} (${Math.round(rod.insertion * 100)}%)`;
 }

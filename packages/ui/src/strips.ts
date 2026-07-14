@@ -15,6 +15,10 @@ export class StripChart {
   private readonly ts: number[] = [];
   private readonly vs: number[] = [];
   private hoverX: number | null = null;
+  /** Log10 y-scale (for the log power channel: exponential rise = straight
+   * line, slope = reactor period). Values are stored raw; this only changes
+   * rendering, so it can be toggled live. */
+  logMode = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -59,24 +63,30 @@ export class StripChart {
     g.clearRect(0, 0, this.w, this.h);
     if (this.vs.length < 2) return;
 
-    let lo = Math.min(...this.vs);
-    let hi = Math.max(...this.vs);
+    // In log mode all y-positions run through log10; data stays raw.
+    const tv = (v: number) => (this.logMode ? Math.log10(Math.max(v, 1e-7)) : v);
+    const inv = (u: number) => (this.logMode ? 10 ** u : u);
+
+    let lo = Math.min(...this.vs.map(tv));
+    let hi = Math.max(...this.vs.map(tv));
     if (hi - lo < 1e-9) {
       hi += 1;
       lo -= 1;
     }
     // Stretch the domain to reveal a threshold once data approaches it.
-    for (const ref of this.refLines) {
-      if (!ref.stretch) continue;
-      if (ref.v > 0 && hi > ref.v * 0.55) hi = Math.max(hi, ref.v * 1.06);
-      if (ref.v < 0 && lo < ref.v * 0.55) lo = Math.min(lo, ref.v * 1.06);
+    if (!this.logMode) {
+      for (const ref of this.refLines) {
+        if (!ref.stretch) continue;
+        if (ref.v > 0 && hi > ref.v * 0.55) hi = Math.max(hi, ref.v * 1.06);
+        if (ref.v < 0 && lo < ref.v * 0.55) lo = Math.min(lo, ref.v * 1.06);
+      }
     }
     const pad = (hi - lo) * 0.12;
     lo -= pad;
     hi += pad;
 
     const x = (i: number) => (i / (this.windowSamples - 1)) * this.w;
-    const y = (v: number) => this.h - ((v - lo) / (hi - lo)) * (this.h - 18) - 4;
+    const y = (v: number) => this.h - ((tv(v) - lo) / (hi - lo)) * (this.h - 18) - 4;
     const i0 = this.windowSamples - this.vs.length;
 
     // Hairline gridlines at min/mid/max.
@@ -85,18 +95,18 @@ export class StripChart {
     g.font = "10px system-ui, sans-serif";
     g.textBaseline = "middle";
     g.textAlign = "left";
-    for (const v of [lo + pad, (lo + hi) / 2, hi - pad]) {
-      const yy = y(v);
+    for (const u of [lo + pad, (lo + hi) / 2, hi - pad]) {
+      const yy = this.h - ((u - lo) / (hi - lo)) * (this.h - 18) - 4;
       g.beginPath();
       g.moveTo(0, yy);
       g.lineTo(this.w, yy);
       g.stroke();
       g.fillStyle = "#898781";
-      g.fillText(this.fmt(v), 3, yy - 6);
+      g.fillText(this.fmt(inv(u)), 3, yy - 6);
     }
 
-    // Zero line if in range (for reactivity).
-    if (lo < 0 && hi > 0) {
+    // Zero line if in range (for reactivity; meaningless on a log scale).
+    if (!this.logMode && lo < 0 && hi > 0) {
       g.strokeStyle = "#383835";
       g.beginPath();
       g.moveTo(0, y(0));
@@ -106,7 +116,7 @@ export class StripChart {
 
     // Threshold lines (trip / working limits), dashed in status colors.
     for (const ref of this.refLines) {
-      if (ref.v <= lo || ref.v >= hi) continue;
+      if (tv(ref.v) <= lo || tv(ref.v) >= hi) continue;
       const yy = y(ref.v);
       g.strokeStyle = ref.color;
       g.lineWidth = 1;
