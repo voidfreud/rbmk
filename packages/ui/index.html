@@ -30,7 +30,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 1560px;
+    min-width: 1700px;
   }
   .num { font-variant-numeric: tabular-nums; }
 
@@ -65,8 +65,16 @@
   canvas { display: block; }
 
   #col-map { flex: 0 0 auto; }
-  #col-slice { flex: 0 0 auto; }
-  #col-ctl { flex: 1; min-width: 300px; overflow: auto; }
+  #col-field { flex: 0 0 auto; }
+  #col-slice { flex: 1; }
+
+  /* The operator desk: full-width control panel between maps and charts. */
+  #desk { display: flex; gap: 10px; align-items: stretch; }
+  #desk .panel { flex: 1; }
+  #desk-rods { flex: 1.5; }
+  #guide { font-size: 12px; color: var(--muted); }
+  #guide summary { cursor: pointer; color: var(--ink-2); }
+  #guide ol { margin: 6px 0 0 18px; display: flex; flex-direction: column; gap: 2px; }
 
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   button {
@@ -152,7 +160,7 @@
   <main>
     <section class="panel" id="col-map">
       <h2>Core map — rod depths (click to select, drag to multi-select)</h2>
-      <canvas id="cartogram" width="560" height="560"></canvas>
+      <canvas id="cartogram" width="640" height="640"></canvas>
       <div class="legend" id="map-legend">
         <span><span class="sw" style="background:#5598e7"></span>fill level = absorber depth in the 7 m channel</span>
         <span><span class="sw" style="border:1.5px solid #199e70; background:none"></span>AR</span>
@@ -168,7 +176,7 @@
         <button id="view-power" class="active" style="margin-left:8px">power</button>
         <button id="view-temp">temp</button>
       </h2>
-      <canvas id="channelmap" width="380" height="380"></canvas>
+      <canvas id="channelmap" width="440" height="440"></canvas>
       <div class="legend">
         <span><span class="sw" style="background:#d95926"></span>channel power</span>
         <span><span class="sw" style="background:#c98500"></span>fuel temp</span>
@@ -187,8 +195,42 @@
       </div>
     </section>
 
-    <section class="panel" id="col-ctl">
-      <h2>Rod control</h2>
+  </main>
+
+  <section id="desk">
+    <div class="panel" id="desk-plant">
+      <h2>1 · Plant</h2>
+      <div class="row">
+        <button id="init-power" title="initialize steady at 100% rated">start at power</button>
+        <button id="init-shutdown" title="all rods in, fresh core, source-level flux">cold start</button>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted)">time</span>
+        <button data-speed="0">pause</button>
+        <button data-speed="1" class="active">1×</button>
+        <button data-speed="10">10×</button>
+        <button data-speed="60">60×</button>
+      </div>
+      <details id="guide">
+        <summary>startup procedure</summary>
+        <ol>
+          <li>cold start — core subcritical, watch the ИСС counts</li>
+          <li>select AZ bank, hold ▲▲ until fully out</li>
+          <li>pull RR rods in squads of ≤5, pausing between squads</li>
+          <li>period alive (&lt;150 s): stop pulling, let power rise</li>
+          <li>engage ARM below 6%; hand to AR above 5%, LAR above 10%</li>
+          <li>set setpoint + gradient; trim with manual rods as needed</li>
+        </ol>
+      </details>
+      <div class="row">
+        <span style="color:var(--muted)">pumps · flow</span>
+        <input type="range" id="flow" min="30" max="120" value="100" step="1" />
+        <span class="readout num" id="flow-val">100%</span>
+      </div>
+    </div>
+
+    <div class="panel" id="desk-rods">
+      <h2>2 · Rod selection &amp; drive</h2>
       <div class="row">
         <button id="sel-manual">RR manual</button>
         <button id="sel-auto">AR</button>
@@ -200,35 +242,36 @@
       <div class="row">
         <span id="sel-info" class="num" style="color:var(--ink)">no rods selected</span>
       </div>
-      <div id="sel-rows"></div>
       <div class="row">
         <button id="rod-out" title="hold: drive out continuously at 0.4 m/s">▲▲ hold to withdraw</button>
         <button id="rod-in" title="hold: drive in continuously at 0.4 m/s">▼▼ hold to insert</button>
-      </div>
-      <div class="row">
         <button id="rod-step-out" title="one 35 cm pulse out">▲ step</button>
         <button id="rod-step-in" title="one 35 cm pulse in">▼ step</button>
-        <button id="rod-stop">stop</button>
-        <button id="rod-stop-all">stop all</button>
       </div>
       <div class="row">
+        <button id="rod-stop">stop</button>
+        <button id="rod-stop-all">stop all</button>
         <button id="rod-override" title="take selected AR/LAR rods out of automatic control">override auto</button>
-        <button id="rod-return" title="return selected AR/LAR rods to the regulator (it will reclaim them)">return to auto</button>
+        <button id="rod-return" title="return them to the regulator (it will reclaim them)">return to auto</button>
       </div>
-      <div class="divider"></div>
+      <div id="sel-rows"></div>
+    </div>
 
-      <h2>Automatic regulation</h2>
+    <div class="panel" id="desk-auto">
+      <h2>3 · Automatic regulation</h2>
       <div class="row">
         <button id="ar-toggle" class="active">engaged</button>
         <button id="ar-mode-arm" title="low-power regulator, 0.25-6% band">ARM</button>
         <button id="ar-mode-ar" class="active" title="main range, 5-105%, side chambers">AR</button>
-        <button id="ar-mode-lar" title="local (in-core chambers), 10-100% - BLIND below 10%">LAR</button>
-        <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
+        <button id="ar-mode-lar" title="local (in-core), 10-100% - BLIND below 10%">LAR</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">active group</span>
+        <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
+        <span style="color:var(--muted); margin-left:6px">active</span>
         <span class="readout num" id="ar-active">AR-1</span>
-        <span style="color:var(--muted); margin-left:8px">subgroup auto:</span>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted)">subgroup auto:</span>
         <button id="ar-sw-1" class="active">AR-1</button>
         <button id="ar-sw-2" class="active">AR-2</button>
         <button id="ar-sw-3" class="active">AR-3</button>
@@ -243,44 +286,24 @@
         <input type="range" id="gradient" min="1" max="35" value="3" step="1" />
         <span class="readout num" id="gradient-val">0.03%/s</span>
       </div>
-      <div class="divider"></div>
+    </div>
 
-      <h2>Protection (RPS)</h2>
+    <div class="panel" id="desk-protection">
+      <h2>4 · Protection (RPS)</h2>
       <div class="row">
         <button id="rps-azm" class="active">AZM overpower</button>
         <button id="rps-azs" class="active">AZS period</button>
+      </div>
+      <div class="row">
         <button id="az1">AZ-1 setback</button>
-      </div>
-      <div class="divider"></div>
-
-      <h2>Main circulation pumps</h2>
-      <div class="row">
-        <span style="color:var(--muted)">flow</span>
-        <input type="range" id="flow" min="30" max="120" value="100" step="1" />
-        <span class="readout num" id="flow-val">100%</span>
-      </div>
-      <div class="divider"></div>
-
-      <h2>Simulation</h2>
-      <div class="row">
-        <button data-speed="0">pause</button>
-        <button data-speed="1" class="active">1×</button>
-        <button data-speed="10">10×</button>
-        <button data-speed="60">60×</button>
         <button id="scram-reset">reset scram</button>
       </div>
-      <div class="row">
-        <button id="init-power" title="initialize steady at 100% rated">start at power</button>
-        <button id="init-shutdown" title="all rods in, fresh core, source-level flux: start it yourself (AZ bank out first, then RR in small squads - never yank a whole bank)">cold start</button>
-      </div>
-      <div class="divider"></div>
-
       <div id="az5-wrap">
         <button id="az5" disabled>AZ-5</button>
         <div id="az5-cover">SAFETY COVER</div>
       </div>
-    </section>
-  </main>
+    </div>
+  </section>
 
   <footer>
     <section class="panel"><h2>Power %</h2><canvas class="strip" id="st-power"></canvas></section>
