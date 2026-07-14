@@ -138,6 +138,7 @@
     <div class="tile brand">
       <div class="value">RBMK-1000 · UNIT 4</div>
       <div class="sub num" id="i-time">t = 00:00:00</div>
+      <div class="sub" id="i-state" style="color:var(--warning)">—</div>
     </div>
     <div class="tile"><div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div></div>
     <div class="tile"><div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub">doubling ~T·0.7</div></div>
@@ -198,11 +199,18 @@
       </div>
       <div id="sel-rows"></div>
       <div class="row">
-        <button id="rod-out">▲ withdraw</button>
-        <button id="rod-in">▼ insert</button>
+        <button id="rod-out" title="hold: drive out continuously at 0.4 m/s">▲▲ hold to withdraw</button>
+        <button id="rod-in" title="hold: drive in continuously at 0.4 m/s">▼▼ hold to insert</button>
+      </div>
+      <div class="row">
+        <button id="rod-step-out" title="one 35 cm pulse out">▲ step</button>
+        <button id="rod-step-in" title="one 35 cm pulse in">▼ step</button>
         <button id="rod-stop">stop</button>
         <button id="rod-stop-all">stop all</button>
-        <span style="color:var(--muted)">step 35 cm</span>
+      </div>
+      <div class="row">
+        <button id="rod-override" title="take selected AR/LAR rods out of automatic control">override auto</button>
+        <button id="rod-return" title="return selected AR/LAR rods to the regulator (it will reclaim them)">return to auto</button>
       </div>
       <div class="divider"></div>
 
@@ -225,6 +233,11 @@
         <span style="color:var(--muted)">setpoint</span>
         <input type="range" id="setpoint" min="0" max="110" value="100" step="1" />
         <span class="readout num" id="setpoint-val">100%</span>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted)">gradient</span>
+        <input type="range" id="gradient" min="1" max="35" value="3" step="1" />
+        <span class="readout num" id="gradient-val">0.03%/s</span>
       </div>
       <div class="divider"></div>
 
@@ -251,6 +264,10 @@
         <button data-speed="10">10×</button>
         <button data-speed="60">60×</button>
         <button id="scram-reset">reset scram</button>
+      </div>
+      <div class="row">
+        <button id="init-power" title="initialize steady at 100% rated">start at power</button>
+        <button id="init-shutdown" title="all rods in, fresh core, source-level flux: start it yourself (AZ bank out first, then RR in small squads - never yank a whole bank)">cold start</button>
       </div>
       <div class="divider"></div>
 

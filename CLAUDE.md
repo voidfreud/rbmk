@@ -65,10 +65,11 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 
 1. sim-core v0: nodal kinetics + xenon + rods + thermal (DONE, tested)
 2. Constants reconciliation vs literature (DONE, docs/physics.md)
-3. packages/ui: canvas control room (DONE v0: rod cartogram with per-rod
-   selection/drive, axial slice with flux glow + true rod-bank geometry,
-   strip charts, AR panel, AZ-5 under cover, event log; `bun run ui`,
-   port 3141)
+3. packages/ui: canvas control room (DONE v0+: per-rod selsyn depth cells,
+   channel field, axial slice, strip charts, lever-style rod drive
+   (hold = 0.4 m/s, release = stop) + pulse steps, AR panel with
+   subgroups/gradient/override, protection panel, cold start + start at
+   power, plant-state annunciator; `bun run ui`, port 3141)
 4. Radial dimension (2D nodal mesh) for spatial xenon oscillations
 5. packages/sim-plant: hydraulic loops, pumps, drum separators, turbine
 6. Grid/electrical side

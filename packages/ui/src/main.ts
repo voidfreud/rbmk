@@ -178,8 +178,9 @@ function rebuildSelRows(): void {
     up.textContent = "▲";
     const down = document.createElement("button");
     down.textContent = "▼";
-    repeatWhileHeld(up, () => reactor.setRodTarget(id, reactor.state.rods[id]!.target - STEP));
-    repeatWhileHeld(down, () => reactor.setRodTarget(id, reactor.state.rods[id]!.target + STEP));
+    const stopRod = () => reactor.setRodTarget(id, reactor.state.rods[id]!.insertion);
+    lever(up, () => reactor.setRodTarget(id, 0), stopRod);
+    lever(down, () => reactor.setRodTarget(id, 1), stopRod);
     row.append(up, down);
     wrap.append(row);
   }
@@ -210,35 +211,33 @@ function updateSelInfo(): void {
 }
 
 const STEP = 0.05; // 35 cm
-function driveSelected(delta: number | "stop"): void {
+
+/** Drive command for the selection: continuous lever, pulse step, or stop. */
+function driveSelected(cmd: "out" | "in" | "stop" | number): void {
   for (const id of selected) {
     const rod = reactor.state.rods[id]!;
-    if (delta === "stop") {
-      reactor.setRodTarget(id, rod.insertion);
-    } else {
-      reactor.setRodTarget(id, rod.target + delta);
-    }
+    if (cmd === "stop") reactor.setRodTarget(id, rod.insertion);
+    else if (cmd === "out") reactor.setRodTarget(id, 0);
+    else if (cmd === "in") reactor.setRodTarget(id, 1);
+    else reactor.setRodTarget(id, rod.target + cmd);
   }
 }
-function repeatWhileHeld(el: HTMLElement, fn: () => void): void {
-  let timer: ReturnType<typeof setInterval> | null = null;
-  el.addEventListener("mousedown", () => {
-    fn();
-    timer = setInterval(fn, 180);
-  });
-  for (const ev of ["mouseup", "mouseleave"]) {
-    el.addEventListener(ev, () => {
-      if (timer) clearInterval(timer);
-      timer = null;
-    });
-  }
+
+/** Real lever feel: hold = rods drive at 0.4 m/s, release = they stop. */
+function lever(el: HTMLElement, drive: () => void, release: () => void): void {
+  el.addEventListener("mousedown", drive);
+  for (const ev of ["mouseup", "mouseleave"]) el.addEventListener(ev, release);
 }
-repeatWhileHeld($("rod-out"), () => driveSelected(-STEP));
-repeatWhileHeld($("rod-in"), () => driveSelected(+STEP));
+lever($("rod-out"), () => driveSelected("out"), () => driveSelected("stop"));
+lever($("rod-in"), () => driveSelected("in"), () => driveSelected("stop"));
+$("rod-step-out").onclick = () => driveSelected(-STEP);
+$("rod-step-in").onclick = () => driveSelected(+STEP);
 $("rod-stop").onclick = () => driveSelected("stop");
 $("rod-stop-all").onclick = () => {
   for (const rod of reactor.state.rods) reactor.setRodTarget(rod.id, rod.insertion);
 };
+$("rod-override").onclick = () => reactor.setAutoControl([...selected], false);
+$("rod-return").onclick = () => reactor.setAutoControl([...selected], true);
 
 // ---------------------------------------------------------------------------
 // AR, setpoint, flow, speed, AZ-5
@@ -289,6 +288,41 @@ const setpoint = $<HTMLInputElement>("setpoint");
 setpoint.oninput = () => {
   reactor.arSetpoint = Number(setpoint.value) / 100;
   $("setpoint-val").textContent = `${setpoint.value}%`;
+};
+
+const gradient = $<HTMLInputElement>("gradient");
+gradient.oninput = () => {
+  // Slider is in hundredths of %/s: 1..35 -> 0.01..0.35 %/s.
+  reactor.arGradient = Number(gradient.value) / 10000;
+  $("gradient-val").textContent = `${(Number(gradient.value) / 100).toFixed(2)}%/s`;
+};
+
+/** Snap damped instrument displays to the actual state (used on re-init). */
+function snapDisplays(): void {
+  disp.power = reactor.powerFraction();
+  disp.rho = reactor.reactivityDollars();
+  disp.xe =
+    reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
+  disp.voidAvg =
+    reactor.state.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
+  disp.periodRate = 0;
+}
+
+$("init-power").onclick = () => {
+  reactor.initAtPower(1.0, { manualInsertion: 0.55 });
+  setpoint.value = "100";
+  selected.clear();
+  rebuildSelRows();
+  updateSelInfo();
+  snapDisplays();
+};
+$("init-shutdown").onclick = () => {
+  reactor.initShutdown();
+  setpoint.value = "0";
+  selected.clear();
+  rebuildSelRows();
+  updateSelInfo();
+  snapDisplays();
 };
 
 const flow = $<HTMLInputElement>("flow");
@@ -374,7 +408,19 @@ function frame(now: number): void {
   if (now >= nextDomUpdate) {
     nextDomUpdate = now + 200;
     $("i-time").textContent = `t = ${hms(t)}`;
-    $("i-power").textContent = `${(disp.power * 100).toFixed(1)}%`;
+    // Auto-ranging power display: percent at power, exponential in the
+    // source/startup range where "0.0%" would hide everything.
+    const pw = disp.power * 100;
+    $("i-power").textContent =
+      pw >= 0.1 ? `${pw.toFixed(1)}%` : `${pw.toExponential(1)}%`;
+    // Plant state annunciator.
+    const period = reactor.period();
+    let stateTxt: string;
+    if (reactor.state.scrammed) stateTxt = "SCRAMMED";
+    else if (disp.power > 0.05) stateTxt = "POWER OPERATION";
+    else if (period > 0 && period < 500) stateTxt = "SUPERCRITICAL - RISING";
+    else stateTxt = "SUBCRITICAL";
+    $("i-state").textContent = stateTxt;
     $("i-mw").textContent = `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
     $("i-period").textContent = periodText();
     $("i-rho").textContent = `${disp.rho.toFixed(2)} $`;
