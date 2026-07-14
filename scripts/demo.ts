@@ -72,7 +72,7 @@ function sample(note = ""): void {
   appendFileSync(logPath, JSON.stringify(row) + "\n");
   console.log(
     `${hms(s.time)}  P=${(p * 100).toFixed(1).padStart(5)}%  ` +
-      `T=${periodStr}s  rho=${reactor.reactivityBeta().toFixed(2).padStart(6)}$  ` +
+      `T=${periodStr}s  rho=${reactor.reactivityBeta().toFixed(2).padStart(6)}b  ` +
       `Xe=${xe.toFixed(2)}  void=${voidAvg.toFixed(2)}  |${fluxBar()}| ${note}`,
   );
 }
@@ -166,4 +166,4 @@ const xePeakRel =
   reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ_FULL;
 console.log(`Xenon at ${xePeakRel.toFixed(2)}x full-power equilibrium and climbing.`);
 console.log(`\nEvents and samples written to logs/run.jsonl`);
-console.log(`beta_eff = ${BETA_EFF}, all reactivity in dollars of that.`);
+console.log(`beta_eff = ${BETA_EFF}, all reactivity in units of beta.`);
