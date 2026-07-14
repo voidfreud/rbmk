@@ -307,12 +307,21 @@ function updateSelInfo(): void {
   if (selected.size === 0) {
     info.textContent = "no rods selected";
   } else if (selected.size === 1) {
-    const rod = reactor.state.rods[[...selected][0]!]!;
-    info.textContent = depthLabel(rod);
+    const id = [...selected][0]!;
+    const rod = reactor.state.rods[id]!;
+    const w = reactor.rodWorthBeta(id);
+    const worth = w ? ` · worth ↑+${w.toOut.toFixed(2)}β` : "";
+    info.textContent = depthLabel(rod) + worth;
   } else {
+    // The ORM arithmetic in hand: total worth if this selection pulled out.
     const rods = [...selected].map((id) => reactor.state.rods[id]!);
     const avg = rods.reduce((a, r) => a + r.insertion, 0) / rods.length;
-    info.textContent = `${rods.length} rods — mean insertion ${(avg * 7).toFixed(2)} m`;
+    let pull = 0;
+    if (rods.length <= 30) {
+      for (const r of rods) pull += reactor.rodWorthBeta(r.id)?.toOut ?? 0;
+    }
+    const pullTxt = rods.length <= 30 ? ` · pull-worth +${pull.toFixed(2)}β` : "";
+    info.textContent = `${rods.length} rods — mean insertion ${(avg * 7).toFixed(2)} m${pullTxt}`;
   }
   refreshSelRows();
 }
