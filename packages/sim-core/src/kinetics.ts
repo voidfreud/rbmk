@@ -7,6 +7,8 @@ import {
   N_DELAYED_GROUPS,
   NEUTRON_SOURCE,
   NODE_COUPLING,
+  PHOTO_BETA,
+  PHOTO_LAMBDA,
 } from "./constants";
 import type { NodeState } from "./types";
 
@@ -30,6 +32,8 @@ const W = NODE_COUPLING / GEN_TIME;
 export interface FluxNode {
   flux: number;
   precursors: number[];
+  /** Optional: photoneutron groups (trial copies may omit them). */
+  photoneutrons?: number[];
 }
 
 export function stepKinetics(
@@ -52,6 +56,20 @@ export function stepKinetics(
       node.precursors[i] = c;
       delayedSource += lam * c;
     }
+    // Photoneutron groups: negligible at power, but the slow group keeps a
+    // recently-operated core bright for hours after shutdown.
+    if (node.photoneutrons) {
+      for (let i = 0; i < PHOTO_BETA.length; i++) {
+        const lam = PHOTO_LAMBDA[i]!;
+        const beta = PHOTO_BETA[i]!;
+        const p =
+          (node.photoneutrons[i]! + (dt * beta * fluxOld) / GEN_TIME) /
+          (1 + dt * lam);
+        node.photoneutrons[i] = p;
+        delayedSource += lam * p;
+      }
+    }
+
     // The intrinsic source keeps a shut-down core alive: this is what makes
     // subcritical multiplication (1/M startup) physically emerge.
     rhs[k] = fluxOld + dt * (delayedSource + NEUTRON_SOURCE);
@@ -87,6 +105,10 @@ export function equilibriumPrecursors(nodes: NodeState[]): void {
     for (let i = 0; i < N_DELAYED_GROUPS; i++) {
       node.precursors[i] =
         (DELAYED_BETA[i]! * node.flux) / (GEN_TIME * DELAYED_LAMBDA[i]!);
+    }
+    for (let i = 0; i < PHOTO_BETA.length; i++) {
+      node.photoneutrons[i] =
+        (PHOTO_BETA[i]! * node.flux) / (GEN_TIME * PHOTO_LAMBDA[i]!);
     }
   }
 }

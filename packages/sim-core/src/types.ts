@@ -6,6 +6,8 @@ export interface NodeState {
   flux: number;
   /** Delayed neutron precursor concentrations, one per group (scaled units). */
   precursors: number[];
+  /** Photoneutron precursor groups (scaled units; see PHOTO_BETA). */
+  photoneutrons: number[];
   /** I-135 number density [atoms/cm^3]. */
   iodine: number;
   /** Xe-135 number density [atoms/cm^3]. */
@@ -103,6 +105,7 @@ export function zeroNode(): NodeState {
   return {
     flux: 0,
     precursors: new Array(N_DELAYED_GROUPS).fill(0),
+    photoneutrons: [0, 0],
     iodine: 0,
     xenon: 0,
     fuelTemp: 270,

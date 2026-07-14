@@ -41,6 +41,25 @@ describe("shutdown state and startup", () => {
     expect(moved).toBeLessThan(10);
   });
 
+  test("a warm restart is brighter than a cold start (photoneutrons)", () => {
+    const cold = new Reactor();
+    cold.initShutdown();
+    const coldFlux = cold.powerFraction();
+
+    const warm = new Reactor();
+    warm.initAtPower(1.0);
+    warm.scram("test");
+    warm.tick(1800, 0.1); // 30 minutes after shutdown
+    const warmFlux = warm.powerFraction();
+
+    // The recently-operated core sits well above the source floor...
+    expect(warmFlux).toBeGreaterThan(coldFlux * 1.5);
+    expect(warmFlux).toBeLessThan(1e-3);
+    // ...and keeps decaying as the slow photoneutron group dies away.
+    warm.tick(3600, 0.1);
+    expect(warm.powerFraction()).toBeLessThan(warmFlux);
+  });
+
   test("a disciplined squad-by-squad startup reaches criticality without tripping", () => {
     const r = new Reactor();
     r.initShutdown();

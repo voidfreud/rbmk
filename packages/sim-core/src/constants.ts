@@ -234,6 +234,17 @@ export const DECAY_FRACTION_TOTAL = DECAY_HEAT_FRACTIONS.reduce(
 export const NEUTRON_SOURCE = 1.0e-3;
 
 /**
+ * Photoneutron precursors: fission-product gammas make (gamma,n) neutrons on
+ * the trace deuterium in light water. Tiny at power, but the slow group keeps
+ * a recently-operated core "lit" for hours - a warm restart reads far
+ * brighter on the ISS than a cold start. Two-group approximation (Baumann
+ * 11-group structure collapsed; light-water effectiveness ~1e-4, ESTIMATED
+ * magnitudes tuned to give post-scram subcritical flux ~5e-5 at 30 min).
+ */
+export const PHOTO_BETA: readonly number[] = [1.0e-5, 5.0e-6];
+export const PHOTO_LAMBDA: readonly number[] = [0.012, 4.0e-5];
+
+/**
  * Inter-node neutronic coupling coefficient [dimensionless reactivity scale,
  * applied as (COUPLING/GEN_TIME) * discrete Laplacian of flux]. Sized so the
  * fundamental-mode leakage reactivity ~ M^2 B^2 ~ 6e-3 for a 7 m graphite
