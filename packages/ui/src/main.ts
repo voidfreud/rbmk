@@ -58,9 +58,25 @@ fieldCanvas.addEventListener("mousemove", (e) => {
 });
 fieldCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
 
-const stripPower = new StripChart($("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`);
-const stripPeriod = new StripChart($("st-period") as HTMLCanvasElement, "#199e70", (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200);
-const stripRho = new StripChart($("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}β`, 360, 25);
+// Recorders with their real working limits drawn in status colors.
+const stripPower = new StripChart(
+  $("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`,
+  360, undefined,
+  [{ v: 110, color: "#d03b3b", label: "AZM trip 110%", stretch: true }],
+);
+const stripPeriod = new StripChart(
+  $("st-period") as HTMLCanvasElement, "#199e70",
+  (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200,
+  [
+    { v: 10, color: "#d03b3b", label: "AZS trip 10 s" },
+    { v: 60, color: "#fab219", label: "withdrawal block 60 s" },
+  ],
+);
+const stripRho = new StripChart(
+  $("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}β`,
+  360, 25,
+  [{ v: 1, color: "#d03b3b", label: "prompt critical +1β", stretch: true }],
+);
 const stripXe = new StripChart($("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`);
 
 // ---------------------------------------------------------------------------
@@ -75,6 +91,19 @@ reactor.log.addSink((e) => {
   alarmList.prepend(li);
   while (alarmList.children.length > 200) alarmList.lastChild?.remove();
 });
+
+// Annunciator memory: transient events light their lamp for a hold time.
+const lampT = { sil: -Infinity, chg: -Infinity, lar: -Infinity };
+reactor.log.addSink((e) => {
+  if (e.code === "SIL_BLOK") lampT.sil = e.t;
+  else if (e.code === "AR_CHANGEOVER") lampT.chg = e.t;
+  else if (e.code === "LAR_DROPOUT") lampT.lar = e.t;
+});
+
+function setLamp(id: string, state: "" | "ok" | "warn" | "alarm"): void {
+  const el = $(id);
+  el.className = `lamp${state ? ` ${state}` : ""}`;
+}
 
 // Bring the plant to power AFTER the log sink is attached so INIT shows up.
 reactor.initAtPower(1.0, { manualInsertion: 0.55 });
@@ -373,6 +402,45 @@ $("scram-reset").onclick = () => reactor.resetScram();
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
+// AR imbalance galvanometer: +-5% scale, needle at (power - setpoint).
+const imbCanvas = $<HTMLCanvasElement>("imbalance");
+const imbCtx = imbCanvas.getContext("2d")!;
+{
+  const dpr = window.devicePixelRatio || 1;
+  imbCanvas.style.width = `${imbCanvas.width}px`;
+  imbCanvas.style.height = `${imbCanvas.height}px`;
+  imbCanvas.width *= dpr;
+  imbCanvas.height *= dpr;
+  imbCtx.scale(dpr, dpr);
+}
+function drawImbalance(err: number): void {
+  const w = 230;
+  const h = 40;
+  const g = imbCtx;
+  g.clearRect(0, 0, w, h);
+  g.strokeStyle = "#2c2c2a";
+  g.lineWidth = 1;
+  g.font = "9px system-ui, sans-serif";
+  g.fillStyle = "#898781";
+  g.textAlign = "center";
+  for (const pct of [-5, -2.5, 0, 2.5, 5]) {
+    const x = w / 2 + (pct / 5) * (w / 2 - 14);
+    g.beginPath();
+    g.moveTo(x, 8);
+    g.lineTo(x, h - 14);
+    g.stroke();
+    g.fillText(pct === 0 ? "0" : `${pct > 0 ? "+" : ""}${pct}`, x, h - 3);
+  }
+  const clamped = Math.max(-0.05, Math.min(0.05, err));
+  const nx = w / 2 + (clamped / 0.05) * (w / 2 - 14);
+  g.strokeStyle = Math.abs(err) > 0.02 ? "#fab219" : "#199e70";
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(nx, 4);
+  g.lineTo(nx, h - 12);
+  g.stroke();
+}
+
 let lastWall = performance.now();
 let nextSample = 0;
 let nextDomUpdate = 0;
@@ -468,6 +536,28 @@ function frame(now: number): void {
     // The regulator can disengage itself (LAR dropout) - reflect it.
     arToggle.classList.toggle("active", reactor.arEnabled);
     arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
+
+    // Plant thermal readouts.
+    const nodes = reactor.state.nodes;
+    $("p-tf").textContent = `${Math.round(Math.max(...nodes.map((n) => n.fuelTemp)))}°C`;
+    $("p-tg").textContent = `${Math.round(nodes.reduce((a, n) => a + n.graphiteTemp, 0) / N_AXIAL)}°C`;
+    $("p-x").textContent = `${(Math.max(...nodes.map((n) => n.quality)) * 100).toFixed(1)}%`;
+    $("p-dh").textContent = `${(reactor.state.decayHeat.groups.reduce((a, b) => a + b, 0) / 1e6).toFixed(0)} MW`;
+
+    // Annunciators.
+    setLamp("an-scram", reactor.state.scrammed ? "alarm" : "");
+    setLamp("an-azm", reactor.protection.overpower ? "ok" : "warn");
+    setLamp("an-azs", reactor.protection.period ? "ok" : "warn");
+    $("an-azm").lastChild!.textContent = reactor.protection.overpower ? "AZM armed" : "AZM BLOCKED";
+    $("an-azs").lastChild!.textContent = reactor.protection.period ? "AZS armed" : "AZS BLOCKED";
+    setLamp("an-period", period > 0 && period < 60 ? "warn" : "");
+    setLamp("an-silblok", t - lampT.sil < 15 ? "alarm" : "");
+    setLamp("an-chg", t - lampT.chg < 15 ? "warn" : "");
+    setLamp("an-lar", lampT.lar > 0 && !reactor.arEnabled ? "alarm" : "");
+    setLamp("an-orm", reactor.prizma().orm < 15 && disp.power > 0.1 ? "warn" : "");
+
+    // AR imbalance galvanometer ("zaichik"): power minus active setpoint.
+    drawImbalance(reactor.powerFraction() - reactor.activeSetpoint());
     $("setpoint-val").textContent =
       `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
     if (selected.size > 0) updateSelInfo();

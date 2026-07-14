@@ -1,3 +1,12 @@
+/** A reference threshold drawn on the recorder (trip/warning levels). */
+export interface RefLine {
+  v: number;
+  color: string;
+  label: string;
+  /** Pull the y-domain out to show this line once data comes near it. */
+  stretch?: boolean;
+}
+
 /** Rolling strip-chart recorder: one series, crosshair + tooltip on hover. */
 export class StripChart {
   private readonly ctx: CanvasRenderingContext2D;
@@ -13,6 +22,7 @@ export class StripChart {
     private readonly fmt: (v: number) => string,
     private readonly windowSamples = 360,
     private readonly clampAbs?: number,
+    private readonly refLines: RefLine[] = [],
   ) {
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.parentElement!.getBoundingClientRect();
@@ -55,6 +65,12 @@ export class StripChart {
       hi += 1;
       lo -= 1;
     }
+    // Stretch the domain to reveal a threshold once data approaches it.
+    for (const ref of this.refLines) {
+      if (!ref.stretch) continue;
+      if (ref.v > 0 && hi > ref.v * 0.55) hi = Math.max(hi, ref.v * 1.06);
+      if (ref.v < 0 && lo < ref.v * 0.55) lo = Math.min(lo, ref.v * 1.06);
+    }
     const pad = (hi - lo) * 0.12;
     lo -= pad;
     hi += pad;
@@ -86,6 +102,25 @@ export class StripChart {
       g.moveTo(0, y(0));
       g.lineTo(this.w, y(0));
       g.stroke();
+    }
+
+    // Threshold lines (trip / working limits), dashed in status colors.
+    for (const ref of this.refLines) {
+      if (ref.v <= lo || ref.v >= hi) continue;
+      const yy = y(ref.v);
+      g.strokeStyle = ref.color;
+      g.lineWidth = 1;
+      g.setLineDash([5, 4]);
+      g.beginPath();
+      g.moveTo(0, yy);
+      g.lineTo(this.w, yy);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = ref.color;
+      g.font = "9px system-ui, sans-serif";
+      g.textAlign = "right";
+      g.textBaseline = "bottom";
+      g.fillText(ref.label, this.w - 3, yy - 1);
     }
 
     // Series.
