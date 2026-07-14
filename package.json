@@ -1,0 +1,9 @@
+{
+  "name": "rbmk",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "test": "bun test",
+    "demo": "bun run scripts/demo.ts"
+  }
+}
