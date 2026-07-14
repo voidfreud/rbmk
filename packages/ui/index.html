@@ -155,7 +155,7 @@
       <div class="legend" id="map-legend">
         <span><span class="sw" style="background:#86b6ef"></span>inserted</span>
         <span><span class="sw" style="background:#184f95"></span>withdrawn</span>
-        <span>A auto</span><span>E emergency</span><span>S shortened</span>
+        <span>A AR</span><span>L LAR</span><span>Z AZ</span><span>S USP (from below)</span>
         <span style="color:#fff">□ selected</span>
       </div>
     </section>
@@ -187,10 +187,11 @@
     <section class="panel" id="col-ctl">
       <h2>Rod control</h2>
       <div class="row">
-        <button id="sel-manual">manual bank</button>
-        <button id="sel-auto">auto (AR)</button>
-        <button id="sel-shortened">shortened</button>
-        <button id="sel-emergency">emergency</button>
+        <button id="sel-manual">RR manual</button>
+        <button id="sel-auto">AR</button>
+        <button id="sel-lar">LAR</button>
+        <button id="sel-emergency">AZ</button>
+        <button id="sel-shortened">USP</button>
         <button id="sel-none">clear</button>
       </div>
       <div class="row">
@@ -206,15 +207,33 @@
       </div>
       <div class="divider"></div>
 
-      <h2>Automatic regulator</h2>
+      <h2>Automatic regulation</h2>
       <div class="row">
-        <button id="ar-toggle" class="active">AR engaged</button>
+        <button id="ar-toggle" class="active">engaged</button>
+        <button id="ar-mode-ar" class="active">AR mode</button>
+        <button id="ar-mode-lar">LAR mode</button>
         <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
+      </div>
+      <div class="row">
+        <span style="color:var(--muted)">active group</span>
+        <span class="readout num" id="ar-active">AR-1</span>
+        <span style="color:var(--muted); margin-left:8px">subgroup auto:</span>
+        <button id="ar-sw-1" class="active">AR-1</button>
+        <button id="ar-sw-2" class="active">AR-2</button>
+        <button id="ar-sw-3" class="active">AR-3</button>
       </div>
       <div class="row">
         <span style="color:var(--muted)">setpoint</span>
         <input type="range" id="setpoint" min="0" max="110" value="100" step="1" />
         <span class="readout num" id="setpoint-val">100%</span>
+      </div>
+      <div class="divider"></div>
+
+      <h2>Protection (RPS)</h2>
+      <div class="row">
+        <button id="rps-azm" class="active">AZM overpower</button>
+        <button id="rps-azs" class="active">AZS period</button>
+        <button id="az1">AZ-1 setback</button>
       </div>
       <div class="divider"></div>
 

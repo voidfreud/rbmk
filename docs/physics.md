@@ -51,6 +51,18 @@ sources). Summary of what is cited vs estimated.
 | Inlet 270 C, outlet ~284 C, ~7 MPa | - | INSAG-7 direct | high |
 | Core flow ~13300 kg/s | 8 MCPs x 8000 m3/h (INSAG-7) x ~0.74 t/m3 | high |
 
+## Control and protection system (CPS)
+
+| Item | Modeled as | Source | Confidence |
+|---|---|---|---|
+| Rod complement | 131 RR + 12 AR (3x4) + 12 LAR + 24 AZ + 32 USP = 211 | NIKIET textbook (Cherkashov ed.) 2nd-gen breakdown via budan.livejournal.com; a competing pre-accident count (115/12/12/24/24 = 187) exists from Karpan's 00:39 printout - unreconciled in open literature | medium |
+| USP shortened absorbers | 3.05 m absorber from the BOTTOM, no displacer, NOT driven by AZ-5 (pre-1986) | budan/accidont geometry; chernobylcritical (AZ-5 asymmetry, named accident factor) | high |
+| AR structure | 3 redundant subgroups of 4, one active, automatic changeover on saturation | chernobylcritical + corroborating reconstructions; changeover numeric conditions not found - 5 s saturation used (ESTIMATED) | medium-high |
+| Setpoint gradient | active setpoint ramps at 0.03 %/s default (panel gauge 0-0.35 %/s) | reference simulator's gradient gauge; real numeric limit unconfirmed | medium |
+| Protections | AZS (period < 10 s), AZM (power > 110%), both operator-blockable with logged warnings; AZ-1 setback drives AZ bank + setpoint to 50%; AZ-5 full scram excl. USP | Terminology (AZS/AZM) from operator-manual reconstructions; numeric setpoints ESTIMATED (not found in open sources); blockability documented by INSAG-7 | low-medium (numbers), high (structure) |
+| ORM rule | alarm below 15 equivalent rods | INSAG-7 (15-rod minimum; ~8 at the accident) | high |
+| Simultaneous rod motion | UI unrestricted; the real panel allowed ~4 rods at once (the demo operator honors this) | operator-manual reconstruction | medium |
+
 ## Known simplifications (v0)
 
 - Decay heat is a 3-group exponential fit; replace with the Glasstone /

@@ -59,8 +59,8 @@ export function rodAxialEffect(
   rod: RodState,
   nodes: NodeState[],
 ): { abs: number; disp: number } {
-  const absIv = absorberInterval(rod.insertion);
-  const dispIv = displacerInterval(rod.insertion);
+  const absIv = absorberInterval(rod);
+  const dispIv = displacerInterval(rod);
   let absW = 0;
   let dispW = 0;
   let fluxSum = 0;

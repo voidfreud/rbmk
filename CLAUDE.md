@@ -36,9 +36,17 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Rods model the pre-1986 geometry: absorber from the top, 4.5 m graphite
   displacer, 1.25 m water columns - so the positive scram ("tip effect")
   emerges from geometry, not scripting. See rods.test.ts.
+- Real CPS structure (docs/physics.md "CPS" section): 131 RR + 12 AR
+  (3 subgroups, auto changeover) + 12 LAR + 24 AZ + 32 USP. USP enter
+  from BELOW and are NOT driven by AZ-5 (pre-1986). Protections: AZS
+  (period), AZM (overpower), both operator-blockable; AZ-1 setback;
+  ORM alarm below 15 rods. Regulator setpoint ramps at arGradient.
 - The plant is genuinely unstable open-loop (positive void coefficient);
   the AR (automatic regulator) PI controller holds it, like the real one.
   Tests that probe raw feedback set `reactor.arEnabled = false`.
+- Rod worth rates matter: moving the whole RR bank at once is ~5 beta/s
+  and WILL trip the plant - move small squads (the real limit was ~4
+  rods at once). The demo's operatorTrim shows the pattern.
 - Reactivity displayed in dollars of BETA_EFF = 0.005.
 
 ## Conventions

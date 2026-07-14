@@ -80,25 +80,39 @@ function sample(note = ""): void {
 
 /**
  * The shift operator: when the automatic regulator runs out of authority
- * (power sags below / creeps above setpoint), trim the manual rod bank a
- * little - this is how real crews compensated xenon transients.
+ * (power off setpoint, or the AR bank near its end stops), trim a SMALL
+ * squad of manual rods - the real BShchU allowed at most ~4 rods moving
+ * at once, and that limit is what keeps reactivity rates sane. Moving the
+ * whole 131-rod bank at drive speed would be ~5 beta/s - instant trip.
  */
-let manualTarget = 0.45;
+const rrRods = reactor.state.rods.filter((r) => r.group === "RR");
+let rrCursor = 0;
+function meanRR(): number {
+  return rrRods.reduce((a, r) => a + r.insertion, 0) / rrRods.length;
+}
 function operatorTrim(): void {
-  const err = reactor.arSetpoint - reactor.powerFraction();
-  const tol = 0.01 * Math.max(0.1, reactor.arSetpoint);
-  let move = 0;
-  if (err > tol) move = -0.015;
-  else if (err < -tol) move = 0.03; // insert faster than you withdraw
+  const err = reactor.activeSetpoint() - reactor.powerFraction();
+  const tol = 0.01 * Math.max(0.1, reactor.activeSetpoint());
+  let dir = 0;
+  if (err > tol) dir = -1; // power low: withdraw
+  else if (err < -tol) dir = +1; // power high: insert
   // "Release the AR": when the auto bank nears either end of its range,
-  // shift the load onto the manual bank so the AR regains authority.
+  // shift the load onto manual rods so the AR regains authority.
   const ar = reactor.arInsertion();
-  if (ar > 0.85) move = Math.max(move, 0.02);
-  else if (ar < 0.15 && err > 0) move = Math.min(move, -0.02);
-  if (move !== 0) {
-    manualTarget = Math.min(0.85, Math.max(0.02, manualTarget + move));
-    reactor.setRodTarget("manual", manualTarget);
+  if (ar > 0.85) dir = +1;
+  else if (ar < 0.15 && dir === 0) dir = -1;
+  if (dir === 0) return;
+  // Urgency scaling: a bigger squad and deeper steps as the error grows
+  // (several pairs of hands on the panel when the plant is getting away).
+  const mag = Math.abs(err);
+  const squad = mag > 0.06 ? 16 : mag > 0.03 ? 8 : 4;
+  const step = mag > 0.06 ? 0.1 : 0.05;
+  for (let j = 0; j < squad; j++) {
+    const rod = rrRods[(rrCursor + j) % rrRods.length]!;
+    const t = Math.min(0.9, Math.max(0.02, rod.target + dir * step));
+    reactor.setRodTarget(rod.id, t);
   }
+  rrCursor = (rrCursor + squad) % rrRods.length;
 }
 
 interface RunOpts {
@@ -121,7 +135,7 @@ console.log("=== RBMK-1000 sim-core demo: a shift at the plant ===\n");
 console.log("bottom [" + "-".repeat(N_AXIAL - 8) + "] top  (flux profile)\n");
 
 console.log("--- Phase 1: steady at 100% ---");
-reactor.initAtPower(1.0, { manualInsertion: 0.45 });
+reactor.initAtPower(1.0, { manualInsertion: 0.55 });
 sample("steady state");
 runFor(120, 60);
 
@@ -138,7 +152,7 @@ while (reactor.arSetpoint < 1.0 && !reactor.state.scrammed) {
 }
 console.log("    ... one hour holding full power, xenon burning off ...");
 runFor(3600, 30, { operator: true, printEvery: 60 });
-console.log(`    manual bank now at insertion ${manualTarget.toFixed(2)} (0.45 at shift start)`);
+console.log(`    manual bank mean insertion now ${meanRR().toFixed(2)} (0.55 at shift start)`);
 
 console.log("\n--- Phase 4: AZ-5 ---");
 reactor.scram("end of demo shift");

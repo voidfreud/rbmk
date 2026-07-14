@@ -22,11 +22,33 @@ export interface NodeState {
   voidFrac: number;
 }
 
-export type RodGroup = "manual" | "auto" | "shortened" | "emergency";
+/**
+ * Real RBMK-1000 (2nd generation) rod classes:
+ *  RR  - manual control rods (131)
+ *  AR  - automatic regulator rods (12, three subgroups of 4)
+ *  LAR - local automatic regulation rods (12)
+ *  AZ  - emergency protection rods (24)
+ *  USP - shortened absorbers, inserted from BELOW, no displacer (32)
+ */
+export type RodGroup = "RR" | "AR" | "LAR" | "AZ" | "USP";
+
+/** Rod addressing for drive commands. */
+export type RodSelector =
+  | RodGroup
+  | "AR1"
+  | "AR2"
+  | "AR3"
+  | "all"
+  | number;
 
 export interface RodState {
   id: number;
   group: RodGroup;
+  /** AR subgroup 1..3 (AR rods only, 4 rods each). */
+  arSubgroup?: 1 | 2 | 3;
+  /** When true (AR/LAR rods), the automatic regulator owns this rod and
+   * manual drive commands are refused. */
+  autoControlled: boolean;
   /** Insertion 0 (fully withdrawn) .. 1 (fully inserted). */
   insertion: number;
   /** Target insertion the drive is moving toward. */

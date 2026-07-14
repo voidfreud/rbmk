@@ -12,7 +12,7 @@ describe("control rods", () => {
     r.initAtPower(1.0);
     r.arEnabled = false;
     const p0 = r.powerFraction();
-    r.setRodTarget("manual", 0.35);
+    r.setRodTarget("RR", 0.35);
     r.tick(30);
     expect(r.powerFraction()).toBeLessThan(p0 * 0.9);
   });
@@ -34,7 +34,8 @@ describe("control rods", () => {
       rod.target = 0;
     }
     const before = rodReactivityByNode(rods);
-    for (const rod of rods) rod.insertion = 0.1;
+    // AZ-5 does not drive USP rods (pre-1986); move the top-entering rods.
+    for (const rod of rods) if (rod.group !== "USP") rod.insertion = 0.1;
     const after = rodReactivityByNode(rods);
     const delta = after.map((v, k) => v - before[k]!);
 
@@ -60,14 +61,14 @@ describe("control rods", () => {
     }
 
     const before = rodReactivityByNode(rods);
-    for (const rod of rods) rod.insertion = 0.08;
+    for (const rod of rods) if (rod.group !== "USP") rod.insertion = 0.08;
     const after = rodReactivityByNode(rods);
     const deltaByNode = after.map((v, k) => v - before[k]!);
     const weightedDelta = globalReactivity(nodes, deltaByNode);
     expect(weightedDelta).toBeGreaterThan(0);
 
     // Full insertion is strongly negative no matter the shape.
-    for (const rod of rods) rod.insertion = 1;
+    for (const rod of rods) if (rod.group !== "USP") rod.insertion = 1;
     const full = rodReactivityByNode(rods);
     const fullDelta = globalReactivity(
       nodes,

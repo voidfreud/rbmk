@@ -134,6 +134,10 @@ export const GRAPHITE_TEMP_COEFF = 6.0e-6;
 export const ROD_SPEED = 0.4;
 /** Graphite displacer length [m] (INSAG-7, direct). */
 export const DISPLACER_LENGTH = 4.5;
+/** USP shortened-absorber length [m] (budan/accidont: 3050 mm), from below. */
+export const USP_ABS_LENGTH = 3.05;
+/** ORM alarm floor [equivalent rods] (pre-1986 rule: minimum 15). */
+export const ORM_MIN_RODS = 15;
 /**
  * Water column above/below displacer with rod fully withdrawn [m].
  * INSAG-7: "above it and below it were columns of water 1.25 m high".

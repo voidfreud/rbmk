@@ -6,7 +6,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
-    "types": ["bun-types"],
+    "types": ["bun"],
     "paths": {
       "@rbmk/sim-core": ["./packages/sim-core/src/index.ts"]
     }

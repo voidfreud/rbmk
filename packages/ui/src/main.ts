@@ -140,10 +140,11 @@ function selectGroup(group: RodGroup): void {
   rebuildSelRows();
   updateSelInfo();
 }
-$("sel-manual").onclick = () => selectGroup("manual");
-$("sel-auto").onclick = () => selectGroup("auto");
-$("sel-shortened").onclick = () => selectGroup("shortened");
-$("sel-emergency").onclick = () => selectGroup("emergency");
+$("sel-manual").onclick = () => selectGroup("RR");
+$("sel-auto").onclick = () => selectGroup("AR");
+$("sel-lar").onclick = () => selectGroup("LAR");
+$("sel-shortened").onclick = () => selectGroup("USP");
+$("sel-emergency").onclick = () => selectGroup("AZ");
 $("sel-none").onclick = () => {
   selected.clear();
   rebuildSelRows();
@@ -151,10 +152,11 @@ $("sel-none").onclick = () => {
 };
 
 const GRP_SHORT: Record<string, string> = {
-  manual: "RR",
-  auto: "AR",
-  shortened: "USP",
-  emergency: "AZ",
+  RR: "RR",
+  AR: "AR",
+  LAR: "LAR",
+  AZ: "AZ",
+  USP: "USP",
 };
 
 /** Per-rod servo rows (selsyn-style) for up to 30 selected rods. */
@@ -245,8 +247,43 @@ const arToggle = $("ar-toggle");
 arToggle.onclick = () => {
   reactor.arEnabled = !reactor.arEnabled;
   arToggle.classList.toggle("active", reactor.arEnabled);
-  arToggle.textContent = reactor.arEnabled ? "AR engaged" : "AR off";
+  arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
 };
+
+$("ar-mode-ar").onclick = () => {
+  reactor.arMode = "AR";
+  $("ar-mode-ar").classList.add("active");
+  $("ar-mode-lar").classList.remove("active");
+};
+$("ar-mode-lar").onclick = () => {
+  reactor.arMode = "LAR";
+  $("ar-mode-lar").classList.add("active");
+  $("ar-mode-ar").classList.remove("active");
+};
+
+// AR subgroup auto/manual switches: off = the 4 rods of that subgroup are
+// released to manual control (and the regulator skips them).
+for (const sub of [1, 2, 3] as const) {
+  const btn = $(`ar-sw-${sub}`);
+  btn.onclick = () => {
+    const rods = reactor.state.rods.filter(
+      (r) => r.group === "AR" && r.arSubgroup === sub,
+    );
+    const nowAuto = !rods[0]!.autoControlled;
+    for (const rod of rods) rod.autoControlled = nowAuto;
+    btn.classList.toggle("active", nowAuto);
+  };
+}
+
+$("rps-azm").onclick = () => {
+  reactor.protection.overpower = !reactor.protection.overpower;
+  $("rps-azm").classList.toggle("active", reactor.protection.overpower);
+};
+$("rps-azs").onclick = () => {
+  reactor.protection.period = !reactor.protection.period;
+  $("rps-azs").classList.toggle("active", reactor.protection.period);
+};
+$("az1").onclick = () => reactor.azSetback();
 
 const setpoint = $<HTMLInputElement>("setpoint");
 setpoint.oninput = () => {
@@ -346,6 +383,10 @@ function frame(now: number): void {
     $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
     $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
     $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
+    $("ar-active").textContent =
+      reactor.arMode === "LAR" ? "LAR" : `AR-${reactor.arActiveGroup}`;
+    $("setpoint-val").textContent =
+      `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
     if (selected.size > 0) updateSelInfo();
     // The channel field changes slowly; recompute and redraw at 5 Hz.
     channelMap.update(reactor.state.nodes);

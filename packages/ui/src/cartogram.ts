@@ -8,10 +8,11 @@ const RAMP = [
 ];
 
 const GROUP_GLYPH: Record<string, string> = {
-  auto: "A",
-  emergency: "E",
-  shortened: "S",
-  manual: "",
+  AR: "A",
+  LAR: "L",
+  AZ: "Z",
+  USP: "S",
+  RR: "",
 };
 
 /** Top-down core map: one square per rod, colored by insertion depth. */

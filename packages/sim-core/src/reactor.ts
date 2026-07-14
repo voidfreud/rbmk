@@ -3,6 +3,7 @@ import {
   CORE_HEIGHT,
   DECAY_FRACTION_TOTAL,
   FUEL_TEMP_COEFF,
+  ORM_MIN_RODS,
   GRAPHITE_TEMP_COEFF,
   N_AXIAL,
   N_RODS,
@@ -33,7 +34,7 @@ import type {
   CoreState,
   NodeState,
   ReactivityBreakdown,
-  RodGroup,
+  RodSelector,
   RodState,
 } from "./types";
 import { zeroNode } from "./types";
@@ -66,12 +67,34 @@ export class Reactor {
   /** True while initAtPower settles; protection and alarms are bypassed. */
   private initializing = false;
 
-  /** Automatic regulator (AR): PI controller trimming the auto rod group. */
+  /** Automatic regulator (AR): PI controller trimming the active bank. */
   arEnabled = true;
+  /** Target power setpoint (fraction of rated) the operator dialed in. */
   arSetpoint = 0;
+  /**
+   * Setpoint gradient limit [fraction/s]: the ACTIVE setpoint ramps toward
+   * the target at this rate (the real panel had a settable 0-0.35 %/s
+   * gradient), so maneuvers never step-saturate the small AR bank.
+   */
+  arGradient = 0.0003;
+  private arSetpointActive = 0;
+  /** Regulation source: the AR subgroups or the LAR bank. */
+  arMode: "AR" | "LAR" = "AR";
+  /** Active AR subgroup (1..3); standby groups take over on saturation. */
+  arActiveGroup: 1 | 2 | 3 = 1;
+  private arSaturatedFor = 0;
   private arErrPrev = 0;
   private arTarget = 0.5;
   private rhoInstrumentZero = 0;
+
+  /**
+   * Protection enables. The real plant allowed operators to block certain
+   * automatic trips (a practice INSAG-7 documents on the accident night);
+   * blocked trips log a warning instead of acting.
+   */
+  protection = { overpower: true, period: true };
+  private lastBlockedWarnT = -Infinity;
+  private lastOrmAlarmT = -Infinity;
 
   constructor(options: ReactorOptions = {}) {
     this.log = options.log ?? new EventLog();
@@ -101,14 +124,26 @@ export class Reactor {
    */
   initAtPower(
     fraction: number,
-    opts: { manualInsertion?: number; autoInsertion?: number } = {},
+    opts: {
+      manualInsertion?: number;
+      autoInsertion?: number;
+      uspInsertion?: number;
+    } = {},
   ): void {
     const s = this.state;
-    const manual = opts.manualInsertion ?? 0.3;
+    const manual = opts.manualInsertion ?? 0.45;
     const auto = opts.autoInsertion ?? 0.5;
+    // USP absorbers ride partway in from the bottom to trim the axial field.
+    const usp = opts.uspInsertion ?? 0.2;
     for (const rod of s.rods) {
       const ins =
-        rod.group === "auto" ? auto : rod.group === "emergency" ? 0 : manual;
+        rod.group === "AR" || rod.group === "LAR"
+          ? auto
+          : rod.group === "AZ"
+            ? 0
+            : rod.group === "USP"
+              ? usp
+              : manual;
       rod.insertion = ins;
       rod.target = ins;
     }
@@ -136,16 +171,36 @@ export class Reactor {
     equilibriumThermal(s.nodes, this.nodePowers(), s.flowFraction);
     s.scrammed = false;
     this.arSetpoint = fraction;
+    this.arSetpointActive = fraction;
     this.arTarget = auto;
     this.arErrPrev = 0;
-    this.calibrateCritical();
-    // Let the flux shape and feedbacks settle under the automatic regulator,
-    // trim criticality once more, then define this as t = 0. Protection is
-    // bypassed while settling: the wobble is numerical, not physical.
+    this.arActiveGroup = 1;
+    this.arSaturatedFor = 0;
+    // Settle to a converged critical state: re-center the regulating bank
+    // mid-range (so it keeps authority in both directions), recalibrate,
+    // let flux shape and feedbacks relax, and repeat until power drift dies.
+    // Protection is bypassed while settling: the wobble is numerical.
     this.initializing = true;
-    this.tick(30);
+    for (let i = 0; i < 8; i++) {
+      for (const rod of s.rods) {
+        if (this.regulatorOwns(rod)) {
+          rod.insertion = auto;
+          rod.target = auto;
+        }
+      }
+      this.arTarget = auto;
+      this.arErrPrev = 0;
+      this.calibrateCritical();
+      this.tick(12);
+      if (
+        Math.abs(powerFraction(s.nodes) - fraction) < 0.002 &&
+        Math.abs(this.smoothedRate) < 2e-4
+      ) {
+        break;
+      }
+    }
     this.calibrateCritical();
-    this.tick(10);
+    this.tick(8);
     this.initializing = false;
     this.smoothedRate = 0;
     s.time = 0;
@@ -212,18 +267,71 @@ export class Reactor {
   // Controls
   // -------------------------------------------------------------------------
 
-  /** Command a rod group (or every rod) to a target insertion 0..1. */
-  setRodTarget(selector: RodGroup | "all" | number, target: number): void {
+  /**
+   * Command a rod group, AR subgroup ("AR1".."AR3"), single rod id, or every
+   * rod to a target insertion 0..1. Manual commands to a rod owned by the
+   * engaged automatic regulator are refused (switch its group to manual
+   * first), like the real machine.
+   */
+  setRodTarget(selector: RodSelector, target: number): void {
     const t = Math.min(1, Math.max(0, target));
-    for (const rod of this.rodsFor(selector)) rod.target = t;
+    for (const rod of this.rodsFor(selector)) {
+      if (
+        typeof selector === "number" &&
+        rod.autoControlled &&
+        this.arEnabled &&
+        this.regulatorOwns(rod)
+      ) {
+        this.log.warn(
+          this.state.time,
+          "ROD_AUTO",
+          `rod ${rod.id} is under automatic control - switch it to manual first`,
+        );
+        continue;
+      }
+      rod.target = t;
+    }
   }
 
-  /** AZ-5: latch scram, drive every rod to full insertion. */
+  /** True if the engaged regulator currently drives this rod. */
+  private regulatorOwns(rod: RodState): boolean {
+    if (!rod.autoControlled) return false;
+    if (this.arMode === "LAR") return rod.group === "LAR";
+    return rod.group === "AR" && rod.arSubgroup === this.arActiveGroup;
+  }
+
+  /**
+   * AZ-5: latch scram, drive rods to full insertion. Pre-1986 behavior:
+   * USP shortened absorbers are NOT driven by AZ-5 - they stay where they
+   * are (a named contributing factor to the accident).
+   */
   scram(reason = "AZ-5 button"): void {
     if (this.state.scrammed) return;
     this.state.scrammed = true;
-    for (const rod of this.state.rods) rod.target = 1;
-    this.log.alarm(this.state.time, "AZ5", `SCRAM: ${reason}`);
+    for (const rod of this.state.rods) {
+      if (rod.group !== "USP") rod.target = 1;
+    }
+    this.log.alarm(this.state.time, "AZ5", `SCRAM: ${reason} (USP rods hold position)`);
+  }
+
+  /**
+   * AZ-1 power setback: drive the AZ emergency bank in (non-latching) to
+   * knock power down without a full shutdown. Naming of the graduated
+   * protection modes varies by source; this models the documented
+   * "insert only the AZ complement" step.
+   */
+  azSetback(): void {
+    for (const rod of this.state.rods) {
+      if (rod.group === "AZ") rod.target = 1;
+    }
+    // Graduated protection also lowers the regulation setpoint so the AR
+    // does not fight the setback.
+    this.arSetpoint = Math.min(this.arSetpoint, 0.5);
+    this.log.alarm(
+      this.state.time,
+      "AZ1",
+      "AZ-1 setback: emergency bank driving in, setpoint reduced to 50%",
+    );
   }
 
   /** Reset the scram latch (rods stay where they are; re-enables AR). */
@@ -244,11 +352,17 @@ export class Reactor {
     this.log.info(this.state.time, "FLOW", `pump flow ${Math.round(fraction * 100)}%`);
   }
 
-  private rodsFor(selector: RodGroup | "all" | number): RodState[] {
+  private rodsFor(selector: RodSelector): RodState[] {
     if (selector === "all") return this.state.rods;
     if (typeof selector === "number") {
       const rod = this.state.rods[selector];
       return rod ? [rod] : [];
+    }
+    if (selector === "AR1" || selector === "AR2" || selector === "AR3") {
+      const sub = Number(selector[2]) as 1 | 2 | 3;
+      return this.state.rods.filter(
+        (r) => r.group === "AR" && r.arSubgroup === sub,
+      );
     }
     return this.state.rods.filter((r) => r.group === selector);
   }
@@ -277,13 +391,46 @@ export class Reactor {
     const pBefore = powerFraction(s.nodes);
 
     if (this.arEnabled && !s.scrammed && this.arSetpoint > 0) {
-      // PI on power error, output = auto-group insertion target. Positive
+      // The active setpoint ramps toward the target at the gradient limit.
+      const d = this.arSetpoint - this.arSetpointActive;
+      const maxD = this.arGradient * dt;
+      this.arSetpointActive +=
+        Math.abs(d) <= maxD ? d : Math.sign(d) * maxD;
+      // PI on power error, output = active-bank insertion target. Positive
       // error (power above setpoint) drives rods IN.
-      const err = pBefore - this.arSetpoint;
+      const err = pBefore - this.arSetpointActive;
       this.arTarget += 5 * (err - this.arErrPrev) + 2 * err * dt;
       this.arTarget = Math.min(1, Math.max(0, this.arTarget));
       this.arErrPrev = err;
-      this.setRodTarget("auto", this.arTarget);
+      for (const rod of s.rods) {
+        if (this.regulatorOwns(rod)) rod.target = this.arTarget;
+      }
+      // Automatic changeover: if the active AR subgroup sits saturated at
+      // either end of its range, hand regulation to the next subgroup
+      // (real behavior: standby group takes over when the active one runs
+      // out of authority or fails).
+      if (this.arMode === "AR") {
+        if (this.arTarget <= 0 || this.arTarget >= 1) {
+          this.arSaturatedFor += dt;
+          if (this.arSaturatedFor > 5) {
+            const next = ((this.arActiveGroup % 3) + 1) as 1 | 2 | 3;
+            this.log.warn(
+              s.time,
+              "AR_CHANGEOVER",
+              `AR-${this.arActiveGroup} out of authority - changeover to AR-${next}`,
+            );
+            this.arActiveGroup = next;
+            const bank = s.rods.filter(
+              (r) => r.group === "AR" && r.arSubgroup === next,
+            );
+            this.arTarget =
+              bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+            this.arSaturatedFor = 0;
+          }
+        } else {
+          this.arSaturatedFor = 0;
+        }
+      }
     }
 
     stepRodDrives(s.rods, dt);
@@ -337,9 +484,37 @@ export class Reactor {
     } else if (this.periodAlarmLatched && (period < 0 || period > 30)) {
       this.periodAlarmLatched = false;
     }
-    if (power > 1.1 && !s.scrammed) {
-      this.scram("power above 110% rated");
+
+    // AZS: emergency protection by reactor period.
+    if (period > 0 && period < 10 && power > 0.005 && !s.scrammed) {
+      if (this.protection.period) {
+        this.scram("AZS: reactor period below 10 s");
+      } else this.warnBlocked("AZS (period) trip condition met");
     }
+    // AZM: emergency protection by power level.
+    if (power > 1.1 && !s.scrammed) {
+      if (this.protection.overpower) {
+        this.scram("AZM: power above 110% rated");
+      } else this.warnBlocked("AZM (overpower) trip condition met");
+    }
+    // ORM floor: below 15 equivalent rods the core must be shut down
+    // (pre-1986 rule; routinely violated in practice).
+    if (
+      power > 0.1 &&
+      this.ormRods() < ORM_MIN_RODS &&
+      s.time - this.lastOrmAlarmT > 300
+    ) {
+      this.lastOrmAlarmT = s.time;
+      this.log.alarm(s.time, "ORM", "ORM below 15 equivalent rods - shutdown required", {
+        orm: Number(this.ormRods().toFixed(1)),
+      });
+    }
+  }
+
+  private warnBlocked(what: string): void {
+    if (this.state.time - this.lastBlockedWarnT < ALARM_COOLDOWN) return;
+    this.lastBlockedWarnT = this.state.time;
+    this.log.warn(this.state.time, "RPS_BLOCKED", `${what} - BLOCKED by operator`);
   }
 
   // -------------------------------------------------------------------------
@@ -401,13 +576,20 @@ export class Reactor {
     );
   }
 
+  /** The ramped ACTIVE setpoint the regulator is currently holding. */
+  activeSetpoint(): number {
+    return this.arSetpointActive;
+  }
+
   /**
-   * Current auto-regulator bank target insertion 0..1. Near the ends of its
-   * range the AR is out of authority and the operator should "release" it
-   * by moving manual rods (standard procedure).
+   * Mean insertion 0..1 of the bank the regulator currently owns. Near the
+   * ends of its range the AR is out of authority and the operator should
+   * "release" it by moving manual rods (standard procedure).
    */
   arInsertion(): number {
-    return this.arTarget;
+    const owned = this.state.rods.filter((r) => this.regulatorOwns(r));
+    if (owned.length === 0) return this.arTarget;
+    return owned.reduce((a, r) => a + r.insertion, 0) / owned.length;
   }
 
   /** Smoothed reactor period [s] (clamped to +-1e6 for display). */

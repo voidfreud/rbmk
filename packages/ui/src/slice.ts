@@ -1,17 +1,18 @@
 import type { NodeState, RodGroup, RodState } from "@rbmk/sim-core";
 import {
   CORE_HEIGHT,
-  DISPLACER_LENGTH,
   N_AXIAL,
-  WATER_GAP,
+  absorberInterval,
+  displacerInterval,
 } from "@rbmk/sim-core";
 
-const GROUPS: RodGroup[] = ["manual", "auto", "shortened", "emergency"];
+const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
 const GROUP_SHORT: Record<RodGroup, string> = {
-  manual: "MAN",
-  auto: "AR",
-  shortened: "USP",
-  emergency: "AZ",
+  RR: "RR",
+  AR: "AR",
+  LAR: "LAR",
+  AZ: "AZ",
+  USP: "USP",
 };
 
 /**
@@ -42,7 +43,7 @@ export class Slice {
     const top = 18;
     const coreH = this.h - top - 26;
     const bandH = coreH / N_AXIAL;
-    const fluxW = 140;
+    const fluxW = 116;
     const fluxX = 34;
 
     // Depth scale (meters from top).
@@ -89,9 +90,9 @@ export class Slice {
     g.strokeRect(fluxX, top, fluxW, coreH);
 
     // Group rods: mean insertion per group, drawn with true geometry.
-    const rodW = 22;
-    const gap = 14;
-    let x = fluxX + fluxW + 22;
+    const rodW = 20;
+    const gap = 11;
+    let x = fluxX + fluxW + 16;
     g.textAlign = "center";
     for (const group of GROUPS) {
       const members = rods.filter((r) => r.group === group);
@@ -104,21 +105,18 @@ export class Slice {
       g.fillStyle = "rgba(57, 135, 229, 0.18)";
       g.fillRect(x, top, rodW, coreH);
 
-      // Displacer (graphite): starts WATER_GAP below core top when withdrawn,
-      // rides down with insertion. Clip to core.
-      const shift = ins * CORE_HEIGHT;
-      const dispTop = Math.max(0, WATER_GAP + shift);
-      const dispBot = Math.min(CORE_HEIGHT, WATER_GAP + DISPLACER_LENGTH + shift);
-      if (dispBot > dispTop) {
+      // True geometry from sim-core: displacer (standard rods) and absorber
+      // (from the top for RR/AR/LAR/AZ, from the BOTTOM for USP).
+      const fake = { group, insertion: ins };
+      const disp = displacerInterval(fake);
+      if (disp) {
         g.fillStyle = "#52514e";
-        g.fillRect(x, yAt(dispTop), rodW, yAt(dispBot) - yAt(dispTop));
+        g.fillRect(x, yAt(disp[0]), rodW, yAt(disp[1]) - yAt(disp[0]));
       }
-
-      // Absorber from the top.
-      const absBot = Math.min(CORE_HEIGHT, ins * CORE_HEIGHT);
-      if (absBot > 0) {
+      const abs = absorberInterval(fake);
+      if (abs) {
         g.fillStyle = "#c3c2b7";
-        g.fillRect(x, top, rodW, yAt(absBot) - top);
+        g.fillRect(x, yAt(abs[0]), rodW, yAt(abs[1]) - yAt(abs[0]));
       }
 
       g.strokeStyle = "rgba(255,255,255,0.14)";
