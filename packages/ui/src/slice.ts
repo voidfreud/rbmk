@@ -135,6 +135,25 @@ export class Slice {
     g.lineWidth = 2;
     g.setLineDash([4, 3]);
     g.stroke();
+
+    // Xenon axial distribution (dotted amber), relative to its own mean so
+    // the axial DISTORTION is what reads - watch it crawl during transients.
+    const xeMean =
+      nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL || 1;
+    if (xeMean > 1e-6) {
+      g.beginPath();
+      for (let k = 0; k < N_AXIAL; k++) {
+        const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
+        const relXe = nodes[k]!.xenon / xeMean; // ~1 when flat
+        const x = SCALE_X + Math.min(1, relXe / 2) * (FLUX_W - 8);
+        if (k === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.strokeStyle = "#c98500";
+      g.lineWidth = 1.5;
+      g.setLineDash([2, 3]);
+      g.stroke();
+    }
     g.setLineDash([]);
 
     // Coolant temperature strip (inlet blue -> saturation amber).

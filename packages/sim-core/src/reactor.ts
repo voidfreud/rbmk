@@ -512,8 +512,9 @@ export class Reactor {
 
     // Regulator band enforcement: LAR's in-core chambers are blind below
     // ~10% - it DROPS OUT (the 00:28 accident-night failure mode). Other
-    // modes warn when the plant is outside their band.
-    if (this.arEnabled && !s.scrammed) {
+    // modes warn when the plant is outside their band. Idle regulator
+    // (no setpoint dialed in) has nothing to enforce.
+    if (this.arEnabled && !s.scrammed && this.arSetpoint > 0) {
       const [lo] = this.regulatorBand();
       if (pBefore < lo * 0.9) {
         if (this.arMode === "LAR") {
