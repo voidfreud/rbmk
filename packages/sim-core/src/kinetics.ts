@@ -138,17 +138,3 @@ export function globalReactivity(
   return den > 0 ? num / den : 0;
 }
 
-/**
- * Instantaneous reactor period [s] estimated from flux growth; large values
- * clamped to +-1e6 for display. Positive = power rising.
- */
-export function estimatePeriod(
-  powerBefore: number,
-  powerAfter: number,
-  dt: number,
-): number {
-  if (powerBefore <= 0 || powerAfter <= 0) return 1e6;
-  const rate = Math.log(powerAfter / powerBefore) / dt;
-  if (Math.abs(rate) < 1e-6) return Math.sign(rate || 1) * 1e6;
-  return 1 / rate;
-}

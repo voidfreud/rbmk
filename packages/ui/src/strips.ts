@@ -143,6 +143,16 @@ export class StripChart {
     g.textAlign = "right";
     g.fillText(this.fmt(cur), this.w - 4, 10);
 
+    // Time axis: sim time at the window's left edge and now at the right.
+    if (this.hoverX === null) {
+      g.fillStyle = "#52514e";
+      g.font = "9px system-ui, sans-serif";
+      g.textAlign = "left";
+      g.fillText(hms(this.ts[0]!), 3, this.h - 3);
+      g.textAlign = "right";
+      g.fillText(hms(this.ts[this.ts.length - 1]!), this.w - 3, this.h - 3);
+    }
+
     // Crosshair + tooltip.
     if (this.hoverX !== null) {
       const i = Math.round((this.hoverX / this.w) * (this.windowSamples - 1)) - i0;

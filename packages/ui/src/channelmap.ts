@@ -38,6 +38,42 @@ export class ChannelMap {
     this.field.update(nodes);
   }
 
+  /**
+   * Radial field symmetry: mean relative power per quadrant (NW, NE, SW, SE),
+   * normalized so 1.00 = perfectly balanced. The real plant watched this to
+   * catch azimuthal field tilts.
+   */
+  quadrants(): { nw: number; ne: number; sw: number; se: number } {
+    const sum = { nw: 0, ne: 0, sw: 0, se: 0 };
+    const n = { nw: 0, ne: 0, sw: 0, se: 0 };
+    for (let c = 0; c < this.field.channels.length; c++) {
+      const ch = this.field.channels[c]!;
+      const key =
+        ch.y < 0
+          ? ch.x < 0
+            ? "nw"
+            : "ne"
+          : ch.x < 0
+            ? "sw"
+            : "se";
+      sum[key] += this.field.rel[c]!;
+      n[key]++;
+    }
+    const means = {
+      nw: sum.nw / Math.max(1, n.nw),
+      ne: sum.ne / Math.max(1, n.ne),
+      sw: sum.sw / Math.max(1, n.sw),
+      se: sum.se / Math.max(1, n.se),
+    };
+    const avg = (means.nw + means.ne + means.sw + means.se) / 4;
+    return {
+      nw: means.nw / avg,
+      ne: means.ne / avg,
+      sw: means.sw / avg,
+      se: means.se / avg,
+    };
+  }
+
   /** Channel info under a client point (for tooltips), or null. */
   hit(clientX: number, clientY: number, powerFraction: number): string | null {
     const r = this.canvas.getBoundingClientRect();
@@ -94,10 +130,10 @@ export class ChannelMap {
         const v = (rel / maxRel) * glow;
         g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.min(1, v)})`;
       } else {
-        // Channel-average fuel temperature estimate: scales with local power.
-        const t = 270 + (avgFuel - 270) * rel * Math.max(0.02, powerFraction);
-        const v = Math.min(1, Math.max(0, (t - 270) / 500));
-        g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * v})`;
+        // Fuel-temperature shape follows the power shape; show it relative
+        // (same normalization) in the amber hue so it reads at any power.
+        const v = (rel / maxRel) * glow;
+        g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * Math.min(1, v)})`;
       }
       g.fillRect(x - cell / 2, y - cell / 2, cell, cell);
     }

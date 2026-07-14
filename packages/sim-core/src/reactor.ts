@@ -517,11 +517,20 @@ export class Reactor {
       const [lo] = this.regulatorBand();
       if (pBefore < lo * 0.9) {
         if (this.arMode === "LAR") {
-          this.arEnabled = false;
+          // Automatic changeover to the standby regulator on side chambers
+          // (the design behavior; the 00:28 accident-night power collapse
+          // was this changeover FAILING, not being absent).
+          this.arMode = "AR";
+          const bank = s.rods.filter(
+            (r) => r.group === "AR" && r.arSubgroup === this.arActiveGroup,
+          );
+          this.arTarget =
+            bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+          this.arErrPrev = 0;
           this.log.alarm(
             s.time,
             "LAR_DROPOUT",
-            "LAR dropped out: in-core chambers blind below 10% - regulation LOST",
+            "LAR dropped out (in-core chambers blind below 10%) - automatic changeover to AR on side chambers",
           );
         } else if (s.time - this.lastBandWarnT > ALARM_COOLDOWN) {
           this.lastBandWarnT = s.time;

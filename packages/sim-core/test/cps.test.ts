@@ -86,15 +86,17 @@ describe("control and protection system", () => {
     expect(r.log.all().some((e) => e.code === "PRIZMA")).toBe(true);
   });
 
-  test("LAR drops out below its band (in-core chambers blind)", () => {
+  test("LAR drops out below its band and changes over to AR automatically", () => {
     const r = new Reactor();
     r.initAtPower(1.0);
     r.arMode = "LAR";
     r.arGradient = 0.01;
     r.arSetpoint = 0.05;
     r.tick(220, 0.1);
-    expect(r.arEnabled).toBe(false);
     expect(r.log.all().some((e) => e.code === "LAR_DROPOUT")).toBe(true);
+    // Standby regulator on side chambers picked up regulation.
+    expect(r.arMode as string).toBe("AR");
+    expect(r.arEnabled).toBe(true);
   });
 
   test("blocked protections warn instead of scramming", () => {

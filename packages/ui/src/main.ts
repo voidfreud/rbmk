@@ -565,9 +565,16 @@ function frame(now: number): void {
     $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
     $("ar-active").textContent =
       reactor.arMode === "LAR" ? "LAR" : `AR-${reactor.arActiveGroup}`;
-    // The regulator can disengage itself (LAR dropout) - reflect it.
+    // The regulator can disengage or change mode by itself (LAR dropout
+    // auto-changeover) - the panel must reflect the machine, not the click.
     arToggle.classList.toggle("active", reactor.arEnabled);
     arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
+    for (const m of ["arm", "ar", "lar"]) {
+      $(`ar-mode-${m}`).classList.toggle(
+        "active",
+        m === reactor.arMode.toLowerCase(),
+      );
+    }
 
     // Plant thermal readouts.
     const nodes = reactor.state.nodes;
@@ -596,6 +603,11 @@ function frame(now: number): void {
     // The channel field changes slowly; recompute and redraw at 5 Hz.
     channelMap.update(reactor.state.nodes);
     channelMap.draw(reactor.state.nodes, disp.power);
+    const q = channelMap.quadrants();
+    $("q-nw").textContent = q.nw.toFixed(2);
+    $("q-ne").textContent = q.ne.toFixed(2);
+    $("q-sw").textContent = q.sw.toFixed(2);
+    $("q-se").textContent = q.se.toFixed(2);
   }
 
   // Panels.
