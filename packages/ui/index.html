@@ -51,6 +51,9 @@
   .tile.brand .value { font-size: 15px; letter-spacing: 1px; }
 
   main { display: flex; gap: 10px; }
+  /* Drag-selection on the maps must not text-select the page. */
+  main, #desk, header { user-select: none; }
+  #alarm-list { user-select: text; }
   .panel {
     background: var(--panel);
     border: 1px solid var(--hairline);

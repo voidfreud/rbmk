@@ -50,14 +50,37 @@ export class Slice {
     return TOP + (meters / CORE_HEIGHT) * this.coreH();
   }
 
-  /** Node data under a client point, for the shared tooltip. */
+  private lastRods: RodState[] = [];
+
+  /** Node or bank data under a client point, for the shared tooltip. */
   hit(clientX: number, clientY: number): string | null {
     const r = this.canvas.getBoundingClientRect();
     const px = clientX - r.left;
     const py = clientY - r.top;
     if (py < TOP || py > TOP + this.coreH()) return null;
-    if (px < SCALE_X || px > SCALE_X + FLUX_W + TEMP_W + 6) return null;
     const depth = ((py - TOP) / this.coreH()) * CORE_HEIGHT;
+
+    // Bank columns: report the bank's geometry at this depth.
+    const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
+    if (px >= banksX) {
+      const slot = Math.floor((px - banksX) / (BANK_W + BANK_GAP));
+      const within = (px - banksX) % (BANK_W + BANK_GAP) <= BANK_W;
+      const group = GROUPS[slot];
+      if (!within || !group) return null;
+      const members = this.lastRods.filter((rod) => rod.group === group);
+      if (members.length === 0) return null;
+      const ins =
+        members.reduce((a, rod) => a + rod.insertion, 0) / members.length;
+      const moving = members.some(
+        (rod) => Math.abs(rod.target - rod.insertion) > 1e-6,
+      );
+      return (
+        `${group} bank (${members.length} rods) — mean depth ` +
+        `${(ins * CORE_HEIGHT).toFixed(2)} m${moving ? " · MOVING" : ""}`
+      );
+    }
+
+    if (px < SCALE_X || px > SCALE_X + FLUX_W + TEMP_W + 6) return null;
     const k = Math.min(N_AXIAL - 1, Math.floor((depth / CORE_HEIGHT) * N_AXIAL));
     const n = this.lastNodes[k];
     if (!n) return null;
@@ -70,6 +93,7 @@ export class Slice {
 
   draw(nodes: NodeState[], rods: RodState[]): void {
     this.lastNodes = nodes;
+    this.lastRods = rods;
     const g = this.ctx;
     g.clearRect(0, 0, this.w, this.h);
     const coreH = this.coreH();
@@ -103,9 +127,20 @@ export class Slice {
     g.fillText("top of core", SCALE_X + 2, TOP + 9);
     g.fillText("bottom", SCALE_X + 2, TOP + coreH - 3);
 
-    // Flux profile as a filled area (x = flux, y = depth).
-    const maxFlux = Math.max(0.2, ...nodes.map((n) => n.flux));
+    // Flux profile as a filled area (x = flux, y = depth), normalized to its
+    // own peak so the SHAPE reads at any power; the peak label carries the
+    // absolute scale.
+    const maxFlux = Math.max(1e-12, ...nodes.map((n) => n.flux));
     const fx = (f: number) => SCALE_X + (f / maxFlux) * (FLUX_W - 8);
+    g.fillStyle = "#898781";
+    g.font = "9px system-ui, sans-serif";
+    g.textAlign = "right";
+    g.fillText(
+      `peak ${maxFlux >= 0.01 ? maxFlux.toFixed(2) + "x" : maxFlux.toExponential(1) + "x"}`,
+      SCALE_X + FLUX_W - 2,
+      TOP - 2,
+    );
+    g.textAlign = "left";
     g.beginPath();
     g.moveTo(SCALE_X, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
