@@ -30,7 +30,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    min-width: 1180px;
+    min-width: 1560px;
   }
   .num { font-variant-numeric: tabular-nums; }
 
@@ -142,12 +142,25 @@
   <main>
     <section class="panel" id="col-map">
       <h2>Core map — rod depths (click to select, drag to multi-select)</h2>
-      <canvas id="cartogram" width="470" height="470"></canvas>
+      <canvas id="cartogram" width="420" height="420"></canvas>
       <div class="legend" id="map-legend">
         <span><span class="sw" style="background:#86b6ef"></span>inserted</span>
         <span><span class="sw" style="background:#184f95"></span>withdrawn</span>
         <span>A auto</span><span>E emergency</span><span>S shortened</span>
         <span style="color:#fff">□ selected</span>
+      </div>
+    </section>
+
+    <section class="panel" id="col-field">
+      <h2>Channel field
+        <button id="view-power" class="active" style="margin-left:8px">power</button>
+        <button id="view-temp">temp</button>
+      </h2>
+      <canvas id="channelmap" width="380" height="380"></canvas>
+      <div class="legend">
+        <span><span class="sw" style="background:#d95926"></span>channel power</span>
+        <span><span class="sw" style="background:#c98500"></span>fuel temp</span>
+        <span><span class="sw" style="border:1px solid #9ec5f4"></span>CPS channel (bright = inserted)</span>
       </div>
     </section>
 

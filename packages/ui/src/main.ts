@@ -5,6 +5,7 @@ import {
   type RodGroup,
 } from "@rbmk/sim-core";
 import { Cartogram, depthLabel } from "./cartogram";
+import { ChannelMap } from "./channelmap";
 import { Slice } from "./slice";
 import { StripChart, hms } from "./strips";
 
@@ -25,9 +26,39 @@ const cartogram = new Cartogram(
   reactor.state.rods,
 );
 const slice = new Slice($<HTMLCanvasElement>("slice"));
+const channelMap = new ChannelMap(
+  $<HTMLCanvasElement>("channelmap"),
+  reactor.state.rods,
+);
+
+$("view-power").onclick = () => {
+  channelMap.view = "power";
+  $("view-power").classList.add("active");
+  $("view-temp").classList.remove("active");
+};
+$("view-temp").onclick = () => {
+  channelMap.view = "temp";
+  $("view-temp").classList.add("active");
+  $("view-power").classList.remove("active");
+};
+
+const fieldCanvas = $<HTMLCanvasElement>("channelmap");
+fieldCanvas.addEventListener("mousemove", (e) => {
+  const label = channelMap.hit(e.clientX, e.clientY, reactor.powerFraction());
+  const tip = $("tooltip");
+  if (label) {
+    tip.style.display = "block";
+    tip.style.left = `${e.clientX + 14}px`;
+    tip.style.top = `${e.clientY + 14}px`;
+    tip.textContent = label;
+  } else {
+    tip.style.display = "none";
+  }
+});
+fieldCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
 
 const stripPower = new StripChart($("st-power") as HTMLCanvasElement, "#3987e5", (v) => `${v.toFixed(1)}%`);
-const stripPeriod = new StripChart($("st-period") as HTMLCanvasElement, "#199e70", (v) => (Math.abs(v) >= 999 ? "inf" : `${v.toFixed(0)}s`), 360, 999);
+const stripPeriod = new StripChart($("st-period") as HTMLCanvasElement, "#199e70", (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200);
 const stripRho = new StripChart($("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}$`, 360, 25);
 const stripXe = new StripChart($("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`);
 
@@ -204,6 +235,34 @@ $("scram-reset").onclick = () => reactor.resetScram();
 // ---------------------------------------------------------------------------
 let lastWall = performance.now();
 let nextSample = 0;
+let nextDomUpdate = 0;
+
+/**
+ * Damped display values: real panel instruments have mechanical/electrical
+ * damping, so the readouts must not flicker at frame rate. Smooth with
+ * ~0.5 s time constant and write to the DOM at 5 Hz.
+ */
+const disp = { power: 1, rho: 0, xe: 1, voidAvg: 0.35, periodRate: 0 };
+function smooth(wallDt: number): void {
+  const a = Math.min(1, wallDt / 0.5);
+  disp.power += (reactor.powerFraction() - disp.power) * a;
+  disp.rho += (reactor.reactivityDollars() - disp.rho) * a;
+  const xe =
+    reactor.state.nodes.reduce((a2, n) => a2 + n.xenon, 0) / N_AXIAL / XE_EQ;
+  disp.xe += (xe - disp.xe) * a;
+  const voidAvg =
+    reactor.state.nodes.reduce((a2, n) => a2 + n.voidFrac, 0) / N_AXIAL;
+  disp.voidAvg += (voidAvg - disp.voidAvg) * a;
+  const p = reactor.period();
+  disp.periodRate += (1 / p - disp.periodRate) * a;
+}
+
+/** Period readout: off-scale beyond +-200 s reads as infinity, like the meter. */
+function periodText(): string {
+  const rate = disp.periodRate;
+  if (Math.abs(rate) < 1 / 200) return "∞";
+  return `${(1 / rate).toFixed(0)} s`;
+}
 
 function frame(now: number): void {
   const wallDt = Math.min(0.1, (now - lastWall) / 1000);
@@ -213,35 +272,37 @@ function frame(now: number): void {
     const simDt = wallDt * speed;
     reactor.tick(simDt, speed > 1 ? 0.1 : 0.02);
   }
+  smooth(wallDt);
 
   const t = reactor.state.time;
   if (t >= nextSample) {
-    const xe =
-      reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
-    const period = reactor.period();
-    stripPower.push(t, reactor.powerFraction() * 100);
-    stripPeriod.push(t, Math.abs(period) >= 1e5 ? 999 : period);
-    stripRho.push(t, reactor.reactivityDollars());
-    stripXe.push(t, xe);
+    const period = 1 / Math.max(1 / 200, Math.abs(disp.periodRate)) *
+      Math.sign(disp.periodRate || 1);
+    stripPower.push(t, disp.power * 100);
+    stripPeriod.push(t, Math.abs(period) >= 200 ? 200 : period);
+    stripRho.push(t, disp.rho);
+    stripXe.push(t, disp.xe);
     nextSample = t + 0.5;
   }
 
-  // Instruments.
-  $("i-time").textContent = `t = ${hms(t)}`;
-  $("i-power").textContent = `${(reactor.powerFraction() * 100).toFixed(1)}%`;
-  $("i-mw").textContent = `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
-  const period = reactor.period();
-  $("i-period").textContent = Math.abs(period) >= 1e5 ? "∞" : `${period.toFixed(0)} s`;
-  $("i-rho").textContent = `${reactor.reactivityDollars().toFixed(2)} $`;
-  $("i-orm").textContent = reactor.ormRods().toFixed(1);
-  const xe =
-    reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
-  $("i-xe").textContent = `${xe.toFixed(2)}×`;
-  const voidAvg =
-    reactor.state.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
-  $("i-void").textContent = `${(voidAvg * 100).toFixed(0)}%`;
-  $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
-  $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
+  // Instruments, throttled to 5 Hz.
+  if (now >= nextDomUpdate) {
+    nextDomUpdate = now + 200;
+    $("i-time").textContent = `t = ${hms(t)}`;
+    $("i-power").textContent = `${(disp.power * 100).toFixed(1)}%`;
+    $("i-mw").textContent = `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
+    $("i-period").textContent = periodText();
+    $("i-rho").textContent = `${disp.rho.toFixed(2)} $`;
+    $("i-orm").textContent = reactor.ormRods().toFixed(1);
+    $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
+    $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
+    $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
+    $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
+    if (selected.size > 0) updateSelInfo();
+    // The channel field changes slowly; recompute and redraw at 5 Hz.
+    channelMap.update(reactor.state.nodes);
+    channelMap.draw(reactor.state.nodes, disp.power);
+  }
 
   // Panels.
   const dragRect =
@@ -254,7 +315,6 @@ function frame(now: number): void {
   stripPeriod.draw();
   stripRho.draw();
   stripXe.draw();
-  if (selected.size > 0) updateSelInfo();
 
   requestAnimationFrame(frame);
 }
