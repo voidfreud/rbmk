@@ -99,17 +99,18 @@ window.addEventListener("mousemove", (e) => {
 window.addEventListener("mouseup", (e) => {
   if (!dragStart) return;
   const dist = Math.hypot(e.clientX - dragStart[0], e.clientY - dragStart[1]);
+  const additive = e.shiftKey || e.metaKey || e.ctrlKey;
   if (dist < 5) {
     const rod = cartogram.hit(e.clientX, e.clientY);
     if (rod) {
-      if (!e.shiftKey) selected.clear();
+      if (!additive) selected.clear();
       if (selected.has(rod.id)) selected.delete(rod.id);
       else selected.add(rod.id);
-    } else if (!e.shiftKey) {
+    } else if (!additive) {
       selected.clear();
     }
   } else {
-    if (!e.shiftKey) selected.clear();
+    if (!additive) selected.clear();
     for (const rod of cartogram.rodsInRect(dragStart[0], dragStart[1], e.clientX, e.clientY)) {
       selected.add(rod.id);
     }
@@ -215,15 +216,24 @@ const STEP = 0.05; // 35 cm
 
 /** Drive command for the selection: continuous lever, pulse step, or stop.
  * Panel rule (TEZ L.24): WITHDRAWAL is restricted with 5+ rods selected;
- * insertion is never count-restricted. */
+ * insertion is never count-restricted. AZ rods are exempt - the emergency
+ * bank is cocked as a SET before startup (which is why the power interlock
+ * excludes them too). */
+let lastSelLimitT = -Infinity;
 function driveSelected(cmd: "out" | "in" | "stop" | number): void {
   const isWithdrawal = cmd === "out" || (typeof cmd === "number" && cmd < 0);
-  if (isWithdrawal && selected.size > 5) {
-    reactor.log.warn(
-      reactor.state.time,
-      "SEL_LIMIT",
-      `withdrawal restricted: ${selected.size} rods selected (max 5 for withdrawal)`,
-    );
+  const nonAz = [...selected].filter(
+    (id) => reactor.state.rods[id]!.group !== "AZ",
+  ).length;
+  if (isWithdrawal && nonAz > 5) {
+    if (reactor.state.time - lastSelLimitT > 5) {
+      lastSelLimitT = reactor.state.time;
+      reactor.log.warn(
+        reactor.state.time,
+        "SEL_LIMIT",
+        `withdrawal restricted: ${nonAz} non-AZ rods selected (max 5 for withdrawal)`,
+      );
+    }
     return;
   }
   for (const id of selected) {
