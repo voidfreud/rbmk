@@ -95,9 +95,15 @@ export class ChannelMap {
     return `channel ${best} — ${mw.toFixed(2)} MW (${rel.toFixed(2)}× mean)`;
   }
 
-  draw(nodes: NodeState[], powerFraction: number): void {
+  draw(nodes: NodeState[], powerFraction: number, time = 0): void {
     const g = this.ctx;
     g.clearRect(0, 0, this.w, this.w);
+
+    // Detector counting statistics: relative noise ~ 1/sqrt(count rate),
+    // so the field shimmers faintly at power and visibly breathes in the
+    // startup range - like the real readouts. Deterministic per-channel
+    // phases (golden-angle spread), no randomness.
+    const sigma = Math.min(0.15, 0.004 / Math.sqrt(Math.max(1e-3, powerFraction)));
 
     // Core barrel.
     g.beginPath();
@@ -126,12 +132,18 @@ export class ChannelMap {
       const rel = this.field.rel[c]!;
       const x = this.px(ch.x);
       const y = this.px(ch.y);
+      const phase = c * 2.399963; // golden angle: uncorrelated neighbors
+      const flicker =
+        1 +
+        sigma *
+          (Math.sin(time * 1.7 + phase) + 0.6 * Math.sin(time * 4.3 + 2.1 * phase));
       if (this.view === "power") {
-        const v = (rel / maxRel) * glow;
-        g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.min(1, v)})`;
+        const v = (rel / maxRel) * glow * flicker;
+        g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.max(0, Math.min(1, v))})`;
       } else {
         // Fuel-temperature shape follows the power shape; show it relative
-        // (same normalization) in the amber hue so it reads at any power.
+        // (same normalization) in the amber hue. Fuel temperature is a slow
+        // thermal signal - no counting noise on this view.
         const v = (rel / maxRel) * glow;
         g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * Math.min(1, v)})`;
       }

@@ -600,9 +600,9 @@ function frame(now: number): void {
     $("setpoint-val").textContent =
       `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
     if (selected.size > 0) updateSelInfo();
-    // The channel field changes slowly; recompute and redraw at 5 Hz.
+    // Field reconstruction is quasi-static; recompute at 5 Hz (drawing
+    // happens every frame so the detector shimmer stays smooth).
     channelMap.update(reactor.state.nodes);
-    channelMap.draw(reactor.state.nodes, disp.power);
     const q = channelMap.quadrants();
     $("q-nw").textContent = q.nw.toFixed(2);
     $("q-ne").textContent = q.ne.toFixed(2);
@@ -616,6 +616,7 @@ function frame(now: number): void {
       ? ([dragStart[0], dragStart[1], dragNow[0], dragNow[1]] as [number, number, number, number])
       : null;
   cartogram.draw(selected, dragRect);
+  channelMap.draw(reactor.state.nodes, disp.power, t);
   slice.draw(reactor.state.nodes, reactor.state.rods);
   stripPower.draw();
   stripPeriod.draw();
