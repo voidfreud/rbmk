@@ -189,7 +189,12 @@ mapCanvas.addEventListener("mousemove", (e) => {
     tooltip.style.display = "block";
     tooltip.style.left = `${e.clientX + 14}px`;
     tooltip.style.top = `${e.clientY + 14}px`;
-    tooltip.textContent = depthLabel(rod);
+    // PRIZMA-style worth estimate for this rod from its current position.
+    const w = reactor.rodWorthBeta(rod.id);
+    const worth = w
+      ? ` · worth ↑${w.toOut >= 0 ? "+" : ""}${w.toOut.toFixed(2)}β ↓${w.toIn >= 0 ? "+" : ""}${w.toIn.toFixed(2)}β`
+      : "";
+    tooltip.textContent = depthLabel(rod) + worth;
   } else {
     tooltip.style.display = "none";
   }
@@ -466,7 +471,7 @@ function updateChecklist(): void {
   const done = [
     startupMode,
     startupMode && azOut,
-    startupMode && azOut && rrMean < 0.92,
+    startupMode && azOut && rrMean < 0.98,
     startupMode && ((period > 0 && period < 150) || power > 0.0025),
     startupMode && reactor.arEnabled && reactor.arSetpoint > 0,
     startupMode &&
@@ -626,6 +631,14 @@ function frame(now: number): void {
     else stateTxt = "SUBCRITICAL";
     $("i-state").textContent = stateTxt;
     $("i-period").textContent = periodText();
+    // Doubling (or halving) time = period * ln 2, when the meter is on scale.
+    const rate = disp.periodRate;
+    $("i-doubling").textContent =
+      Math.abs(rate) < 1 / 200
+        ? "steady"
+        : rate > 0
+          ? `doubling ${(0.693 / rate).toFixed(0)} s`
+          : `halving ${(-0.693 / rate).toFixed(0)} s`;
     // Reactivity in beta units (the ZRT-A reactimeter's convention), with
     // % dk/k as the secondary readout.
     $("i-rho").textContent = `${disp.rho.toFixed(2)} β`;

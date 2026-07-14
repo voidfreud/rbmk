@@ -82,17 +82,6 @@ export interface CoreState {
   scrammed: boolean;
 }
 
-/** Per-node reactivity breakdown from the last step, for instruments/UI. */
-export interface ReactivityBreakdown {
-  rods: number[];
-  voidFeedback: number[];
-  doppler: number[];
-  graphite: number[];
-  xenon: number[];
-  /** Global flux-squared-weighted net reactivity (dollars need /BETA_EFF). */
-  netGlobal: number;
-}
-
 export interface SimEvent {
   t: number;
   level: "info" | "warn" | "alarm";

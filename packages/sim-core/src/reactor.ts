@@ -41,7 +41,6 @@ import { equilibriumThermal, stepThermal } from "./thermal";
 import type {
   CoreState,
   NodeState,
-  ReactivityBreakdown,
   RodSelector,
   RodState,
 } from "./types";
@@ -830,6 +829,29 @@ export class Reactor {
     return this.lastRhoIpk / BETA_EFF;
   }
 
+  /**
+   * PRIZMA-style rod worth estimate [beta]: global reactivity change if
+   * this rod drove fully out / fully in from its current position, using
+   * first-order perturbation weighting on the current flux shape.
+   */
+  rodWorthBeta(id: number): { toOut: number; toIn: number } | null {
+    const rod = this.state.rods[id];
+    if (!rod) return null;
+    const saved = rod.insertion;
+    const cur = rodReactivityByNode([rod]);
+    rod.insertion = 0;
+    const out = rodReactivityByNode([rod]);
+    rod.insertion = 1;
+    const inn = rodReactivityByNode([rod]);
+    rod.insertion = saved;
+    const weigh = (a: number[], b: number[]) =>
+      globalReactivity(
+        this.state.nodes,
+        a.map((v, k) => v - b[k]!),
+      ) / BETA_EFF;
+    return { toOut: weigh(out, cur), toIn: weigh(inn, cur) };
+  }
+
   /** Seed the reactimeter's trackers to equilibrium with current power. */
   private resetIpk(): void {
     const n = Math.max(powerFraction(this.state.nodes), 1e-12);
@@ -843,27 +865,4 @@ export class Reactor {
     this.lastRhoIpk = -(GEN_TIME * NEUTRON_SOURCE) / n;
   }
 
-  /** Per-node reactivity contributions for instruments/UI. */
-  reactivityBreakdown(): ReactivityBreakdown {
-    const s = this.state;
-    const rods = rodReactivityByNode(s.rods);
-    const voidFeedback: number[] = [];
-    const doppler: number[] = [];
-    const graphite: number[] = [];
-    const xenon: number[] = [];
-    for (const n of s.nodes) {
-      voidFeedback.push(VOID_COEFF * n.voidFrac);
-      doppler.push(FUEL_TEMP_COEFF * (n.fuelTemp - T_FUEL_REF));
-      graphite.push(GRAPHITE_TEMP_COEFF * (n.graphiteTemp - T_GRAPHITE_REF));
-      xenon.push(xenonReactivity(n.xenon));
-    }
-    return {
-      rods,
-      voidFeedback,
-      doppler,
-      graphite,
-      xenon,
-      netGlobal: globalReactivity(s.nodes, this.lastRhoByNode),
-    };
-  }
 }
