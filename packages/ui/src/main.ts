@@ -13,11 +13,46 @@ import { StripChart, hms } from "./strips";
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
 
+/**
+ * Shared canvas hover tooltip (#tooltip). labelFn returns the label string,
+ * or null/undefined/"" to hide. Cartogram passes !dragStart + worth via labelFn.
+ */
+function attachTooltip(
+  canvas: HTMLCanvasElement,
+  labelFn: (e: MouseEvent) => string | null | undefined,
+): void {
+  const tip = $("tooltip");
+  canvas.addEventListener("mousemove", (e) => {
+    const label = labelFn(e);
+    if (label) {
+      tip.style.display = "block";
+      tip.style.left = `${e.clientX + 14}px`;
+      tip.style.top = `${e.clientY + 14}px`;
+      tip.textContent = label;
+    } else {
+      tip.style.display = "none";
+    }
+  });
+  canvas.addEventListener("mouseleave", () => {
+    tip.style.display = "none";
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Reactor
 // ---------------------------------------------------------------------------
 const reactor = new Reactor();
 const XE_EQ = equilibriumIodineXenon(1.0).xenon;
+
+/** Core-average Xe-135 relative to full-power equilibrium (1.0 = equil at 100%). */
+function xenonRel(): number {
+  return reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
+}
+
+/** Core-average steam void fraction (0–1). */
+function voidAvg(): number {
+  return reactor.state.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
+}
 
 // ---------------------------------------------------------------------------
 // Panels
@@ -44,39 +79,17 @@ $("view-temp").onclick = () => {
 };
 
 const fieldCanvas = $<HTMLCanvasElement>("channelmap");
-fieldCanvas.addEventListener("mousemove", (e) => {
-  const label = channelMap.hit(
+attachTooltip(fieldCanvas, (e) =>
+  channelMap.hit(
     e.clientX,
     e.clientY,
     reactor.powerFraction(),
     reactor.state.nodes,
-  );
-  const tip = $("tooltip");
-  if (label) {
-    tip.style.display = "block";
-    tip.style.left = `${e.clientX + 14}px`;
-    tip.style.top = `${e.clientY + 14}px`;
-    tip.textContent = label;
-  } else {
-    tip.style.display = "none";
-  }
-});
-fieldCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
+  ),
+);
 
 const sliceCanvas = $<HTMLCanvasElement>("slice");
-sliceCanvas.addEventListener("mousemove", (e) => {
-  const label = slice.hit(e.clientX, e.clientY);
-  const tip = $("tooltip");
-  if (label) {
-    tip.style.display = "block";
-    tip.style.left = `${e.clientX + 14}px`;
-    tip.style.top = `${e.clientY + 14}px`;
-    tip.textContent = label;
-  } else {
-    tip.style.display = "none";
-  }
-});
-sliceCanvas.addEventListener("mouseleave", () => ($("tooltip").style.display = "none"));
+attachTooltip(sliceCanvas, (e) => slice.hit(e.clientX, e.clientY));
 
 // Recorders with their real working limits drawn in status colors.
 const stripPower = new StripChart(
@@ -151,7 +164,6 @@ let dragStart: [number, number] | null = null;
 let dragNow: [number, number] | null = null;
 
 const mapCanvas = $<HTMLCanvasElement>("cartogram");
-const tooltip = $("tooltip");
 
 mapCanvas.addEventListener("mousedown", (e) => {
   // P0.6: only left-button starts a drag/box-select.
@@ -199,23 +211,18 @@ window.addEventListener("blur", () => {
   dragNow = null;
 });
 
-mapCanvas.addEventListener("mousemove", (e) => {
+// Cartogram tooltip: hide while box-selecting; append rod-worth suffix.
+attachTooltip(mapCanvas, (e) => {
+  if (dragStart) return null;
   const rod = cartogram.hit(e.clientX, e.clientY);
-  if (rod && !dragStart) {
-    tooltip.style.display = "block";
-    tooltip.style.left = `${e.clientX + 14}px`;
-    tooltip.style.top = `${e.clientY + 14}px`;
-    // PRIZMA-style worth estimate for this rod from its current position.
-    const w = reactor.rodWorthBeta(rod.id);
-    const worth = w
-      ? ` · worth ↑${w.toOut >= 0 ? "+" : ""}${w.toOut.toFixed(2)}β ↓${w.toIn >= 0 ? "+" : ""}${w.toIn.toFixed(2)}β`
-      : "";
-    tooltip.textContent = depthLabel(rod) + worth;
-  } else {
-    tooltip.style.display = "none";
-  }
+  if (!rod) return null;
+  // PRIZMA-style worth estimate for this rod from its current position.
+  const w = reactor.rodWorthBeta(rod.id);
+  const worth = w
+    ? ` · worth ↑${w.toOut >= 0 ? "+" : ""}${w.toOut.toFixed(2)}β ↓${w.toIn >= 0 ? "+" : ""}${w.toIn.toFixed(2)}β`
+    : "";
+  return depthLabel(rod) + worth;
 });
-mapCanvas.addEventListener("mouseleave", () => (tooltip.style.display = "none"));
 
 function selectGroup(group: RodGroup): void {
   selected.clear();
@@ -261,14 +268,6 @@ $("sel-filter").onclick = () => {
   $("sel-filter").classList.toggle("active", selFilterRR);
 };
 
-const GRP_SHORT: Record<string, string> = {
-  RR: "RR",
-  AR: "AR",
-  LAR: "LAR",
-  AZ: "AZ",
-  USP: "USP",
-};
-
 /** Per-rod servo rows (selsyn-style) for up to 30 selected rods. */
 function rebuildSelRows(): void {
   const wrap = $("sel-rows");
@@ -281,7 +280,7 @@ function rebuildSelRows(): void {
     row.dataset.rod = String(id);
     row.innerHTML =
       `<span class="coord">${rodCoord(rod)}</span>` +
-      `<span class="grp">${GRP_SHORT[rod.group]}</span>` +
+      `<span class="grp">${rod.group}</span>` +
       `<span class="bar"><i style="width:${rod.insertion * 100}%"></i></span>` +
       `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>` +
       `<span class="lim num"></span>`;
@@ -495,10 +494,8 @@ gradient.oninput = () => {
 function snapDisplays(): void {
   disp.power = reactor.powerFraction();
   disp.rho = reactor.reactivityBeta();
-  disp.xe =
-    reactor.state.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL / XE_EQ;
-  disp.voidAvg =
-    reactor.state.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
+  disp.xe = xenonRel();
+  disp.voidAvg = voidAvg();
   disp.periodRate = 0;
 }
 
@@ -658,12 +655,8 @@ function smooth(simDt: number): void {
   const a = Math.min(1, simDt / 0.5);
   disp.power += (reactor.powerFraction() - disp.power) * a;
   disp.rho += (reactor.reactivityBeta() - disp.rho) * a;
-  const xe =
-    reactor.state.nodes.reduce((a2, n) => a2 + n.xenon, 0) / N_AXIAL / XE_EQ;
-  disp.xe += (xe - disp.xe) * a;
-  const voidAvg =
-    reactor.state.nodes.reduce((a2, n) => a2 + n.voidFrac, 0) / N_AXIAL;
-  disp.voidAvg += (voidAvg - disp.voidAvg) * a;
+  disp.xe += (xenonRel() - disp.xe) * a;
+  disp.voidAvg += (voidAvg() - disp.voidAvg) * a;
   const p = reactor.period();
   disp.periodRate += (1 / p - disp.periodRate) * a;
 }
