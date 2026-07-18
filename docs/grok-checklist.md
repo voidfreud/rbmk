@@ -27,7 +27,7 @@ doc (or note "fixed on grok" under the finding).
   what it does, command it, and read back the plant. Features that only work
   if you already know the source code are unfinished. Prefer real CPS
   terminology with plain-language support, not cryptic abbreviations alone.
-- [ ] **G1. Hover / discoverability** — Every button, lamp, meter, toggle,
+- [x] **G1. Hover / discoverability** — Every button, lamp, meter, toggle,
   chart, and indicator must expose **comprehensible** information on hover
   (native `title` and/or the shared `#tooltip`): full name, what it does,
   units, typical range, and when it matters. **No mysterious or cyphered
@@ -48,14 +48,14 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P0.1 | `initAtPower` re-enables AR after cold start; settle with regulator on | #10 |
-| [ ] | P0.2 | Reset strip `nextSample` + clear chart buffers on re-init | #1, #21 |
-| [ ] | P0.3 | Reset annunciator `lampT` (and use `t >= lampT` guards); fix LAR dropout lamp | #2, #3 |
-| [ ] | P0.4 | Reset reactor alarm cooldown timestamps / period latch on re-init | #11 |
-| [ ] | P0.5 | Lever: left-button only; window `mouseup` + `blur` release | #5 |
-| [ ] | P0.6 | Cartogram: ignore non-left mousedown; clear drag on contextmenu/blur | #6 |
-| [ ] | P0.7 | Resync setpoint slider when AZ-1 (or reactor) changes `arSetpoint` | #4 |
-| [ ] | P0.8 | While SCRAMMED: refuse withdrawal / re-assert insert targets; UI drive disabled or inert | #8 |
+| [x] | P0.1 | `initAtPower` re-enables AR after cold start; settle with regulator on | #10 |
+| [x] | P0.2 | Reset strip `nextSample` + clear chart buffers on re-init | #1, #21 |
+| [x] | P0.3 | Reset annunciator `lampT` (and use `t >= lampT` guards); fix LAR dropout lamp | #2, #3 |
+| [x] | P0.4 | Reset reactor alarm cooldown timestamps / period latch on re-init | #11 |
+| [x] | P0.5 | Lever: left-button only; window `mouseup` + `blur` release | #5 |
+| [x] | P0.6 | Cartogram: ignore non-left mousedown; clear drag on contextmenu/blur | #6 |
+| [x] | P0.7 | Resync setpoint slider when AZ-1 (or reactor) changes `arSetpoint` | #4 |
+| [x] | P0.8 | While SCRAMMED: refuse withdrawal / re-assert insert targets; UI drive disabled or inert | #8 |
 
 ---
 
@@ -63,17 +63,17 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P0.9 | Silovaya: do not treat regulator-owned LAR/AR ganged withdraw as operator 8-rod interlock (or model independent zone servos) | #9 |
-| [ ] | P0.10 | AR changeover: no infinite 5 s round-robin; latch "out of authority" | #12, #26 |
-| [ ] | P0.11 | `resetScram` must not walk AR banks out (setpoint/authority contract + test) | #44 |
-| [ ] | P0.12 | AZ-1 is a true ~50% setback (drop active setpoint; AR must not fight for 28 min) | #47 |
-| [ ] | P0.13 | Withdrawal select limit: refuse at `>=5` non-AZ (max 4); fix message | #19 |
-| [ ] | P0.14 | `SIL_BLOK` clears UI selection (or stop claiming it does) | #20 |
-| [ ] | P0.15 | Startup period <60 s: **continuously** stop withdrawals, not only at command time | #22 |
-| [ ] | P0.16 | AZS period trip: remove or justify power >0.5% floor; docs match code | #25 |
+| [x] | P0.9 | Silovaya: do not treat regulator-owned LAR/AR ganged withdraw as operator 8-rod interlock (or model independent zone servos) | #9 |
+| [x] | P0.10 | AR changeover: no infinite 5 s round-robin; latch "out of authority" | #12, #26 |
+| [x] | P0.11 | `resetScram` must not walk AR banks out (setpoint/authority contract + test) | #44 |
+| [x] | P0.12 | AZ-1 is a true ~50% setback (drop active setpoint; AR must not fight for 28 min) | #47 |
+| [x] | P0.13 | Withdrawal select limit: refuse at `>=5` non-AZ (max 4); fix message | #19 |
+| [x] | P0.14 | `SIL_BLOK` clears UI selection (or stop claiming it does) | #20 |
+| [x] | P0.15 | Startup period <60 s: **continuously** stop withdrawals, not only at command time | #22 |
+| [x] | P0.16 | AZS period trip: remove or justify power >0.5% floor; docs match code | #25 |
 | [ ] | P0.17 | Rule 3.1.7: no positive reactivity insert unless AZ bank cocked | #29 |
-| [ ] | P0.18 | AR subgroup switches via `setAutoControl`; resync auto/manual lamp state | #7 |
-| [ ] | P0.19 | `setArMode` re-seeds `arTarget` from owned bank (UI must not bare-write `arMode`) | #55 |
+| [x] | P0.18 | AR subgroup switches via `setAutoControl`; resync auto/manual lamp state | #7 |
+| [x] | P0.19 | `setArMode` re-seeds `arTarget` from owned bank (UI must not bare-write `arMode`) | #55 |
 
 ---
 
@@ -158,8 +158,8 @@ These are first-class on this branch, not backlog leftovers.
 
 | Done | ID | Summary |
 |:----:|----|---------|
-| [ ] | UX.1 | **Hover audit**: every control and indicator in `packages/ui/index.html` has a plain-language `title` (or live tooltip) stating name, function, units, and trip/band if any |
-| [ ] | UX.2 | Expand CPS jargon on hover: AZ-5, AZ-1, AZS, AZM, AR/ARM/LAR, RR, USP, SIL, ORM, PRIZMA, VK/NK, selsyn, gradient, silovaya, ORM floor, period block |
+| [x] | UX.1 | **Hover audit**: every control and indicator in `packages/ui/index.html` has a plain-language `title` (or live tooltip) stating name, function, units, and trip/band if any |
+| [x] | UX.2 | Expand CPS jargon on hover: AZ-5, AZ-1, AZS, AZM, AR/ARM/LAR, RR, USP, SIL, ORM, PRIZMA, VK/NK, selsyn, gradient, silovaya, ORM floor, period block |
 | [ ] | UX.3 | Annunciator lamps: hover = what fired, what it means, what to do (not just a short label) |
 | [ ] | UX.4 | Strip charts: axis units + threshold lines explained on hover (AZS 10 s, power 110%, etc.) |
 | [ ] | UX.5 | Checklist / guide steps use operator language consistent with tooltips (same terms, no private nicknames) |
@@ -187,6 +187,7 @@ These are first-class on this branch, not backlog leftovers.
 | Date | Note |
 |------|------|
 | 2026-07-18 | Branch `grok` created. Checklist written: all 57 audit items mapped + design goals G0/G1 (realistic exploitation, hover discoverability). |
+| 2026-07-18 | Parallel workflow doc; first multi-agent pass on grok lineage: P0.1–P0.15 (most), P0.18–P0.19, UX titles. `bun test` 29 pass. Topic branches: `grok-p0-core`, `grok-p0-ui`, `grok-ux-tooltips` merged into `grok`. |
 | | |
 
 ---

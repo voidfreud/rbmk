@@ -430,7 +430,9 @@ arToggle.onclick = () => {
 };
 
 function setArMode(mode: "ARM" | "AR" | "LAR"): void {
-  reactor.arMode = mode;
+  // Prefer reactor API: re-seeds arTarget from the newly owned bank so rods
+  // do not jump to a stale regulator target (P0.19).
+  reactor.setArMode(mode);
   for (const m of ["arm", "ar", "lar"]) {
     $(`ar-mode-${m}`).classList.toggle("active", m === mode.toLowerCase());
   }

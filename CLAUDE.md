@@ -82,9 +82,9 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   small checkpoints, not batched mega-commits.
 - Parallel work: **grok lineage + isolated worktrees** (see
   `docs/parallel-workflow.md`). Integration branch is **`grok`**; agents
-  use short-lived **`grok/<task>`** branches forked from `grok`; **never
-  merge agent work to `main`** until an explicit promote. Phrase to
-  request: “parallel on the grok lineage; protect main.”
+  use short-lived **`grok-<task>`** branches (hyphen — not `grok/…`)
+  forked from `grok`; **never merge agent work to `main`** until an
+  explicit promote. Phrase: “parallel on the grok lineage; protect main.”
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.
