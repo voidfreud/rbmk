@@ -246,15 +246,16 @@
 
     <section class="panel" id="col-slice">
       <h2 title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">Core profile — top to bottom</h2>
-      <p class="panel-help">Read across at any depth: farther right means <b>more</b>. Power, steam, and xenon each have their own printed scale; the rod bars use the same 0–7 m depth axis. Coolant enters at 7 m and flows upward.</p>
+      <p class="panel-help">The layered curves show where power, steam, and xenon sit vertically. Beside them, each rod-bank column is a physical channel: <b>pink absorber suppresses fission</b>, gray is graphite, and blue is water. More pink inside the 0–7 m core means more shutdown effect.</p>
       <canvas id="slice" width="440" height="520" title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
       <div class="slice-guide">
-        <span title="Orange lane: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">power lane</b> · 0 to current peak</span>
-        <span title="Blue lane: local steam void fraction on an absolute 0–100% scale."><b style="color:#9ec5f4">steam lane</b> · 0–100% void</span>
-        <span title="Amber lane: xenon poison from 0 to twice the core average; wider means stronger local neutron suppression."><b style="color:#c98500">xenon lane</b> · 0–2× core average</span>
+        <span title="Orange filled profile: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">orange area</b> · local power shape</span>
+        <span title="Blue dashed curve: local steam void fraction from 0% at the left to 100% at the right."><b style="color:#9ec5f4">blue dashed</b> · steam void</span>
+        <span title="Amber dotted curve: xenon poison relative to the core average; farther right means stronger local suppression."><b style="color:#c98500">amber dotted</b> · xenon poison</span>
         <span title="Thin blue-to-amber strip: coolant warms as it rises from the bottom inlet to the top outlet."><b>thin color strip</b> · coolant temperature</span>
-        <span title="Rod-bank columns: light gray is neutron absorber in the core; dark gray is graphite displacer; blue is water."><b>bank bars</b> · white absorber / gray graphite</span>
-        <span title="Arrow over a bank means it is moving. Down inserts from the top; up withdraws. USP enters from below."><b>▲ / ▼</b> · bank moving</span>
+        <span title="Rod-bank columns are physical channel contents: pink is neutron absorber (reduces power), gray is graphite displacer, blue is water."><b style="color:#d55181">pink absorber</b> · reduces reactor power</span>
+        <span title="Inside the rod-bank columns, gray marked GR is the graphite displacer and dark blue is the water-filled remainder of the channel."><b style="color:#7e9fc7">blue = water</b> · gray GR = graphite</span>
+        <span title="The white tick marks commanded bank insertion: 0 m at the top is fully withdrawn; 7 m at the bottom is fully inserted. USP absorber geometry still enters physically from below."><b>white tick</b> · 0 m OUT → 7 m IN</span>
       </div>
     </section>
 

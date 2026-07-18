@@ -14,12 +14,13 @@ const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
 const TOP = 34;
 const BOTTOM_PAD = 30;
 const SCALE_X = 30; // depth scale gutter
-const PROFILE_W = 44; // one independent condition lane
-const PROFILE_GAP = 6;
-const CONDITION_W = PROFILE_W * 3 + PROFILE_GAP * 2;
-const TEMP_W = 12; // coolant temperature strip
-const BANK_W = 28; // per-bank column width
-const BANK_GAP = 7;
+const FLUX_W = 150; // layered power/void/xenon profile
+const TEMP_W = 16; // coolant temperature strip
+const BANK_W = 30; // per-bank channel width
+const BANK_GAP = 10;
+const ABSORBER_COLOR = "#d55181";
+const GRAPHITE_COLOR = "#686762";
+const WATER_COLOR = "#203f63";
 
 /**
  * Axial cutaway of the core, top of core at the top of the plot:
@@ -63,7 +64,7 @@ export class Slice {
     const depth = ((py - TOP) / this.coreH()) * CORE_HEIGHT;
 
     // Bank columns: report the bank's geometry at this depth.
-    const banksX = SCALE_X + CONDITION_W + TEMP_W + 18;
+    const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
     if (px >= banksX) {
       const slot = Math.floor((px - banksX) / (BANK_W + BANK_GAP));
       const within = (px - banksX) % (BANK_W + BANK_GAP) <= BANK_W;
@@ -76,13 +77,21 @@ export class Slice {
       const moving = members.some(
         (rod) => Math.abs(rod.target - rod.insertion) > 1e-6,
       );
+      const material = (() => {
+        const fake = { group, insertion: ins };
+        const abs = absorberInterval(fake);
+        if (abs && depth >= abs[0] && depth <= abs[1]) return "ABSORBER — suppresses fission";
+        const disp = displacerInterval(fake);
+        if (disp && depth >= disp[0] && depth <= disp[1]) return "GRAPHITE DISPLACER";
+        return "WATER-FILLED CHANNEL";
+      })();
       return (
-        `${group} bank (${members.length} rods) — mean depth ` +
-        `${(ins * CORE_HEIGHT).toFixed(2)} m${moving ? " · MOVING" : ""}`
+        `${group} bank (${members.length} rods) — ${material} at ${depth.toFixed(1)} m · ` +
+        `bank ${(ins * CORE_HEIGHT).toFixed(2)} m inserted${moving ? " · MOVING" : ""}`
       );
     }
 
-    if (px < SCALE_X || px > SCALE_X + CONDITION_W + TEMP_W + 6) return null;
+    if (px < SCALE_X || px > SCALE_X + FLUX_W + TEMP_W + 6) return null;
     const k = Math.min(N_AXIAL - 1, Math.floor((depth / CORE_HEIGHT) * N_AXIAL));
     const n = this.lastNodes[k];
     if (!n) return null;
@@ -101,33 +110,20 @@ export class Slice {
     g.clearRect(0, 0, this.w, this.h);
     const coreH = this.coreH();
 
-    // Direct lane headers: every condition has its own honest horizontal
-    // scale. Farther right always means "more" within that lane.
+    // Layered axial shape (the visually compact original presentation) plus a
+    // materially explicit rod-channel schematic beside it.
     g.fillStyle = "#898781";
-    g.font = "600 9px system-ui, sans-serif";
+    g.font = "600 10px system-ui, sans-serif";
     g.textBaseline = "alphabetic";
+    g.textAlign = "left";
+    g.fillText("POWER + STEAM + XENON", SCALE_X, TOP - 17);
+    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 17);
+    const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
     g.textAlign = "center";
-    const profileX = (lane: number) => SCALE_X + lane * (PROFILE_W + PROFILE_GAP);
-    g.fillStyle = "#d95926";
-    g.fillText("POWER", profileX(0) + PROFILE_W / 2, TOP - 17);
-    g.fillStyle = "#9ec5f4";
-    g.fillText("STEAM", profileX(1) + PROFILE_W / 2, TOP - 17);
-    g.fillStyle = "#c98500";
-    g.fillText("XENON", profileX(2) + PROFILE_W / 2, TOP - 17);
-    g.fillStyle = "#898781";
+    g.fillText("ROD BANKS · CHANNEL CONTENTS", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 17);
     g.font = "8px system-ui, sans-serif";
-    g.fillText("0 → peak", profileX(0) + PROFILE_W / 2, TOP - 6);
-    g.fillText("0 → 100%", profileX(1) + PROFILE_W / 2, TOP - 6);
-    g.fillText("0 → 2×avg", profileX(2) + PROFILE_W / 2, TOP - 6);
-    const tx = SCALE_X + CONDITION_W + 4;
-    g.save();
-    g.translate(tx + 7, TOP - 5);
-    g.rotate(-Math.PI / 2);
-    g.fillText("TEMP", 0, 0);
-    g.restore();
-    const banksX = SCALE_X + CONDITION_W + TEMP_W + 18;
-    g.font = "600 9px system-ui, sans-serif";
-    g.fillText("ROD BANKS", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 12);
+    g.fillStyle = "#898781";
+    g.fillText("0 m OUT ↓ INSERT ↓ 7 m IN", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 6);
 
     // Depth scale.
     g.textAlign = "right";
@@ -140,7 +136,7 @@ export class Slice {
       g.lineWidth = 1;
       g.beginPath();
       g.moveTo(SCALE_X, y);
-      g.lineTo(SCALE_X + CONDITION_W, y);
+      g.lineTo(SCALE_X + FLUX_W, y);
       g.stroke();
     }
     g.textAlign = "left";
@@ -149,43 +145,27 @@ export class Slice {
     g.fillText("TOP · coolant outlet ↑", SCALE_X + 2, TOP + 10);
     g.fillText("BOTTOM · coolant inlet ↑", SCALE_X + 2, TOP + coreH - 3);
 
-    // Three separate condition profiles. They share depth/time but never share
-    // a horizontal scale, which makes the picture readable without decoding
-    // line styles or comparing unlike units.
-    for (let lane = 0; lane < 3; lane++) {
-      const x0 = profileX(lane);
-      g.fillStyle = "rgba(255,255,255,0.025)";
-      g.fillRect(x0, TOP, PROFILE_W, coreH);
-      g.strokeStyle = "rgba(255,255,255,0.10)";
-      g.strokeRect(x0, TOP, PROFILE_W, coreH);
-      g.strokeStyle = "rgba(255,255,255,0.08)";
-      g.beginPath();
-      g.moveTo(x0 + PROFILE_W / 2, TOP);
-      g.lineTo(x0 + PROFILE_W / 2, TOP + coreH);
-      g.stroke();
-    }
-
-    // Power profile, normalized to its current axial peak.
+    // Power profile as a filled area, normalized to its current axial peak.
     const maxFlux = Math.max(1e-12, ...nodes.map((n) => n.flux));
-    const powerX = profileX(0);
-    const fx = (f: number) => powerX + (f / maxFlux) * (PROFILE_W - 3);
-    g.fillStyle = "#d95926";
+    const fx = (f: number) => SCALE_X + (f / maxFlux) * (FLUX_W - 8);
+    g.fillStyle = "#898781";
     g.font = "9px system-ui, sans-serif";
-    g.textAlign = "left";
+    g.textAlign = "right";
     g.fillText(
-      `peak ${maxFlux >= 0.01 ? maxFlux.toFixed(2) + "×" : maxFlux.toExponential(1) + "×"}`,
-      powerX,
-      this.h - 5,
+      `power peak ${maxFlux >= 0.01 ? maxFlux.toFixed(2) + "×" : maxFlux.toExponential(1) + "×"}`,
+      SCALE_X + FLUX_W - 2,
+      TOP - 2,
     );
+    g.textAlign = "left";
     g.beginPath();
-    g.moveTo(powerX, this.yAt(0));
+    g.moveTo(SCALE_X, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
       const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
       g.lineTo(fx(nodes[k]!.flux), y);
     }
-    g.lineTo(powerX, this.yAt(CORE_HEIGHT));
+    g.lineTo(SCALE_X, this.yAt(CORE_HEIGHT));
     g.closePath();
-    const grad = g.createLinearGradient(powerX, 0, powerX + PROFILE_W, 0);
+    const grad = g.createLinearGradient(SCALE_X, 0, SCALE_X + FLUX_W, 0);
     grad.addColorStop(0, "rgba(217, 89, 38, 0.12)");
     grad.addColorStop(1, "rgba(217, 89, 38, 0.55)");
     g.fillStyle = grad;
@@ -194,44 +174,40 @@ export class Slice {
     g.lineWidth = 2;
     g.stroke();
 
-    // Steam void fraction, honest 0..100% lane.
-    const steamX = profileX(1);
+    // Steam void fraction: dashed blue, absolute 0..100% across the width.
     g.beginPath();
-    g.moveTo(steamX, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
       const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
-      g.lineTo(steamX + nodes[k]!.voidFrac * (PROFILE_W - 3), y);
+      const x = SCALE_X + nodes[k]!.voidFrac * (FLUX_W - 8);
+      if (k === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
     }
-    g.lineTo(steamX, this.yAt(CORE_HEIGHT));
-    g.closePath();
-    g.fillStyle = "rgba(158,197,244,0.16)";
-    g.fill();
     g.strokeStyle = "#9ec5f4";
     g.lineWidth = 2;
+    g.setLineDash([4, 3]);
     g.stroke();
 
-    // Xenon poison relative to its core average, on a printed 0..2x lane.
-    const xenonX = profileX(2);
+    // Xenon poison: dotted amber, 0..2x the core average across the width.
     const xeMean =
       nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL || 1;
     if (xeMean > 1e-6) {
       g.beginPath();
-      g.moveTo(xenonX, this.yAt(0));
       for (let k = 0; k < N_AXIAL; k++) {
         const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
         const relXe = nodes[k]!.xenon / xeMean; // ~1 when flat
-        g.lineTo(xenonX + Math.min(1, relXe / 2) * (PROFILE_W - 3), y);
+        const x = SCALE_X + Math.min(1, relXe / 2) * (FLUX_W - 8);
+        if (k === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
       }
-      g.lineTo(xenonX, this.yAt(CORE_HEIGHT));
-      g.closePath();
-      g.fillStyle = "rgba(201,133,0,0.13)";
-      g.fill();
       g.strokeStyle = "#c98500";
-      g.lineWidth = 2;
+      g.lineWidth = 1.5;
+      g.setLineDash([2, 3]);
       g.stroke();
     }
+    g.setLineDash([]);
 
     // Coolant temperature strip (inlet blue -> saturation amber).
+    const tx = SCALE_X + FLUX_W + 4;
     for (let k = 0; k < N_AXIAL; k++) {
       const y0 = this.yAt((k / N_AXIAL) * CORE_HEIGHT);
       const y1 = this.yAt(((k + 1) / N_AXIAL) * CORE_HEIGHT);
@@ -256,30 +232,57 @@ export class Slice {
       const dirIn =
         members.reduce((a, r) => a + (r.target - r.insertion), 0) > 0;
 
-      // Channel water.
-      g.fillStyle = "rgba(57, 135, 229, 0.16)";
+      // Physical channel contents. Strong semantic colors make the geometry
+      // legible at a glance: pink absorbs neutrons, gray is graphite, blue is
+      // the water-filled gap left by the moving assembly.
+      g.fillStyle = WATER_COLOR;
       g.fillRect(x, TOP, BANK_W, coreH);
 
       const fake = { group, insertion: ins };
       const disp = displacerInterval(fake);
       if (disp) {
-        g.fillStyle = "#52514e";
-        g.fillRect(x, this.yAt(disp[0]), BANK_W, this.yAt(disp[1]) - this.yAt(disp[0]));
+        const y0 = this.yAt(disp[0]);
+        const dh = this.yAt(disp[1]) - y0;
+        g.fillStyle = GRAPHITE_COLOR;
+        g.fillRect(x, y0, BANK_W, dh);
+        if (dh > 22) {
+          g.fillStyle = "#deddd5";
+          g.font = "600 7px system-ui, sans-serif";
+          g.fillText("GR", x + BANK_W / 2, y0 + dh / 2 + 2);
+        }
       }
       const abs = absorberInterval(fake);
       if (abs) {
-        g.fillStyle = "#c3c2b7";
-        g.fillRect(x, this.yAt(abs[0]), BANK_W, this.yAt(abs[1]) - this.yAt(abs[0]));
+        const y0 = this.yAt(abs[0]);
+        const ah = this.yAt(abs[1]) - y0;
+        g.fillStyle = ABSORBER_COLOR;
+        g.fillRect(x, y0, BANK_W, ah);
+        if (ah > 22) {
+          g.fillStyle = "#ffffff";
+          g.font = "600 7px system-ui, sans-serif";
+          g.fillText("ABS", x + BANK_W / 2, y0 + ah / 2 + 2);
+        }
       }
-      g.strokeStyle = "rgba(255,255,255,0.14)";
+      g.strokeStyle = "rgba(255,255,255,0.25)";
       g.strokeRect(x, TOP, BANK_W, coreH);
+
+      // Commanded insertion reference: 0 m is the top/fully-out end and 7 m
+      // is the bottom/fully-in end. The colored material remains the physical
+      // truth (especially for bottom-entering USP rods).
+      const markerY = this.yAt(ins * CORE_HEIGHT);
+      g.strokeStyle = "#ffffff";
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(x - 2, markerY);
+      g.lineTo(x + BANK_W + 2, markerY);
+      g.stroke();
 
       // Labels: group, depth, motion arrow.
       g.font = "600 10px system-ui, sans-serif";
-      g.fillStyle = "#c3c2b7";
+      g.fillStyle = "#ffffff";
       g.fillText(group, x + BANK_W / 2, this.h - 18);
       g.font = "10px system-ui, sans-serif";
-      g.fillStyle = "#898781";
+      g.fillStyle = ABSORBER_COLOR;
       g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m in`, x + BANK_W / 2, this.h - 6);
       if (moving) {
         g.fillStyle = "#ffffff";
