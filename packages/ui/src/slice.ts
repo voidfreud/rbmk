@@ -4,8 +4,6 @@ import {
   N_AXIAL,
   T_INLET,
   T_SAT,
-  absorberInterval,
-  displacerInterval,
 } from "@rbmk/sim-core";
 
 const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
@@ -19,13 +17,11 @@ const TEMP_W = 16; // coolant temperature strip
 const BANK_W = 30; // per-bank channel width
 const BANK_GAP = 10;
 const ABSORBER_COLOR = "#d55181";
-const GRAPHITE_COLOR = "#686762";
-const WATER_COLOR = "#203f63";
 
 /**
  * Axial cutaway of the core, top of core at the top of the plot:
  * flux profile (filled area) + void curve + coolant temperature strip +
- * one column per rod bank with true absorber/displacer geometry.
+ * one unambiguous absorber-tip position track per rod bank.
  */
 export class Slice {
   private readonly ctx: CanvasRenderingContext2D;
@@ -77,17 +73,11 @@ export class Slice {
       const moving = members.some(
         (rod) => Math.abs(rod.target - rod.insertion) > 1e-6,
       );
-      const material = (() => {
-        const fake = { group, insertion: ins };
-        const abs = absorberInterval(fake);
-        if (abs && depth >= abs[0] && depth <= abs[1]) return "ABSORBER — suppresses fission";
-        const disp = displacerInterval(fake);
-        if (disp && depth >= disp[0] && depth <= disp[1]) return "GRAPHITE DISPLACER";
-        return "WATER-FILLED CHANNEL";
-      })();
       return (
-        `${group} bank (${members.length} rods) — ${material} at ${depth.toFixed(1)} m · ` +
-        `bank ${(ins * CORE_HEIGHT).toFixed(2)} m inserted${moving ? " · MOVING" : ""}`
+        `${group} bank (${members.length} rods) — absorber tip position · ` +
+        `${(ins * (group === "USP" ? 3.05 : CORE_HEIGHT)).toFixed(2)} m inserted · ` +
+        `${group === "USP" ? "enters upward from BOTTOM" : "enters downward from TOP · same standard design"}` +
+        `${moving ? " · MOVING" : ""}`
       );
     }
 
@@ -120,10 +110,10 @@ export class Slice {
     g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 17);
     const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
     g.textAlign = "center";
-    g.fillText("ROD BANKS · CHANNEL CONTENTS", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 17);
+    g.fillText("ABSORBER TIP POSITION", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 17);
     g.font = "8px system-ui, sans-serif";
     g.fillStyle = "#898781";
-    g.fillText("0 m OUT ↓ INSERT ↓ 7 m IN", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 6);
+    g.fillText("↓ same standard rod     USP ↑", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 6);
 
     // Depth scale.
     g.textAlign = "right";
@@ -221,7 +211,9 @@ export class Slice {
     g.strokeStyle = "rgba(255,255,255,0.12)";
     g.strokeRect(tx, TOP, TEMP_W - 4, coreH);
 
-    // Rod banks with true geometry, one column per group.
+    // Bank-position tracks deliberately avoid drawing clipped material
+    // intervals. A single marker answers the operator's useful question:
+    // where is this bank's absorber tip? Standard banks share one design.
     let x = banksX;
     g.textAlign = "center";
     for (const group of GROUPS) {
@@ -232,49 +224,31 @@ export class Slice {
       const dirIn =
         members.reduce((a, r) => a + (r.target - r.insertion), 0) > 0;
 
-      // Physical channel contents. Strong semantic colors make the geometry
-      // legible at a glance: pink absorbs neutrons, gray is graphite, blue is
-      // the water-filled gap left by the moving assembly.
-      g.fillStyle = WATER_COLOR;
-      g.fillRect(x, TOP, BANK_W, coreH);
+      g.fillStyle = "rgba(32,63,99,0.35)";
+      g.fillRect(x + 9, TOP, 12, coreH);
+      g.strokeStyle = "rgba(158,197,244,0.35)";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(x + BANK_W / 2, TOP);
+      g.lineTo(x + BANK_W / 2, TOP + coreH);
+      g.stroke();
 
-      const fake = { group, insertion: ins };
-      const disp = displacerInterval(fake);
-      if (disp) {
-        const y0 = this.yAt(disp[0]);
-        const dh = this.yAt(disp[1]) - y0;
-        g.fillStyle = GRAPHITE_COLOR;
-        g.fillRect(x, y0, BANK_W, dh);
-        if (dh > 22) {
-          g.fillStyle = "#deddd5";
-          g.font = "600 7px system-ui, sans-serif";
-          g.fillText("GR", x + BANK_W / 2, y0 + dh / 2 + 2);
-        }
-      }
-      const abs = absorberInterval(fake);
-      if (abs) {
-        const y0 = this.yAt(abs[0]);
-        const ah = this.yAt(abs[1]) - y0;
-        g.fillStyle = ABSORBER_COLOR;
-        g.fillRect(x, y0, BANK_W, ah);
-        if (ah > 22) {
-          g.fillStyle = "#ffffff";
-          g.font = "600 7px system-ui, sans-serif";
-          g.fillText("ABS", x + BANK_W / 2, y0 + ah / 2 + 2);
-        }
-      }
-      g.strokeStyle = "rgba(255,255,255,0.25)";
-      g.strokeRect(x, TOP, BANK_W, coreH);
-
-      // Commanded insertion reference: 0 m is the top/fully-out end and 7 m
-      // is the bottom/fully-in end. The colored material remains the physical
-      // truth (especially for bottom-entering USP rods).
-      const markerY = this.yAt(ins * CORE_HEIGHT);
+      const markerDepth = group === "USP"
+        ? CORE_HEIGHT - ins * 3.05
+        : ins * CORE_HEIGHT;
+      const markerY = this.yAt(markerDepth);
+      g.strokeStyle = ABSORBER_COLOR;
+      g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(x + BANK_W / 2, group === "USP" ? TOP + coreH : TOP);
+      g.lineTo(x + BANK_W / 2, markerY);
+      g.stroke();
+      g.fillStyle = ABSORBER_COLOR;
+      g.beginPath();
+      g.arc(x + BANK_W / 2, markerY, 5, 0, Math.PI * 2);
+      g.fill();
       g.strokeStyle = "#ffffff";
       g.lineWidth = 1.5;
-      g.beginPath();
-      g.moveTo(x - 2, markerY);
-      g.lineTo(x + BANK_W + 2, markerY);
       g.stroke();
 
       // Labels: group, depth, motion arrow.
@@ -283,7 +257,8 @@ export class Slice {
       g.fillText(group, x + BANK_W / 2, this.h - 18);
       g.font = "10px system-ui, sans-serif";
       g.fillStyle = ABSORBER_COLOR;
-      g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m in`, x + BANK_W / 2, this.h - 6);
+      const stroke = group === "USP" ? 3.05 : CORE_HEIGHT;
+      g.fillText(`${(ins * stroke).toFixed(1)}m`, x + BANK_W / 2, this.h - 6);
       if (moving) {
         g.fillStyle = "#ffffff";
         g.fillText(dirIn ? "▼" : "▲", x + BANK_W / 2, TOP - 2);

@@ -68,6 +68,18 @@
   .panel-help {
     color: var(--muted); font-size: 11px; line-height: 1.35;
   }
+  .rod-anatomy {
+    display: grid; grid-template-columns: auto 1fr; gap: 5px 10px;
+    align-items: center; padding: 7px 8px; border: 1px solid var(--hairline);
+    border-radius: 4px; color: var(--muted); font-size: 10px;
+  }
+  .rod-anatomy .name { color: var(--ink-2); font-weight: 600; }
+  .rod-anatomy .assembly { display: flex; align-items: center; min-width: 0; }
+  .rod-anatomy .part { padding: 3px 5px; color: #fff; text-align: center; white-space: nowrap; }
+  .rod-anatomy .absorber { background: #d55181; }
+  .rod-anatomy .link { flex: 0 1 70px; border-top: 1px dashed #deddd5; text-align: center; color: #9ec5f4; line-height: 17px; white-space: nowrap; }
+  .rod-anatomy .graphite { background: #686762; }
+  .rod-anatomy .motion { margin-left: 6px; color: var(--ink-2); white-space: nowrap; }
   .slice-guide {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px 12px; font-size: 10px; color: var(--muted);
@@ -246,16 +258,23 @@
 
     <section class="panel" id="col-slice">
       <h2 title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">Core profile — top to bottom</h2>
-      <p class="panel-help">The layered curves show where power, steam, and xenon sit vertically. Beside them, each rod-bank column is a physical channel: <b>pink absorber suppresses fission</b>, gray is graphite, and blue is water. More pink inside the 0–7 m core means more shutdown effect.</p>
+      <p class="panel-help">The curves show conditions through the core. Rod-bank tracks now show <b>one thing only: absorber-tip position</b>. Water is coolant already in the channel; the drive does not move a water section.</p>
+      <div class="rod-anatomy" aria-label="Control rod construction">
+        <span class="name">RR / AR / LAR / AZ</span>
+        <span class="assembly"><span class="part absorber">absorber</span><span class="link">linkage through coolant</span><span class="part graphite">4.5 m graphite</span><span class="motion">whole assembly moves ↓</span></span>
+        <span class="name">USP</span>
+        <span class="assembly"><span class="part absorber">3.05 m absorber</span><span class="motion">moves ↑ from bottom · no graphite</span></span>
+      </div>
       <canvas id="slice" width="440" height="520" title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
       <div class="slice-guide">
         <span title="Orange filled profile: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">orange area</b> · local power shape</span>
         <span title="Blue dashed curve: local steam void fraction from 0% at the left to 100% at the right."><b style="color:#9ec5f4">blue dashed</b> · steam void</span>
         <span title="Amber dotted curve: xenon poison relative to the core average; farther right means stronger local suppression."><b style="color:#c98500">amber dotted</b> · xenon poison</span>
         <span title="Thin blue-to-amber strip: coolant warms as it rises from the bottom inlet to the top outlet."><b>thin color strip</b> · coolant temperature</span>
-        <span title="Rod-bank columns are physical channel contents: pink is neutron absorber (reduces power), gray is graphite displacer, blue is water."><b style="color:#d55181">pink absorber</b> · reduces reactor power</span>
-        <span title="Inside the rod-bank columns, gray marked GR is the graphite displacer and dark blue is the water-filled remainder of the channel."><b style="color:#7e9fc7">blue = water</b> · gray GR = graphite</span>
-        <span title="The white tick marks commanded bank insertion: 0 m at the top is fully withdrawn; 7 m at the bottom is fully inserted. USP absorber geometry still enters physically from below."><b>white tick</b> · 0 m OUT → 7 m IN</span>
+        <span title="Each bank track has a single pink marker at the leading end of its absorber."><b style="color:#d55181">pink marker</b> · absorber tip</span>
+        <span title="RR, AR, LAR, and AZ use the same standard construction; their markers differ only because their insertion positions differ."><b>first four tracks</b> · same rod design</span>
+        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓ standard</b> · metres inserted</span>
+        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres inserted from bottom</span>
       </div>
     </section>
 
