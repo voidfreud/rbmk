@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Simplified RBMK-1000 core cross-section</title>
+  <desc id="desc">A dark technical illustration of an RBMK core showing graphite moderation, pressure channels, top-entering control rods, a bottom-entry USP rod, upward coolant flow, and fourteen axial model nodes.</desc>
+  <defs>
+    <pattern id="graphiteGrid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <rect width="28" height="28" fill="#302823" />
+      <path d="M28 0H0V28" fill="none" stroke="#493a33" stroke-width="1" />
+    </pattern>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto">
+      <path d="M0 0L9 4.5L0 9Z" fill="#eb8b58" />
+    </marker>
+    <style>
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .title { fill: #f3eee8; font-size: 26px; font-weight: 700; letter-spacing: 1px; }
+      .eyebrow { fill: #a7aaa7; font-size: 12px; letter-spacing: 2px; }
+      .label { fill: #f3eee8; font-size: 15px; font-weight: 700; letter-spacing: .5px; }
+      .small { fill: #a7aaa7; font-size: 13px; }
+      .tiny { fill: #7e8582; font-size: 11px; letter-spacing: .5px; }
+      .line { stroke: #59615e; stroke-width: 1.5; fill: none; }
+      .callout { fill: #161918; stroke: #3a4441; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="700" fill="#0d0f0f" />
+  <rect x="20" y="20" width="1160" height="660" rx="10" fill="#101313" stroke="#2f3836" stroke-width="2" />
+
+  <text x="48" y="58" class="mono title">RBMK-1000 / CORE CROSS-SECTION</text>
+  <text x="48" y="82" class="mono eyebrow">SIMPLIFIED MODEL VIEW · NOT TO SCALE · UNIT 4 GEOMETRY</text>
+
+  <rect x="48" y="108" width="660" height="528" rx="8" fill="#121615" stroke="#303937" stroke-width="2" />
+  <text x="72" y="140" class="mono eyebrow">VERTICAL CUTAWAY</text>
+
+  <!-- Reactor pressure boundary and graphite stack. -->
+  <rect x="105" y="173" width="375" height="405" rx="38" fill="#171b1b" stroke="#69736f" stroke-width="3" />
+  <rect x="153" y="191" width="279" height="369" fill="url(#graphiteGrid)" stroke="#8c6d5e" stroke-width="2" />
+  <path d="M122 191H463M122 560H463" class="line" />
+  <text x="184" y="214" class="mono tiny">GRAPHITE MODERATOR STACK</text>
+
+  <!-- Representative pressure channels. -->
+  <g fill="#d96f3d" stroke="#f0a06b" stroke-width="1.2">
+    <circle cx="185" cy="253" r="7"/><circle cx="241" cy="253" r="7"/><circle cx="297" cy="253" r="7"/><circle cx="353" cy="253" r="7"/><circle cx="409" cy="253" r="7"/>
+    <circle cx="185" cy="309" r="7"/><circle cx="241" cy="309" r="7"/><circle cx="297" cy="309" r="7"/><circle cx="353" cy="309" r="7"/><circle cx="409" cy="309" r="7"/>
+    <circle cx="185" cy="365" r="7"/><circle cx="241" cy="365" r="7"/><circle cx="297" cy="365" r="7"/><circle cx="353" cy="365" r="7"/><circle cx="409" cy="365" r="7"/>
+    <circle cx="185" cy="421" r="7"/><circle cx="241" cy="421" r="7"/><circle cx="297" cy="421" r="7"/><circle cx="353" cy="421" r="7"/><circle cx="409" cy="421" r="7"/>
+    <circle cx="185" cy="477" r="7"/><circle cx="241" cy="477" r="7"/><circle cx="297" cy="477" r="7"/><circle cx="353" cy="477" r="7"/><circle cx="409" cy="477" r="7"/>
+    <circle cx="185" cy="533" r="7"/><circle cx="241" cy="533" r="7"/><circle cx="297" cy="533" r="7"/><circle cx="353" cy="533" r="7"/><circle cx="409" cy="533" r="7"/>
+  </g>
+
+  <!-- Top-entering rod with absorber, displacer, and water gaps. -->
+  <g>
+    <rect x="286" y="112" width="22" height="52" rx="4" fill="#87a9ed" stroke="#c8d7ff" />
+    <rect x="290" y="164" width="14" height="125" fill="#d34b72" />
+    <rect x="290" y="289" width="14" height="145" fill="#896257" />
+    <rect x="290" y="434" width="14" height="28" fill="#4c8d9a" />
+    <path d="M297 108V95" stroke="#87a9ed" stroke-width="3" marker-end="url(#arrow)" />
+    <text x="317" y="126" class="mono tiny">RR / AZ</text>
+    <text x="317" y="205" class="mono tiny" fill="#d34b72">ABSORBER</text>
+    <text x="317" y="366" class="mono tiny" fill="#c58b7a">GRAPHITE</text>
+  </g>
+
+  <!-- Bottom-entry USP rod. -->
+  <g>
+    <rect x="398" y="548" width="14" height="50" fill="#5966d8" />
+    <rect x="398" y="452" width="14" height="96" fill="#5966d8" />
+    <path d="M405 630V601" stroke="#5966d8" stroke-width="3" marker-end="url(#arrow)" />
+    <text x="426" y="602" class="mono tiny" fill="#8795ff">USP FROM BELOW</text>
+  </g>
+
+  <!-- Coolant direction and axial node bracket. -->
+  <g>
+    <path d="M548 555V223" stroke="#eb8b58" stroke-width="4" marker-end="url(#arrow)" />
+    <path d="M570 555V223" stroke="#eb8b58" stroke-width="2" marker-end="url(#arrow)" />
+    <text x="522" y="585" class="mono small">COOLANT IN</text>
+    <text x="522" y="205" class="mono small">STEAM OUT</text>
+    <path d="M621 191H650M636 191V560M621 560H650" class="line" />
+    <text x="660" y="360" class="mono label" transform="rotate(90 660 360)">14 AXIAL NODES / 7 m ACTIVE CORE</text>
+  </g>
+
+  <text x="86" y="616" class="mono tiny">TOP / ROD DRIVE SIDE</text>
+  <text x="86" y="632" class="mono tiny">BOTTOM / COOLANT INLET</text>
+
+  <!-- Model callouts. -->
+  <rect x="744" y="108" width="400" height="528" rx="8" fill="#121615" stroke="#303937" stroke-width="2" />
+  <text x="772" y="140" class="mono eyebrow">WHAT THE MODEL CONNECTS</text>
+
+  <rect x="772" y="166" width="344" height="74" rx="6" class="callout" />
+  <circle cx="798" cy="193" r="10" fill="#d96f3d" />
+  <text x="820" y="195" class="mono label">PRESSURE CHANNELS</text>
+  <text x="820" y="218" class="mono small">fuel, boiling coolant, steam quality</text>
+
+  <rect x="772" y="258" width="344" height="74" rx="6" class="callout" />
+  <rect x="788" y="276" width="20" height="38" rx="3" fill="#896257" />
+  <text x="820" y="287" class="mono label">ROD GEOMETRY</text>
+  <text x="820" y="310" class="mono small">4.5 m graphite + 1.25 m water gaps</text>
+
+  <rect x="772" y="350" width="344" height="74" rx="6" class="callout" />
+  <path d="M793 407V369" stroke="#eb8b58" stroke-width="3" marker-end="url(#arrow)" />
+  <text x="820" y="379" class="mono label">AXIAL THERMAL FEEDBACK</text>
+  <text x="820" y="402" class="mono small">void, Doppler, graphite temperature</text>
+
+  <rect x="772" y="442" width="344" height="74" rx="6" class="callout" />
+  <circle cx="798" cy="479" r="10" fill="#d34b72" />
+  <text x="820" y="471" class="mono label">XENON TRANSIENTS</text>
+  <text x="820" y="494" class="mono small">I-135 → Xe-135 production and burnup</text>
+
+  <path d="M772 560H1116" class="line" />
+  <text x="772" y="588" class="mono small">A schematic of the physics—not an engineering drawing.</text>
+  <text x="772" y="610" class="mono tiny">SEE docs/physics.md FOR CONSTANTS AND SOURCES</text>
+</svg>
