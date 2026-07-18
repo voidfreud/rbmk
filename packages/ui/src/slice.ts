@@ -106,8 +106,8 @@ export class Slice {
     g.font = "600 10px system-ui, sans-serif";
     g.textBaseline = "alphabetic";
     g.textAlign = "left";
-    g.fillText("POWER + STEAM + XENON", SCALE_X, TOP - 17);
-    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 17);
+    g.fillText("AXIAL CONDITIONS", SCALE_X, TOP - 17);
+    g.fillText("TEMP", SCALE_X + FLUX_W - 1, TOP - 17);
     const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
     g.textAlign = "center";
     g.fillText("ABSORBER TIP POSITION", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 17);
@@ -164,6 +164,25 @@ export class Slice {
     g.lineWidth = 2;
     g.stroke();
 
+    const label = (text: string, x: number, y: number, color: string): void => {
+      g.font = "600 9px system-ui, sans-serif";
+      const tw = g.measureText(text).width;
+      g.fillStyle = "rgba(13,13,13,0.82)";
+      g.fillRect(x - 2, y - 9, tw + 4, 12);
+      g.fillStyle = color;
+      g.fillText(text, x, y);
+    };
+    const peakK = nodes.reduce(
+      (best, node, k) => node.flux > nodes[best]!.flux ? k : best,
+      0,
+    );
+    label(
+      "POWER",
+      Math.min(SCALE_X + FLUX_W - 36, fx(nodes[peakK]!.flux) + 4),
+      this.yAt(((peakK + 0.5) / N_AXIAL) * CORE_HEIGHT) - 4,
+      "#f0713d",
+    );
+
     // Steam void fraction: dashed blue, absolute 0..100% across the width.
     g.beginPath();
     for (let k = 0; k < N_AXIAL; k++) {
@@ -172,10 +191,21 @@ export class Slice {
       if (k === 0) g.moveTo(x, y);
       else g.lineTo(x, y);
     }
-    g.strokeStyle = "#9ec5f4";
-    g.lineWidth = 2;
+    g.strokeStyle = "rgba(13,13,13,0.9)";
+    g.lineWidth = 4;
     g.setLineDash([4, 3]);
     g.stroke();
+    g.strokeStyle = "#9ec5f4";
+    g.lineWidth = 2.5;
+    g.setLineDash([4, 3]);
+    g.stroke();
+    const steamK = 2;
+    label(
+      "STEAM",
+      Math.min(SCALE_X + FLUX_W - 37, SCALE_X + nodes[steamK]!.voidFrac * (FLUX_W - 8) + 5),
+      this.yAt(((steamK + 0.5) / N_AXIAL) * CORE_HEIGHT) - 3,
+      "#9ec5f4",
+    );
 
     // Xenon poison: dotted amber, 0..2x the core average across the width.
     const xeMean =
@@ -189,10 +219,22 @@ export class Slice {
         if (k === 0) g.moveTo(x, y);
         else g.lineTo(x, y);
       }
-      g.strokeStyle = "#c98500";
-      g.lineWidth = 1.5;
+      g.strokeStyle = "rgba(13,13,13,0.9)";
+      g.lineWidth = 4;
       g.setLineDash([2, 3]);
       g.stroke();
+      g.strokeStyle = "#fab219";
+      g.lineWidth = 2.5;
+      g.setLineDash([2, 3]);
+      g.stroke();
+      const xenonK = 6;
+      const relXe = nodes[xenonK]!.xenon / xeMean;
+      label(
+        "XENON",
+        Math.min(SCALE_X + FLUX_W - 38, SCALE_X + Math.min(1, relXe / 2) * (FLUX_W - 8) + 5),
+        this.yAt(((xenonK + 0.5) / N_AXIAL) * CORE_HEIGHT) - 3,
+        "#fab219",
+      );
     }
     g.setLineDash([]);
 
@@ -210,6 +252,11 @@ export class Slice {
     }
     g.strokeStyle = "rgba(255,255,255,0.12)";
     g.strokeRect(tx, TOP, TEMP_W - 4, coreH);
+    g.fillStyle = "#deddd5";
+    g.font = "600 8px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.fillText(`${Math.round(nodes[0]!.coolantTemp)}°`, tx + (TEMP_W - 4) / 2, TOP + 10);
+    g.fillText(`${Math.round(nodes[N_AXIAL - 1]!.coolantTemp)}°`, tx + (TEMP_W - 4) / 2, TOP + coreH - 3);
 
     // Bank-position tracks deliberately avoid drawing clipped material
     // intervals. A single marker answers the operator's useful question:

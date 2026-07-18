@@ -35,6 +35,7 @@
 
   header {
     display: flex; gap: 10px; align-items: stretch;
+    position: sticky; left: 10px; z-index: 2; width: calc(100vw - 20px);
   }
   .tile {
     background: var(--panel);
@@ -46,6 +47,7 @@
   .tile .label { color: var(--muted); font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
   .tile .value { color: var(--ink); font-size: 22px; font-weight: 600; }
   .tile .sub { color: var(--muted); font-size: 11px; }
+  .tile.wide { min-width: 190px; }
   .tile.brand { display: flex; flex-direction: column; justify-content: center; min-width: 170px; }
   .tile.brand .value { font-size: 15px; letter-spacing: 1px; }
 
@@ -68,18 +70,16 @@
   .panel-help {
     color: var(--muted); font-size: 11px; line-height: 1.35;
   }
-  .rod-anatomy {
-    display: grid; grid-template-columns: auto 1fr; gap: 5px 10px;
-    align-items: center; padding: 7px 8px; border: 1px solid var(--hairline);
-    border-radius: 4px; color: var(--muted); font-size: 10px;
-  }
-  .rod-anatomy .name { color: var(--ink-2); font-weight: 600; }
-  .rod-anatomy .assembly { display: flex; align-items: center; min-width: 0; }
-  .rod-anatomy .part { padding: 3px 5px; color: #fff; text-align: center; white-space: nowrap; }
-  .rod-anatomy .absorber { background: #d55181; }
-  .rod-anatomy .link { flex: 0 1 70px; border-top: 1px dashed #deddd5; text-align: center; color: #9ec5f4; line-height: 17px; white-space: nowrap; }
-  .rod-anatomy .graphite { background: #686762; }
-  .rod-anatomy .motion { margin-left: 6px; color: var(--ink-2); white-space: nowrap; }
+  .rod-note { padding: 7px 8px; border-left: 3px solid #d55181; background: rgba(213,81,129,0.07); color: var(--muted); font-size: 10px; line-height: 1.45; }
+  .rod-note b { color: var(--ink-2); }
+  .profile-key { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
+  .profile-key span { display: inline-flex; align-items: center; gap: 5px; }
+  .profile-key i { width: 19px; height: 0; border-top: 2px solid; }
+  .profile-key .power i { border-color: #d95926; }
+  .profile-key .steam i { border-color: #9ec5f4; border-top-style: dashed; }
+  .profile-key .xenon i { border-color: #fab219; border-top-style: dotted; }
+  .field-scale { height: 8px; width: 140px; border-radius: 3px; background: linear-gradient(90deg, rgba(217,89,38,.08), rgba(217,89,38,.5), #f0713d); }
+  .field-balance { color: var(--ink-2); font-size: 11px; padding-top: 2px; }
   .slice-guide {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px 12px; font-size: 10px; color: var(--muted);
@@ -90,9 +90,9 @@
   canvas.strip { width: 100%; min-height: 128px; }
   #st-trends { min-height: 180px; }
 
-  #col-map { flex: 0 0 auto; }
-  #col-field { flex: 0 0 auto; }
-  #col-slice { flex: 1; }
+  #col-map { flex: 0 0 662px; width: 662px; }
+  #col-field { flex: 0 0 462px; width: 462px; min-width: 0; }
+  #col-slice { flex: 1; min-width: 0; }
 
   /* The operator desk: full-width control panel between maps and charts. */
   #desk { display: flex; gap: 10px; align-items: stretch; }
@@ -203,23 +203,17 @@
     <div class="tile" title="Reactor thermal power as % of rated (3200 MWt). AZM overpower protection trips AZ-5 above 110%.">
       <div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div>
     </div>
-    <div class="tile" title="Reactor period [s]: time for power to grow by a factor of e. Startup rule: stop withdrawing if period &lt; 60 s. AZS trips AZ-5 if period &lt; 10 s.">
-      <div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub num" id="i-doubling">—</div>
-    </div>
-    <div class="tile" title="Net reactivity in dollars ($). 1 $ = β_eff = 0.005. Positive = supercritical (power rising); 0 = critical.">
-      <div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub num" id="i-rho-pct">—</div>
-    </div>
-    <div class="tile" title="PRIZMA margin printout — currently a crude rod-insertion sum (Σ insertion over all CPS rods), NOT true equivalent-rod ORM. Real plant ORM was worth-normalized (~26–30 rods at full power). Pre-1986: printout every ~5 min, not a live gauge. Advisory floor uses the same crude scale (not yet recalibrated).">
-      <div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">insertion sum · pending</div>
+    <div class="tile wide" title="Direction and stability of reactor power. Period is the time for power to change by a factor of e; reactivity is shown in beta units.">
+      <div class="label">Power trend</div><div class="value" id="i-trend">—</div><div class="sub num"><span id="i-period">—</span> · <span id="i-rho">—</span></div>
     </div>
     <div class="tile" title="Xe-135 neutron poison relative to full-power equilibrium (1.0 = equilibrium at 100%). Builds after power drops; deep xenon pit can block restart for hours.">
-      <div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div>
+      <div class="label">Xenon poison</div><div class="value num" id="i-xe">—</div><div class="sub" id="i-xe-status">normal near 1.00×</div>
     </div>
-    <div class="tile" title="Core-average steam void fraction (0–1). RBMK has a positive void coefficient: more boiling adds reactivity.">
-      <div class="label">Void</div><div class="value num" id="i-void">—</div><div class="sub">core average</div>
+    <div class="tile wide" title="Main coolant flow and the resulting average steam fraction. Lower flow usually produces more steam void.">
+      <div class="label">Core cooling</div><div class="value num" id="i-flow">—</div><div class="sub num" id="i-void">—</div>
     </div>
-    <div class="tile" title="Main coolant pump flow as % of rated mass flow. Lower flow → more boiling → higher void.">
-      <div class="label">Flow</div><div class="value num" id="i-flow">—</div><div class="sub">of rated</div>
+    <div class="tile wide" title="Rough sum of control-rod insertion from the most recent PRIZMA report. This is not a calibrated equivalent-rod ORM value.">
+      <div class="label">Rod insertion · rough</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">raw sum · report pending</div>
     </div>
   </header>
 
@@ -238,43 +232,31 @@
     </section>
 
     <section class="panel" id="col-field">
-      <h2 title="Radial power / fuel-temp-estimate field reconstructed from channel instrumentation (PRIZMA-style).">Channel field
-        <button id="view-power" class="active" style="margin-left:8px" title="Color channels by relative thermal power (shape normalized to max channel).">power</button>
-        <button id="view-temp" title="Color channels by estimated fuel temperature: core-average axial fuel/coolant temps scaled by relative channel power. Fixed 270–800°C scale.">temp</button>
-      </h2>
-      <canvas id="channelmap" width="440" height="440" title="Channel field map. Hover a cell for power or fuel-temp estimate and relative field."></canvas>
+      <h2 title="Estimated radial power distribution reconstructed from rod positions and the axial flux field.">Radial power field</h2>
+      <p class="panel-help">Each small square is a fuel channel. Brighter orange means more power in that channel; dark outlined squares are control-rod channels.</p>
+      <canvas id="channelmap" width="440" height="440" title="Radial channel-power map. Hover a fuel channel for its estimated MW and relation to the core average."></canvas>
       <div class="legend">
-        <span title="Relative channel power (hot = high)."><span class="sw" style="background:#d95926"></span>channel power</span>
-        <span title="Fuel temperature estimate [°C]: T_cool_avg + (T_fuel_avg − T_cool_avg)×rel, colored on a fixed 270–800°C scale (scram cools the map)."><span class="sw" style="background:#c98500"></span>fuel temp est. 270–800°C</span>
-        <span title="Control &amp; Protection System (CPS) channel outline; brighter fill means more rod insertion."><span class="sw" style="border:1px solid #9ec5f4"></span>CPS channel (bright = inserted)</span>
+        <span><span class="field-scale"></span>low → average → highest channel</span>
+        <span title="Control and Protection System channel; the blue outline gets brighter as its rod is inserted."><span class="sw" style="border:1px solid #9ec5f4"></span>control-rod channel</span>
       </div>
-      <div class="row" style="margin-top:2px">
-        <span class="mini num" title="Field symmetry: mean relative power in the NW quadrant (1.00 = balanced)."><b id="q-nw">—</b>NW</span>
-        <span class="mini num" title="Field symmetry: mean relative power in the NE quadrant (1.00 = balanced)."><b id="q-ne">—</b>NE</span>
-        <span class="mini num" title="Field symmetry: mean relative power in the SW quadrant (1.00 = balanced)."><b id="q-sw">—</b>SW</span>
-        <span class="mini num" title="Field symmetry: mean relative power in the SE quadrant (1.00 = balanced)."><b id="q-se">—</b>SE</span>
-      </div>
+      <div class="field-balance num" id="field-balance">Field balance —</div>
     </section>
 
     <section class="panel" id="col-slice">
       <h2 title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">Core profile — top to bottom</h2>
-      <p class="panel-help">The curves show conditions through the core. Rod-bank tracks now show <b>one thing only: absorber-tip position</b>. Water is coolant already in the channel; the drive does not move a water section.</p>
-      <div class="rod-anatomy" aria-label="Control rod construction">
-        <span class="name">RR / AR / LAR / AZ</span>
-        <span class="assembly"><span class="part absorber">absorber</span><span class="link">linkage through coolant</span><span class="part graphite">4.5 m graphite</span><span class="motion">whole assembly moves ↓</span></span>
-        <span class="name">USP</span>
-        <span class="assembly"><span class="part absorber">3.05 m absorber</span><span class="motion">moves ↑ from bottom · no graphite</span></span>
+      <p class="panel-help">This is a vertical measurement plot, not a drawing of the rods. Wider/rightward means more of the named quantity at that depth.</p>
+      <div class="profile-key">
+        <span class="power"><i></i><b>power shape</b> (relative)</span>
+        <span class="steam"><i></i><b>steam void</b> (0–100%)</span>
+        <span class="xenon"><i></i><b>xenon</b> (0–2× average)</span>
       </div>
+      <div class="rod-note"><b>Rod tracks:</b> RR, AR, LAR, and AZ are the same top-entry design; only their absorber-tip depth is plotted. USP is a shorter absorber entering from the bottom. Water and graphite are deliberately not drawn here.</div>
       <canvas id="slice" width="440" height="520" title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
       <div class="slice-guide">
-        <span title="Orange filled profile: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">orange area</b> · local power shape</span>
-        <span title="Blue dashed curve: local steam void fraction from 0% at the left to 100% at the right."><b style="color:#9ec5f4">blue dashed</b> · steam void</span>
-        <span title="Amber dotted curve: xenon poison relative to the core average; farther right means stronger local suppression."><b style="color:#c98500">amber dotted</b> · xenon poison</span>
-        <span title="Thin blue-to-amber strip: coolant warms as it rises from the bottom inlet to the top outlet."><b>thin color strip</b> · coolant temperature</span>
         <span title="Each bank track has a single pink marker at the leading end of its absorber."><b style="color:#d55181">pink marker</b> · absorber tip</span>
-        <span title="RR, AR, LAR, and AZ use the same standard construction; their markers differ only because their insertion positions differ."><b>first four tracks</b> · same rod design</span>
-        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓ standard</b> · metres inserted</span>
-        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres inserted from bottom</span>
+        <span title="The thin vertical color strip shows coolant warming from the bottom inlet toward the top outlet."><b>temperature strip</b> · coolant, bottom → top</span>
+        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓ RR/AR/LAR/AZ</b> · metres from top</span>
+        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres from bottom</span>
       </div>
     </section>
 

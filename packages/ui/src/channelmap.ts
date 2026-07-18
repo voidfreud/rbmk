@@ -1,22 +1,15 @@
 import type { NodeState, RodState } from "@rbmk/sim-core";
 import { CORE_RADIUS, P_RATED, RadialField, ROD_PITCH } from "@rbmk/sim-core";
 
-export type ChannelView = "power" | "temp";
-
-/** Fixed color scale for the fuel-temp estimate view [°C]. */
-const T_SCALE_LO = 270;
-const T_SCALE_HI = 800;
-
 /**
- * Fuel-channel cartogram: every fuel channel colored by local power (or an
- * outlet-temperature estimate), CPS rod channels drawn as dark cells on top.
+ * Fuel-channel cartogram: every fuel channel colored by local power, with CPS
+ * rod channels drawn as dark cells on top.
  * The radial field is a quasi-static reconstruction (see sim-core/field.ts).
  */
 export class ChannelMap {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly w: number;
   private readonly field: RadialField;
-  view: ChannelView = "power";
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -40,35 +33,6 @@ export class ChannelMap {
 
   update(nodes: NodeState[]): void {
     this.field.update(nodes);
-  }
-
-  /**
-   * Core-average fuel / coolant temps from the axial nodes. RadialField is
-   * radial-only (rel power), so the temp view scales the axial average by
-   * each channel's relative power (mean rel = 1 by construction).
-   */
-  private coreAvgs(nodes: NodeState[]): { avgFuel: number; avgCool: number } {
-    const n = Math.max(1, nodes.length);
-    let avgFuel = 0;
-    let avgCool = 0;
-    for (const node of nodes) {
-      avgFuel += node.fuelTemp;
-      avgCool += node.coolantTemp;
-    }
-    return { avgFuel: avgFuel / n, avgCool: avgCool / n };
-  }
-
-  /**
-   * Per-channel fuel-temperature estimate [°C]:
-   *   T_est = T_cool_avg + (T_fuel_avg - T_cool_avg) * rel
-   * (rel is mean-1, so core-average estimate recovers avgFuel).
-   */
-  private fuelTempEst(
-    rel: number,
-    avgFuel: number,
-    avgCool: number,
-  ): number {
-    return avgCool + (avgFuel - avgCool) * rel;
   }
 
   /**
@@ -107,12 +71,39 @@ export class ChannelMap {
     };
   }
 
+  /** Plain-language summary values for the readout below the map. */
+  summary(): {
+    hottest: number;
+    coolest: number;
+    highQuadrant: string;
+    highOffsetPct: number;
+    spreadPct: number;
+  } {
+    let hottest = 0;
+    let coolest = Infinity;
+    for (const rel of this.field.rel) {
+      hottest = Math.max(hottest, rel);
+      coolest = Math.min(coolest, rel);
+    }
+    const q = this.quadrants();
+    const entries = Object.entries(q) as ["nw" | "ne" | "sw" | "se", number][];
+    entries.sort((a, b) => b[1] - a[1]);
+    const high = entries[0]!;
+    const low = entries[entries.length - 1]!;
+    return {
+      hottest,
+      coolest,
+      highQuadrant: high[0].toUpperCase(),
+      highOffsetPct: (high[1] - 1) * 100,
+      spreadPct: (high[1] - low[1]) * 100,
+    };
+  }
+
   /** Channel info under a client point (for tooltips), or null. */
   hit(
     clientX: number,
     clientY: number,
     powerFraction: number,
-    nodes: NodeState[],
   ): string | null {
     const r = this.canvas.getBoundingClientRect();
     const sx = clientX - r.left;
@@ -131,18 +122,10 @@ export class ChannelMap {
     const rel = this.field.rel[best]!;
     const mw =
       (powerFraction * P_RATED * rel) / this.field.channels.length / 1e6;
-    if (this.view === "temp") {
-      const { avgFuel, avgCool } = this.coreAvgs(nodes);
-      const tEst = this.fuelTempEst(rel, avgFuel, avgCool);
-      return (
-        `channel ${best} — fuel ~${Math.round(tEst)}°C (est.)` +
-        ` · ${rel.toFixed(2)}× mean · ${mw.toFixed(2)} MW`
-      );
-    }
     return `channel ${best} — ${mw.toFixed(2)} MW (${rel.toFixed(2)}× mean)`;
   }
 
-  draw(nodes: NodeState[], powerFraction: number, time = 0): void {
+  draw(powerFraction: number, time = 0): void {
     const g = this.ctx;
     g.clearRect(0, 0, this.w, this.w);
 
@@ -159,6 +142,19 @@ export class ChannelMap {
     g.lineWidth = 2;
     g.stroke();
 
+    // Orientation belongs on the map, not in an external cryptic quadrant
+    // table. These labels make local hot/cold areas immediately locatable.
+    const radius = this.px(CORE_RADIUS) - this.px(0);
+    g.fillStyle = "#898781";
+    g.font = "600 10px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.fillText("N", this.w / 2, this.w / 2 - radius - 7);
+    g.fillText("S", this.w / 2, this.w / 2 + radius + 14);
+    g.textAlign = "right";
+    g.fillText("W", this.w / 2 - radius - 7, this.w / 2 + 3);
+    g.textAlign = "left";
+    g.fillText("E", this.w / 2 + radius + 7, this.w / 2 + 3);
+
     const cell = Math.max(2, (this.px(0.256) - this.px(0)) * 0.9);
 
     // Relative field (as SKALA displayed it): normalize to the current max
@@ -170,11 +166,6 @@ export class ChannelMap {
     }
     const glow = 0.3 + 0.7 * Math.min(1, Math.max(0, powerFraction));
 
-    // Mean coolant/fuel scale for the temp view (fixed °C color scale so a
-    // scram visibly cools the map as fuel temperatures fall).
-    const { avgFuel, avgCool } = this.coreAvgs(nodes);
-    const tSpan = T_SCALE_HI - T_SCALE_LO;
-
     for (let c = 0; c < this.field.channels.length; c++) {
       const ch = this.field.channels[c]!;
       const rel = this.field.rel[c]!;
@@ -185,17 +176,8 @@ export class ChannelMap {
         1 +
         sigma *
           (Math.sin(time * 1.7 + phase) + 0.6 * Math.sin(time * 4.3 + 2.1 * phase));
-      if (this.view === "power") {
-        const v = (rel / maxRel) * glow * flicker;
-        g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.max(0, Math.min(1, v))})`;
-      } else {
-        // Fuel-temp estimate from core-average axial temps scaled by relative
-        // channel power. Fixed 270–800°C scale — not power-shape recoloring.
-        // Thermal signal is slow; no counting noise on this view.
-        const tEst = this.fuelTempEst(rel, avgFuel, avgCool);
-        const v = Math.max(0, Math.min(1, (tEst - T_SCALE_LO) / tSpan));
-        g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * v})`;
-      }
+      const v = (rel / maxRel) * glow * flicker;
+      g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.max(0, Math.min(1, v))})`;
       g.fillRect(x - cell / 2, y - cell / 2, cell, cell);
     }
 

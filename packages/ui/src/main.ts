@@ -1,5 +1,4 @@
 import {
-  BETA_EFF,
   N_AXIAL,
   Reactor,
   equilibriumIodineXenon,
@@ -67,24 +66,12 @@ const channelMap = new ChannelMap(
   reactor.state.rods,
 );
 
-$("view-power").onclick = () => {
-  channelMap.view = "power";
-  $("view-power").classList.add("active");
-  $("view-temp").classList.remove("active");
-};
-$("view-temp").onclick = () => {
-  channelMap.view = "temp";
-  $("view-temp").classList.add("active");
-  $("view-power").classList.remove("active");
-};
-
 const fieldCanvas = $<HTMLCanvasElement>("channelmap");
 attachTooltip(fieldCanvas, (e) =>
   channelMap.hit(
     e.clientX,
     e.clientY,
     reactor.powerFraction(),
-    reactor.state.nodes,
   ),
 );
 
@@ -738,28 +725,22 @@ function frame(now: number): void {
     else if (periodDisp > 0 && periodDisp < 500) stateTxt = "SUPERCRITICAL - RISING";
     else stateTxt = "SUBCRITICAL";
     $("i-state").textContent = stateTxt;
-    $("i-period").textContent = periodText();
-    // Doubling (or halving) time = period * ln 2, when the meter is on scale.
-    $("i-doubling").textContent =
-      Math.abs(rate) < 1 / 200
-        ? "steady"
-        : rate > 0
-          ? `doubling ${(0.693 / rate).toFixed(0)} s`
-          : `halving ${(-0.693 / rate).toFixed(0)} s`;
-    // Reactivity in beta units (the ZRT-A reactimeter's convention), with
-    // % dk/k as the secondary readout.
-    $("i-rho").textContent = `${disp.rho.toFixed(2)} β`;
-    $("i-rho-pct").textContent = `${(disp.rho * BETA_EFF * 100).toFixed(3)}% Δk/k`;
+    $("i-trend").textContent =
+      Math.abs(rate) < 1 / 200 ? "STEADY" : rate > 0 ? "RISING" : "FALLING";
+    $("i-period").textContent = `period ${periodText()}`;
+    $("i-rho").textContent = `reactivity ${disp.rho.toFixed(2)} β`;
     // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
     // a crude insertion sum, not true equivalent-rod ORM (P1.1). Age says
     // how stale the last printout is.
     const prizma = reactor.prizma();
     $("i-orm").textContent = prizma.orm.toFixed(1);
     const age = Math.max(0, t - prizma.t);
-    $("i-orm-age").textContent = `insertion sum · ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} ago`;
+    $("i-orm-age").textContent = `raw sum · PRIZMA report ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} old`;
     $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
-    $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
-    $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
+    $("i-xe-status").textContent =
+      disp.xe > 1.15 ? "elevated · suppressing power" : disp.xe < 0.85 ? "below full-power equilibrium" : "normal near 1.00×";
+    $("i-void").textContent = `steam void ${(disp.voidAvg * 100).toFixed(0)}%`;
+    $("i-flow").textContent = `Flow ${Math.round(reactor.state.flowFraction * 100)}%`;
     $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
     $("ar-active").textContent =
       reactor.arMode === "LAR" ? "LAR" : `AR-${reactor.arActiveGroup}`;
@@ -832,11 +813,12 @@ function frame(now: number): void {
     // Field reconstruction is quasi-static; recompute at 5 Hz (drawing
     // happens every frame so the detector shimmer stays smooth).
     channelMap.update(reactor.state.nodes);
-    const q = channelMap.quadrants();
-    $("q-nw").textContent = q.nw.toFixed(2);
-    $("q-ne").textContent = q.ne.toFixed(2);
-    $("q-sw").textContent = q.sw.toFixed(2);
-    $("q-se").textContent = q.se.toFixed(2);
+    const field = channelMap.summary();
+    const sign = field.highOffsetPct >= 0 ? "+" : "";
+    $("field-balance").textContent =
+      `Hottest channel ${field.hottest.toFixed(2)}× average · ` +
+      `${field.highQuadrant} quadrant highest (${sign}${field.highOffsetPct.toFixed(0)}%) · ` +
+      `quadrant spread ${field.spreadPct.toFixed(0)}%`;
   }
 
   // Panels.
@@ -845,7 +827,7 @@ function frame(now: number): void {
       ? ([dragStart[0], dragStart[1], dragNow[0], dragNow[1]] as [number, number, number, number])
       : null;
   cartogram.draw(selected, dragRect);
-  channelMap.draw(reactor.state.nodes, disp.power, t);
+  channelMap.draw(disp.power, t);
   slice.draw(reactor.state.nodes, reactor.state.rods);
   trends.draw();
 
