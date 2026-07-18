@@ -17,7 +17,6 @@
     --accent: #3987e5;
     --good: #0ca30c;
     --warning: #fab219;
-    --serious: #ec835a;
     --critical: #d03b3b;
   }
   * { box-sizing: border-box; margin: 0; }
@@ -67,6 +66,8 @@
     text-transform: uppercase; color: var(--muted);
   }
   canvas { display: block; }
+  /* Strip-chart canvases: fill panel width; height set by JS. */
+  canvas.strip { width: 100%; min-height: 128px; }
 
   #col-map { flex: 0 0 auto; }
   #col-field { flex: 0 0 auto; }
@@ -85,7 +86,7 @@
     font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase;
     color: var(--muted); display: flex; align-items: center; gap: 6px;
   }
-  .lamp i { width: 8px; height: 8px; border-radius: 50%; background: #2c2c2a; flex: none; }
+  .lamp i { width: 8px; height: 8px; border-radius: 50%; background: var(--grid); flex: none; }
   .lamp.ok i { background: var(--good); }
   .lamp.warn { color: var(--warning); border-color: rgba(250,178,25,0.4); }
   .lamp.warn i { background: var(--warning); }
@@ -246,7 +247,7 @@
 
   <section id="desk">
     <div class="panel" id="desk-plant">
-      <h2 title="Plant session: initial conditions, sim time scale, coolant flow, thermal readouts.">1 · Plant</h2>
+      <h2 title="Plant session (BShchU desk): initial conditions, sim time scale, coolant flow, thermal readouts.">1 · Plant · BShchU</h2>
       <div class="row">
         <button id="init-power" title="Initialize a steady run at ~100% rated power with rods trimmed and xenon near equilibrium. Resets simulation time.">start at power</button>
         <button id="init-shutdown" title="Cold start: all rods fully inserted, fresh core (no xenon), source-level flux. Bring the reactor critical by withdrawing rods.">cold start</button>
@@ -258,17 +259,24 @@
         <button data-speed="10" title="Fast-forward ×10. Useful for xenon and long holds.">10×</button>
         <button data-speed="60" title="Fast-forward ×60. For multi-hour xenon evolution; keep an eye on alarms.">60×</button>
       </div>
-      <details id="guide" title="Suggested cold-start checklist in SIUR language. Steps light as you complete them.">
+      <details id="guide" title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, RR squads, ARM/AR/LAR, period, ORM printout).">
         <summary>startup procedure</summary>
         <ol id="checklist">
-          <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range instrumentation (ИСС counts).">cold start — core subcritical, watch the ИСС counts</li>
-          <li id="ck-2" title="AZ — emergency protection bank must be cocked (fully withdrawn) before positive reactivity insertion.">select AZ bank, hold ▲▲ until fully out</li>
-          <li id="ck-3" title="RR — manual regulation rods. Withdraw in squads of ≤4–5; ≥5 selected blocks withdrawal; ≥8 withdrawing trips silovaya (power interlock).">pull RR rods in squads of ≤5, pausing between squads</li>
-          <li id="ck-4" title="When period becomes finite and short (&lt;150 s), stop withdrawing and let power rise on residual reactivity.">period alive (&lt;150 s): stop pulling, let power rise</li>
-          <li id="ck-5" title="ARM — low-power automatic regulator (0.25–6% band). Engage with a non-zero setpoint before leaving the startup range.">engage ARM (setpoint &gt; 0) below 6%</li>
-          <li id="ck-6" title="Hand off to AR (5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">hand to AR above 5%, LAR above 10%; power at setpoint</li>
+          <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range ISS count-rate (ИСС).">cold start — core subcritical; watch ISS count-rate</li>
+          <li id="ck-2" title="AZ bank — emergency protection rods must be cocked (fully withdrawn) before any positive reactivity insert.">cock AZ bank — select AZ, hold ▲▲ until fully out</li>
+          <li id="ck-3" title="RR squads — manual regulation rods. Withdraw ≤4 at once (panel refuses ≥5; silovaya trips ≥8 withdrawing). Use next RR squad.">withdraw RR squads (≤4 rods; next RR squad), pause between</li>
+          <li id="ck-4" title="Reactor period [s]: when finite and short (&lt;150 s), stop withdrawing; let power rise. Startup rule: stop if period &lt; 60 s; AZS trips at &lt; 10 s.">period finite (&lt;150 s): stop withdrawing, let power rise</li>
+          <li id="ck-5" title="ARM — low-power automatic regulator (~0.25–6% band). Engage with non-zero setpoint before leaving startup range.">engage ARM (setpoint &gt; 0) in the low-power band</li>
+          <li id="ck-6" title="Hand off to AR (main-range ~5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">hand off to AR above ~5%, LAR above ~10%; hold power at setpoint</li>
         </ol>
-        <p style="margin-top:6px" title="After AZ-5: reset the scram latch, then re-cock rods. ORM printouts are your only pre-1986 margin gauge during the xenon pit."><b style="color:var(--ink-2)">after a scram:</b> reset scram,
+        <p style="margin-top:6px" title="Operator path through a full shift drill. Refused actions appear in the event log."><b style="color:var(--ink-2)">operator path:</b>
+        cold start → cock AZ bank → RR squads → engage ARM/AR → power →
+        AZ-1 setback → AZ-5 scram → reset scram. Watch period and the
+        ORM · PRIZMA printout; read the <b style="color:var(--ink-2)">event log</b>
+        for refused actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).</p>
+        <p style="margin-top:4px" title="Sim-only shortcuts not present on the real desk."><b style="color:var(--ink-2)">sim-only:</b>
+        flow slider, start at power, time accel (1×/10×/60×).</p>
+        <p style="margin-top:4px" title="After AZ-5: reset the scram latch, then re-cock AZ bank. ORM printouts are your only pre-1986 margin gauge during the xenon pit."><b style="color:var(--ink-2)">after a scram:</b> reset scram,
         then restart as above — but mind the xenon: for hours after a
         power run the pit deepens, and ORM printouts are your only margin
         gauge. Sometimes the honest move is to wait it out.</p>
@@ -288,7 +296,7 @@
     </div>
 
     <div class="panel" id="desk-rods">
-      <h2 title="Select CPS rods, then drive them with hold keys or 35 cm pulses. Selsyn rows show per-rod depth and VK/NK limits.">2 · Rod selection &amp; drive</h2>
+      <h2 title="SIUR rod desk: select CPS rods, then drive with hold keys or 35 cm pulses. Selsyn rows show per-rod depth and VK/NK limits.">2 · CPS rod drive · SIUR</h2>
       <div class="row">
         <button id="sel-manual" title="RR — Manual regulation rods (~131). Primary bank for power shaping and startup withdrawal.">RR manual</button>
         <button id="sel-auto" title="AR — Automatic Regulator rods (12). Selected for override/return; normally driven by the AR PI controller.">AR</button>
@@ -318,7 +326,7 @@
     </div>
 
     <div class="panel" id="desk-auto">
-      <h2 title="Automatic power regulation (AR/ARM/LAR). The open-loop plant is unstable (positive void); the regulator holds power.">3 · Automatic regulation</h2>
+      <h2 title="Automatic power regulation (ARM / AR / LAR). The open-loop plant is unstable (positive void); the regulator holds power.">3 · AR regulation · ARM/AR/LAR</h2>
       <div class="row">
         <button id="ar-toggle" class="active" title="Engage or disengage the automatic regulator PI loop. Disengaged: open-loop; power will drift on void/xenon/Doppler.">engaged</button>
         <button id="ar-mode-arm" title="ARM — low-power automatic regulator. Band ~0.25–6% rated, summed side-chamber signal, 4 rods.">ARM</button>
@@ -353,7 +361,7 @@
     </div>
 
     <div class="panel" id="desk-protection">
-      <h2 title="Reactor Protection System (RPS / АЗ). Operator-blockable trips, setback, full scram, and annunciator lamps.">4 · Protection (RPS)</h2>
+      <h2 title="Reactor Protection System (RPS / АЗ). Operator-blockable trips, setback, full scram, and annunciator lamps.">4 · AZ protection · RPS</h2>
       <div class="row">
         <button id="rps-azm" class="active" title="AZM — emergency overpower protection. When armed, trips AZ-5 if power &gt; 110% rated. Click to arm/block (blocked trips still log a warning).">AZM overpower</button>
         <button id="rps-azs" class="active" title="AZS — emergency period protection. When armed, trips AZ-5 if reactor period &lt; 10 s. Click to arm/block (operator-blockable, as historically).">AZS period</button>
@@ -388,7 +396,7 @@
     <section class="panel"><h2 title="Strip chart: reactor period [s]. Ref lines: withdrawal block 60 s; AZS trip 10 s.">Period s · block 60 · AZS 10</h2><canvas class="strip" id="st-period" title="Period history [s]. Short positive period = fast rising power. Refs: 60 s block, 10 s AZS."></canvas></section>
     <section class="panel"><h2 title="Strip chart: net reactivity in units of β_eff (1 $ = 0.005). Ref: prompt critical +1β.">Reactivity β · +1β prompt</h2><canvas class="strip" id="st-rho" title="Reactivity history [β]. Positive = supercritical. Ref line: prompt critical +1β."></canvas></section>
     <section class="panel"><h2 title="Strip chart: Xe-135 inventory relative to full-power equilibrium. Ref: 1.0× equil.">Xenon ×eq · 1.0 equil</h2><canvas class="strip" id="st-xe" title="Xenon history [× equilibrium]. Ref: 1.0 = full-power equilibrium. Rises after power drops (iodine pit)."></canvas></section>
-    <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, and protection trips.">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info."></ul></section>
+    <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, protection trips, and refused operator actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info. Refused drives and interlocks always log here — never silent."></ul></section>
   </footer>
 
   <div id="tooltip"></div>

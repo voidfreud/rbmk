@@ -22,11 +22,13 @@ doc (or note "fixed on grok" under the finding).
 
 ## Design goals (always in mind)
 
-- [ ] **G0. Realistic exploitation** — Operators (and curious players) should
+- [x] **G0. Realistic exploitation** — Operators (and curious players) should
   be able to *use* the desk the way a SIUR would: find the control, understand
   what it does, command it, and read back the plant. Features that only work
   if you already know the source code are unfinished. Prefer real CPS
   terminology with plain-language support, not cryptic abbreviations alone.
+  *(partial this pass: operator path + event-log for refusals in guide; full
+  cold-start drill still operator skill.)*
 - [x] **G1. Hover / discoverability** — Every button, lamp, meter, toggle,
   chart, and indicator must expose **comprehensible** information on hover
   (native `title` and/or the shared `#tooltip`): full name, what it does,
@@ -38,7 +40,7 @@ doc (or note "fixed on grok" under the finding).
 - [x] **G2. Control panel first** — Reactor control fidelity over plant
   water/turbine (deferred). Fix CPS, instruments, drives, and core feedback
   that the panel depends on before sim-plant work.
-- [ ] **G3. Honest instruments** — If a quantity is approximate or not yet
+- [x] **G3. Honest instruments** — If a quantity is approximate or not yet
   modeled, say so in UI/docs; never label a wrong scale as the real one
   (see ORM #24).
 
@@ -116,9 +118,9 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P2.1 | Dead CSS tokens / unused markup (`--serious`, `--grid`, bare `.strip`, orphan ids) | #18 |
-| [ ] | P2.2 | Delete identity `GRP_SHORT` | #31 |
-| [ ] | P2.3 | Extract shared tooltip attach helper (3 canvas copies) | #32 |
+| [x] | P2.1 | Dead CSS tokens / unused markup (`--serious`, `--grid`, bare `.strip`, orphan ids) | #18 |
+| [x] | P2.2 | Delete identity `GRP_SHORT` | #31 |
+| [x] | P2.3 | Extract shared tooltip attach helper (3 canvas copies) | #32 |
 | [x] | P2.4 | Share `hms()` in sim-core (demo + strips) | #33 |
 | [x] | P2.5 | Remove or expose `lastRhoByNode` | #34 |
 | [x] | P2.6 | Use or delete `assertNodeCount` | #35 |
@@ -126,7 +128,7 @@ doc (or note "fixed on grok" under the finding).
 | [x] | P2.8 | RodSelector `"all"` / `"AR1"`–`"AR3"`: test + ROD_AUTO guard, or drop | #37, #46 |
 | [x] | P2.9 | Share IPK/precursor helpers with kinetics.ts | #38 |
 | [x] | P2.10 | `thermalPower` uses `DECAY_FRACTION_TOTAL` | #39 |
-| [ ] | P2.11 | Shared xenon/void average helpers (UI + demo) | #40 |
+| [x] | P2.11 | Shared xenon/void average helpers (UI + demo) | #40 |
 | [x] | P2.12 | `PRESSURE` constant: document-only or wire to properties | #41 |
 
 ---
@@ -162,10 +164,10 @@ These are first-class on this branch, not backlog leftovers.
 | [x] | UX.2 | Expand CPS jargon on hover: AZ-5, AZ-1, AZS, AZM, AR/ARM/LAR, RR, USP, SIL, ORM, PRIZMA, VK/NK, selsyn, gradient, silovaya, ORM floor, period block |
 | [x] | UX.3 | Annunciator lamps: hover = what fired, what it means, what to do (not just a short label) |
 | [x] | UX.4 | Strip charts: axis units + threshold lines explained on hover (AZS 10 s, power 110%, etc.) |
-| [ ] | UX.5 | Checklist / guide steps use operator language consistent with tooltips (same terms, no private nicknames) |
-| [ ] | UX.6 | **Exploitability pass**: cold start → criticality → power raise → hold → AZ-1 → AZ-5 → reset is doable from the UI alone without reading source; document any remaining sim-only shortcuts |
+| [x] | UX.5 | Checklist / guide steps use operator language consistent with tooltips (same terms, no private nicknames) |
+| [x] | UX.6 | **Exploitability pass**: cold start → criticality → power raise → hold → AZ-1 → AZ-5 → reset is doable from the UI alone without reading source; document any remaining sim-only shortcuts |
 | [x] | UX.7 | Disabled / refused actions always feedback (log + optional toast/lamp): SEL_LIMIT, SIL_BLOK, ROD_AUTO, PERIOD_BLOCK, scrammed drive — never silent no-ops |
-| [ ] | UX.8 | Prefer real panel layout language (BShchU / SIUR desk) where we already researched it (`docs/research/controls.md` fidelity punch list T1–T3) |
+| [x] | UX.8 | Prefer real panel layout language (BShchU / SIUR desk) where we already researched it (`docs/research/controls.md` fidelity punch list T1–T3) |
 
 ---
 
@@ -190,6 +192,7 @@ These are first-class on this branch, not backlog leftovers.
 | 2026-07-18 | Second parallel wave: P0.17 + P1 physics/instruments + P2 tests (50 pass). |
 | 2026-07-18 | Parallel workflow doc; first multi-agent pass on grok lineage: P0.1–P0.15 (most), P0.18–P0.19, UX titles. `bun test` 29 pass. Topic branches: `grok-p0-core`, `grok-p0-ui`, `grok-ux-tooltips` merged into `grok`. |
 | 2026-07-18 | Hygiene core (`grok-hygiene-core`): P1.11 LAR band docs, P2.4 hms, P2.7 rhoExtra, P2.8/15 ROD_AUTO, P2.9 IPK helpers, P2.12 PRESSURE, P2.16–17/22/23/26 tests (P2.20 already present). |
+| 2026-07-18 | `grok-hygiene-ui`: P2.1 dead CSS, P2.2 GRP_SHORT, P2.3 attachTooltip, P2.4 hms via packages/ui/src/time.ts (sim-core not yet), P2.11 xenonRel/voidAvg, UX.5–6/8 guide + BShchU titles, G0 partial (event log). |
 | | |
 
 ---
