@@ -1,15 +1,25 @@
 {
-  "name": "rbmk",
+  "name": "rbmk-1000-simulator",
+  "version": "0.1.0",
+  "description": "Deterministic RBMK-1000 reactor physics simulator and interactive control room",
   "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.14",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "test": "bun test",
+    "start": "bun run scripts/serve.ts",
+    "ui": "bun run start",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test packages/sim-core/test",
+    "check": "bun run typecheck && bun test",
+    "smoke:ui": "bun run scripts/smoke-ui.ts",
     "demo": "bun run scripts/demo.ts",
-    "ui": "bun run scripts/serve.ts"
+    "ci": "bun run check && bun run smoke:ui && bun run demo"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.14"
+    "@types/bun": "1.3.14",
+    "typescript": "7.0.2"
   }
 }

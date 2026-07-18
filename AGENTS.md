@@ -7,8 +7,10 @@ code with it; that repo and INSAG-7 serve as reference material only.
 ## Stack and commands
 
 - **Bun** (no Node, no build step). TypeScript strict mode throughout.
-- `bun test` - physics validation suite (packages/sim-core/test/)
-- `bun run scripts/demo.ts` - "a shift at the plant" CLI scenario,
+- `bun run check` - strict TypeScript plus the physics validation suite
+- `bun run start` - control-room UI at http://localhost:3141/
+- `bun run smoke:ui` - validates a complete served UI entry point
+- `bun run demo` - "a shift at the plant" CLI scenario,
   writes structured JSONL to logs/run.jsonl
 
 ## Layout
@@ -22,7 +24,8 @@ packages/sim-core/   pure physics, zero deps, never touches a browser API
   src/rods.ts        rod geometry incl. graphite displacers ("tip effect")
   src/reactor.ts     assembly: tick loop, AR controller, alarms, calibration
 scripts/demo.ts      demo scenario + shift-operator heuristic
-packages/ui/         (future) canvas/SVG control room, subscribes to sim-core
+scripts/smoke-ui.ts  UI server smoke validation used locally and in CI
+packages/ui/         canvas control room, subscribes to sim-core
 packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 ```
 
@@ -40,7 +43,8 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   (3 subgroups, auto changeover) + 12 LAR + 24 AZ + 32 USP. USP enter
   from BELOW and are NOT driven by AZ-5 (pre-1986). Protections: AZS
   (period), AZM (overpower), both operator-blockable; AZ-1 setback;
-  ORM alarm below 15 rods. Regulator setpoint ramps at arGradient.
+  delayed PRIZMA ORM advisory below 15 rods. Regulator setpoint ramps at
+  arGradient.
 - The plant is genuinely unstable open-loop (positive void coefficient);
   the AR (automatic regulator) PI controller holds it, like the real one.
   Tests that probe raw feedback set `reactor.arEnabled = false`.
@@ -66,10 +70,10 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 1. sim-core v0: nodal kinetics + xenon + rods + thermal (DONE, tested)
 2. Constants reconciliation vs literature (DONE, docs/physics.md)
 3. packages/ui: canvas control room (DONE v0+: per-rod selsyn depth cells,
-   channel field, axial slice, strip charts, lever-style rod drive
-   (hold = 0.4 m/s, release = stop) + pulse steps, AR panel with
+   channel field, axial slice, shared trend monitor, hold-to-drive KUS,
+   individual rod selection, AR panel with
    subgroups/gradient/override, protection panel, cold start + start at
-   power, plant-state annunciator; `bun run ui`, port 3141)
+   power, plant-state annunciator; `bun run start`, port 3141)
 4. Radial dimension (2D nodal mesh) for spatial xenon oscillations
 5. packages/sim-plant: hydraulic loops, pumps, drum separators, turbine
 6. Grid/electrical side
@@ -80,14 +84,10 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Private repo; pushing and merging to GitHub allowed without asking.
 - Commit AND push after every completed change/iteration (owner request) -
   small checkpoints, not batched mega-commits.
-- Parallel work: **grok lineage + isolated worktrees** (see
-  `docs/parallel-workflow.md`). Integration branch is **`grok`**; agents
-  use short-lived **`grok-<task>`** branches (hyphen — not `grok/…`)
-  forked from `grok`; **never merge agent work to `main`** until an
-  explicit promote. Phrase: “parallel on the grok lineage; protect main.”
+- Use short-lived feature branches or isolated worktrees for parallel work;
+  protect `main`, keep commits focused, and merge only validated changes.
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.
-- Control-panel usability checklist (includes all 57 audit findings plus
-  hover/exploitability goals): `docs/grok-checklist.md`. Detailed repros
-  remain in `docs/audit-backlog.md`.
+- CI on `main` and pull requests must pass type-checking, physics tests, the
+  UI smoke test, and the end-to-end shift scenario.
