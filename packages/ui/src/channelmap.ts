@@ -3,6 +3,10 @@ import { CORE_RADIUS, P_RATED, RadialField, ROD_PITCH } from "@rbmk/sim-core";
 
 export type ChannelView = "power" | "temp";
 
+/** Fixed color scale for the fuel-temp estimate view [°C]. */
+const T_SCALE_LO = 270;
+const T_SCALE_HI = 800;
+
 /**
  * Fuel-channel cartogram: every fuel channel colored by local power (or an
  * outlet-temperature estimate), CPS rod channels drawn as dark cells on top.
@@ -36,6 +40,35 @@ export class ChannelMap {
 
   update(nodes: NodeState[]): void {
     this.field.update(nodes);
+  }
+
+  /**
+   * Core-average fuel / coolant temps from the axial nodes. RadialField is
+   * radial-only (rel power), so the temp view scales the axial average by
+   * each channel's relative power (mean rel = 1 by construction).
+   */
+  private coreAvgs(nodes: NodeState[]): { avgFuel: number; avgCool: number } {
+    const n = Math.max(1, nodes.length);
+    let avgFuel = 0;
+    let avgCool = 0;
+    for (const node of nodes) {
+      avgFuel += node.fuelTemp;
+      avgCool += node.coolantTemp;
+    }
+    return { avgFuel: avgFuel / n, avgCool: avgCool / n };
+  }
+
+  /**
+   * Per-channel fuel-temperature estimate [°C]:
+   *   T_est = T_cool_avg + (T_fuel_avg - T_cool_avg) * rel
+   * (rel is mean-1, so core-average estimate recovers avgFuel).
+   */
+  private fuelTempEst(
+    rel: number,
+    avgFuel: number,
+    avgCool: number,
+  ): number {
+    return avgCool + (avgFuel - avgCool) * rel;
   }
 
   /**
@@ -75,7 +108,12 @@ export class ChannelMap {
   }
 
   /** Channel info under a client point (for tooltips), or null. */
-  hit(clientX: number, clientY: number, powerFraction: number): string | null {
+  hit(
+    clientX: number,
+    clientY: number,
+    powerFraction: number,
+    nodes: NodeState[],
+  ): string | null {
     const r = this.canvas.getBoundingClientRect();
     const sx = clientX - r.left;
     const sy = clientY - r.top;
@@ -91,7 +129,16 @@ export class ChannelMap {
     }
     if (best < 0) return null;
     const rel = this.field.rel[best]!;
-    const mw = (powerFraction * P_RATED * rel) / this.field.channels.length / 1e6;
+    const mw =
+      (powerFraction * P_RATED * rel) / this.field.channels.length / 1e6;
+    if (this.view === "temp") {
+      const { avgFuel, avgCool } = this.coreAvgs(nodes);
+      const tEst = this.fuelTempEst(rel, avgFuel, avgCool);
+      return (
+        `channel ${best} — fuel ~${Math.round(tEst)}°C (est.)` +
+        ` · ${rel.toFixed(2)}× mean · ${mw.toFixed(2)} MW`
+      );
+    }
     return `channel ${best} — ${mw.toFixed(2)} MW (${rel.toFixed(2)}× mean)`;
   }
 
@@ -123,9 +170,10 @@ export class ChannelMap {
     }
     const glow = 0.3 + 0.7 * Math.min(1, Math.max(0, powerFraction));
 
-    // Mean coolant/fuel scale for the temp view.
-    const avgFuel =
-      nodes.reduce((a, n) => a + n.fuelTemp, 0) / Math.max(1, nodes.length);
+    // Mean coolant/fuel scale for the temp view (fixed °C color scale so a
+    // scram visibly cools the map as fuel temperatures fall).
+    const { avgFuel, avgCool } = this.coreAvgs(nodes);
+    const tSpan = T_SCALE_HI - T_SCALE_LO;
 
     for (let c = 0; c < this.field.channels.length; c++) {
       const ch = this.field.channels[c]!;
@@ -141,11 +189,12 @@ export class ChannelMap {
         const v = (rel / maxRel) * glow * flicker;
         g.fillStyle = `rgba(217, 89, 38, ${0.05 + 0.92 * Math.max(0, Math.min(1, v))})`;
       } else {
-        // Fuel-temperature shape follows the power shape; show it relative
-        // (same normalization) in the amber hue. Fuel temperature is a slow
-        // thermal signal - no counting noise on this view.
-        const v = (rel / maxRel) * glow;
-        g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * Math.min(1, v)})`;
+        // Fuel-temp estimate from core-average axial temps scaled by relative
+        // channel power. Fixed 270–800°C scale — not power-shape recoloring.
+        // Thermal signal is slow; no counting noise on this view.
+        const tEst = this.fuelTempEst(rel, avgFuel, avgCool);
+        const v = Math.max(0, Math.min(1, (tEst - T_SCALE_LO) / tSpan));
+        g.fillStyle = `rgba(201, 133, 0, ${0.05 + 0.92 * v})`;
       }
       g.fillRect(x - cell / 2, y - cell / 2, cell, cell);
     }

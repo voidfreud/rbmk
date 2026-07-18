@@ -45,7 +45,12 @@ $("view-temp").onclick = () => {
 
 const fieldCanvas = $<HTMLCanvasElement>("channelmap");
 fieldCanvas.addEventListener("mousemove", (e) => {
-  const label = channelMap.hit(e.clientX, e.clientY, reactor.powerFraction());
+  const label = channelMap.hit(
+    e.clientX,
+    e.clientY,
+    reactor.powerFraction(),
+    reactor.state.nodes,
+  );
   const tip = $("tooltip");
   if (label) {
     tip.style.display = "block";
@@ -643,12 +648,14 @@ let nextDomUpdate = 0;
 
 /**
  * Damped display values: real panel instruments have mechanical/electrical
- * damping, so the readouts must not flicker at frame rate. Smooth with
- * ~0.5 s time constant and write to the DOM at 5 Hz.
+ * damping, so the readouts must not flicker at frame rate. Smooth with a
+ * ~0.5 s time constant in *sim* seconds (not wall clock) so 60× fast-forward
+ * does not turn the filters into a 30 s lag — period lamp and meter stay
+ * consistent. Write to the DOM at 5 Hz.
  */
 const disp = { power: 1, rho: 0, xe: 1, voidAvg: 0.35, periodRate: 0 };
-function smooth(wallDt: number): void {
-  const a = Math.min(1, wallDt / 0.5);
+function smooth(simDt: number): void {
+  const a = Math.min(1, simDt / 0.5);
   disp.power += (reactor.powerFraction() - disp.power) * a;
   disp.rho += (reactor.reactivityBeta() - disp.rho) * a;
   const xe =
@@ -672,14 +679,18 @@ function frame(now: number): void {
   const wallDt = Math.min(0.1, (now - lastWall) / 1000);
   lastWall = now;
 
-  if (speed > 0 && wallDt > 0) {
-    const simDt = wallDt * speed;
+  // simDt drives both the physics tick and instrument damping so 10×/60×
+  // does not inflate the display time-constant relative to plant dynamics.
+  const simDt = speed > 0 && wallDt > 0 ? wallDt * speed : 0;
+  if (simDt > 0) {
     reactor.tick(simDt, speed > 1 ? 0.1 : 0.02);
   }
-  smooth(wallDt);
+  smooth(simDt);
 
   const t = reactor.state.time;
   if (t >= nextSample) {
+    // Charts sample the same sim-time-smoothed instruments as the meters
+    // (tau = 0.5 sim-s), so thresholds drawn on the strip match the panel.
     const period = 1 / Math.max(1 / 200, Math.abs(disp.periodRate)) *
       Math.sign(disp.periodRate || 1);
     stripPower.push(t, disp.power * 100);
@@ -704,17 +715,20 @@ function frame(now: number): void {
       disp.power < 0.0025
         ? `ISS ${Math.max(0, disp.power * 1e7).toFixed(0)} cps`
         : `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
-    // Plant state annunciator.
-    const period = reactor.period();
+    // Plant state annunciator. Period for state/lamp uses the same damped
+    // rate as the period meter so 60× does not light the lamp while the
+    // readout still lags (P1.3).
+    const rate = disp.periodRate;
+    const periodDisp =
+      Math.abs(rate) < 1 / 200 ? Infinity : 1 / rate;
     let stateTxt: string;
     if (reactor.state.scrammed) stateTxt = "SCRAMMED";
     else if (disp.power > 0.05) stateTxt = "POWER OPERATION";
-    else if (period > 0 && period < 500) stateTxt = "SUPERCRITICAL - RISING";
+    else if (periodDisp > 0 && periodDisp < 500) stateTxt = "SUPERCRITICAL - RISING";
     else stateTxt = "SUBCRITICAL";
     $("i-state").textContent = stateTxt;
     $("i-period").textContent = periodText();
     // Doubling (or halving) time = period * ln 2, when the meter is on scale.
-    const rate = disp.periodRate;
     $("i-doubling").textContent =
       Math.abs(rate) < 1 / 200
         ? "steady"
@@ -726,11 +740,12 @@ function frame(now: number): void {
     $("i-rho").textContent = `${disp.rho.toFixed(2)} β`;
     $("i-rho-pct").textContent = `${(disp.rho * BETA_EFF * 100).toFixed(3)}% Δk/k`;
     // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
-    // stale by design, and the age readout says how stale.
+    // a crude insertion sum, not true equivalent-rod ORM (P1.1). Age says
+    // how stale the last printout is.
     const prizma = reactor.prizma();
     $("i-orm").textContent = prizma.orm.toFixed(1);
     const age = Math.max(0, t - prizma.t);
-    $("i-orm-age").textContent = `printout ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} ago`;
+    $("i-orm-age").textContent = `insertion sum · ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} ago`;
     $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
     $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
     $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
@@ -761,7 +776,7 @@ function frame(now: number): void {
     setLamp("an-azs", reactor.protection.period ? "ok" : "warn");
     $("an-azm").lastChild!.textContent = reactor.protection.overpower ? "AZM armed" : "AZM BLOCKED";
     $("an-azs").lastChild!.textContent = reactor.protection.period ? "AZS armed" : "AZS BLOCKED";
-    setLamp("an-period", period > 0 && period < 60 ? "warn" : "");
+    setLamp("an-period", periodDisp > 0 && periodDisp < 60 ? "warn" : "");
     // P0.3: hold-time lamps require t >= stamp (so re-init at t=0 does not
     // light them from a stale Infinity-delta) and LAR uses the same 15 s hold.
     setLamp(
@@ -776,6 +791,8 @@ function frame(now: number): void {
       "an-lar",
       t >= lampT.lar && t - lampT.lar < 15 ? "alarm" : "",
     );
+    // Advisory only: threshold still uses sim-core's raw insertion sum vs 15
+    // (not true equivalent-rod ORM — see P1.1 UI honesty).
     setLamp("an-orm", reactor.prizma().orm < 15 && disp.power > 0.1 ? "warn" : "");
 
     // AR imbalance galvanometer ("zaichik"): power minus active setpoint.
