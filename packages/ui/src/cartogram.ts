@@ -71,28 +71,19 @@ export class Cartogram {
     return best;
   }
 
-  rodsInRect(ax: number, ay: number, bx: number, by: number): RodState[] {
-    const r = this.canvas.getBoundingClientRect();
-    const x0 = Math.min(ax, bx) - r.left;
-    const x1 = Math.max(ax, bx) - r.left;
-    const y0 = Math.min(ay, by) - r.top;
-    const y1 = Math.max(ay, by) - r.top;
-    return this.rods.filter((rod) => {
-      const [x, y] = this.rodCenter(rod);
-      return x >= x0 && x <= x1 && y >= y0 && y <= y1;
-    });
-  }
-
-  draw(selected: Set<number>, dragRect: [number, number, number, number] | null): void {
+  draw(selected: Set<number>): void {
     const g = this.ctx;
     const w = this.canvas.width / (window.devicePixelRatio || 1);
     g.clearRect(0, 0, w, w);
 
     // Core barrel.
     g.beginPath();
-    g.arc(this.cx, this.cy, this.scale * 9.15, 0, Math.PI * 2);
-    g.strokeStyle = "rgba(255,255,255,0.10)";
-    g.lineWidth = 2;
+    // Keep the complete boundary comfortably inside the canvas. The previous
+    // near-edge ring could look clipped when the panel was highlighted or
+    // rendered on a fractional device-pixel scale.
+    g.arc(this.cx, this.cy, this.scale * 8.75, 0, Math.PI * 2);
+    g.strokeStyle = "rgba(255,255,255,0.28)";
+    g.lineWidth = 1.5;
     g.stroke();
 
     for (const rod of this.rods) {
@@ -148,20 +139,6 @@ export class Cartogram {
       }
     }
 
-    if (dragRect) {
-      const r = this.canvas.getBoundingClientRect();
-      const [ax, ay, bx, by] = dragRect;
-      g.strokeStyle = "#3987e5";
-      g.setLineDash([4, 3]);
-      g.lineWidth = 1;
-      g.strokeRect(
-        Math.min(ax, bx) - r.left,
-        Math.min(ay, by) - r.top,
-        Math.abs(bx - ax),
-        Math.abs(by - ay),
-      );
-      g.setLineDash([]);
-    }
   }
 }
 

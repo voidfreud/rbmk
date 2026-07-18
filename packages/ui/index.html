@@ -95,9 +95,11 @@
   #col-slice { flex: 1; min-width: 0; }
 
   /* The operator desk: full-width control panel between maps and charts. */
-  #desk { display: flex; gap: 10px; align-items: stretch; }
-  #desk .panel { flex: 1; }
-  #desk-rods { flex: 1.5; }
+  #desk {
+    display: grid; gap: 10px; align-items: start;
+    grid-template-columns: 350px minmax(440px, 1.3fr) minmax(350px, 1fr) 350px;
+  }
+  #desk .panel { min-width: 0; }
   main .panel > canvas { margin: 0 auto; }
 
   /* Annunciator lamp field (real panels: a grid of lit tiles). */
@@ -189,6 +191,21 @@
   .rod-row .depth { width: 52px; text-align: right; color: var(--ink-2); }
   .rod-row .lim { width: 22px; font-size: 10px; font-weight: 700; }
   .rod-row button { padding: 0 6px; font-size: 11px; line-height: 16px; }
+  .selection-strip {
+    display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
+    align-items: center; padding: 7px 8px; border: 1px solid var(--hairline);
+    border-radius: 4px; background: rgba(255,255,255,0.02);
+  }
+  .selection-strip .instruction { color: var(--ink-2); font-size: 11px; line-height: 1.3; }
+  .count-lamps { display: flex; gap: 4px; }
+  .count-lamp {
+    width: 24px; height: 24px; border: 1px solid var(--hairline); border-radius: 3px;
+    display: grid; place-items: center; color: var(--muted); font-size: 10px;
+  }
+  .count-lamp.on { color: #0d0d0d; background: #deddd5; border-color: #fff; font-weight: 700; }
+  .count-lamp.blocked { color: #0d0d0d; background: var(--warning); border-color: var(--warning); font-weight: 700; }
+  .kus-row { display: grid; grid-template-columns: 72px 1fr 1fr; gap: 7px; align-items: center; }
+  .kus-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
   .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
   .divider { border-top: 1px solid var(--hairline); margin: 2px 0; }
 </style>
@@ -219,8 +236,8 @@
 
   <main>
     <section class="panel" id="col-map">
-      <h2 title="CPS rod map: click a channel to select, drag a box to multi-select. Fill = absorber insertion depth in the 7 m channel.">Core map — rod depths (click to select, drag to multi-select)</h2>
-      <canvas id="cartogram" width="640" height="640" title="Core cartogram of control rods. Hover a cell for coordinate, group, and depth. Click/drag to select for the rod drive."></canvas>
+      <h2 title="Real-style CPS selection field: each square is one rod-selection button. Click individual rods to add or remove them from the active selection.">Core map — rod positions and individual selection</h2>
+      <canvas id="cartogram" width="640" height="640" title="Control-rod mimic field. Click individual rod buttons to select or deselect them; use Clear selection on the SIUR desk."></canvas>
       <div class="legend" id="map-legend">
         <span title="Selsyn-style depth: filled portion = absorber insertion from the top (0 = fully out, full = fully in)."><span class="sw" style="background:#5598e7"></span>fill level = absorber depth in the 7 m channel</span>
         <span title="AR — Automatic Regulator rods (12 total, 3 subgroups of 4). Main-range PI control."><span class="sw" style="border:1.5px solid #199e70; background:none"></span>AR</span>
@@ -276,18 +293,18 @@
         <button data-speed="10" title="Fast-forward ×10. Useful for xenon and long holds.">10×</button>
         <button data-speed="60" title="Fast-forward ×60. For multi-hour xenon evolution; keep an eye on alarms.">60×</button>
       </div>
-      <details id="guide" title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, RR squads, ARM/AR/LAR, period, ORM printout).">
+      <details id="guide" title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, individually selected RR rods, ARM/AR/LAR, period, ORM printout).">
         <summary>startup procedure</summary>
         <ol id="checklist">
           <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range ISS count-rate (ИСС).">cold start — core subcritical; watch ISS count-rate</li>
           <li id="ck-2" title="AZ bank — emergency protection rods must be cocked (fully withdrawn) before any positive reactivity insert.">cock AZ bank — select AZ, hold ▲▲ until fully out</li>
-          <li id="ck-3" title="RR squads — manual regulation rods. Withdraw ≤4 at once (panel refuses ≥5; silovaya trips ≥8 withdrawing). Use next RR squad.">withdraw RR squads (≤4 rods; next RR squad), pause between</li>
+          <li id="ck-3" title="RR rods are selected individually on the mimic field. Choose a spatially balanced set of 1–4; the panel blocks withdrawal with 5 or more selected.">select 1–4 balanced RR rods on the core map; withdraw, then pause</li>
           <li id="ck-4" title="Reactor period [s]: when finite and short (&lt;150 s), stop withdrawing; let power rise. Startup rule: stop if period &lt; 60 s; AZS trips at &lt; 10 s.">period finite (&lt;150 s): stop withdrawing, let power rise</li>
           <li id="ck-5" title="ARM — low-power automatic regulator (~0.25–6% band). Engage with non-zero setpoint before leaving startup range.">engage ARM (setpoint &gt; 0) in the low-power band</li>
           <li id="ck-6" title="Hand off to AR (main-range ~5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">hand off to AR above ~5%, LAR above ~10%; hold power at setpoint</li>
         </ol>
         <p style="margin-top:6px" title="Operator path through a full shift drill. Refused actions appear in the event log."><b style="color:var(--ink-2)">operator path:</b>
-        cold start → cock AZ bank → RR squads → engage ARM/AR → power →
+        cold start → cock AZ bank → select and withdraw RR sets → engage ARM/AR → power →
         AZ-1 setback → AZ-5 scram → reset scram. Watch period and the
         ORM · PRIZMA printout; read the <b style="color:var(--ink-2)">event log</b>
         for refused actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).</p>
@@ -313,29 +330,32 @@
     </div>
 
     <div class="panel" id="desk-rods">
-      <h2 title="SIUR rod desk: select CPS rods, then drive with hold keys or 35 cm pulses. Selsyn rows show per-rod depth and VK/NK limits.">2 · CPS rod drive · SIUR</h2>
-      <div class="row">
-        <button id="sel-manual" title="RR — Manual regulation rods (~131). Primary bank for power shaping and startup withdrawal.">RR manual</button>
-        <button id="sel-auto" title="AR — Automatic Regulator rods (12). Selected for override/return; normally driven by the AR PI controller.">AR</button>
-        <button id="sel-lar" title="LAR — Local Automatic Regulator rods (12 zones). In-core zone control; inoperable (blind) below ~10% power.">LAR</button>
-        <button id="sel-emergency" title="AZ — emergency protection rods (24). Cock fully out before startup; driven in by AZ-5 and AZ-1.">AZ</button>
-        <button id="sel-shortened" title="USP — shortened absorbers (32). Enter from below (stroke ~3.5 m). Pre-1986: NOT driven by AZ-5.">USP</button>
-        <button id="sel-none" title="Clear rod selection (сброс выбора). Drive keys then do nothing until you select again.">clear</button>
-        <button id="sel-squad" title="Select the next 4 RR rods in the planned spread-out withdrawal sequence (procedure squads; panel hard limit is ≥5).">next RR squad</button>
-        <button id="sel-filter" title="When active: map clicks and drag-boxes select only RR (manual) rods, ignoring other groups.">RR-only select</button>
+      <h2 title="TEZ L.24-style SIUR rod desk: address individual rods on the mimic field, then hold either KUS channel to move them. Selsyn rows show depth and end limits.">2 · Individual rod selection · SIUR</h2>
+      <div class="selection-strip">
+        <div class="instruction"><b>Select on the core map</b><br>Choose 1–4 rods manually for withdrawal.</div>
+        <div class="count-lamps" title="TEZ L.24 selected-rod counter. The 5 lamp also means withdrawal is restricted.">
+          <span class="count-lamp" id="sel-count-1">1</span>
+          <span class="count-lamp" id="sel-count-2">2</span>
+          <span class="count-lamp" id="sel-count-3">3</span>
+          <span class="count-lamp" id="sel-count-4">4</span>
+          <span class="count-lamp" id="sel-count-5">5+</span>
+        </div>
+        <button id="sel-none" title="Sbros vybora: clear every currently selected rod button.">clear selection</button>
       </div>
-      <div class="row">
-        <span id="sel-info" class="num" style="color:var(--ink)" title="How many rods are selected and which groups. Withdrawal is refused at ≥5 selected; silovaya (power interlock) halts ≥8 withdrawing.">no rods selected</span>
+      <div id="sel-info" class="num" style="color:var(--ink)" title="Selected rods and whether withdrawal is available.">No rods selected</div>
+      <div class="kus-row">
+        <span class="kus-label">KUS main</span>
+        <button id="rod-out" title="Hold the main KUS channel to withdraw selected rods. Release stops them. Withdrawal is blocked with 5 or more selected rods.">▲ hold · withdraw</button>
+        <button id="rod-in" title="Hold the main KUS channel to insert selected rods. Release stops them; insertion has no selection-count restriction.">▼ hold · insert</button>
       </div>
-      <div class="row">
-        <button id="rod-out" title="Hold-to-move (KUS): withdraw selected rods continuously at 0.4 m/s (LAR out 0.2 m/s). Release to stop. Blocked if ≥5 selected or period short.">▲▲ hold to withdraw</button>
-        <button id="rod-in" title="Hold-to-move (KUS): insert selected rods continuously at 0.4 m/s. Insertion is never count-restricted.">▼▼ hold to insert</button>
-        <button id="rod-step-out" title="One discrete pulse: withdraw selected rods by 35 cm, then stop. Useful for careful criticality approach.">▲ step</button>
-        <button id="rod-step-in" title="One discrete pulse: insert selected rods by 35 cm, then stop.">▼ step</button>
+      <div class="kus-row">
+        <span class="kus-label">KUS reserve</span>
+        <button id="rod-out-reserve" title="Reserve KUS channel: same withdrawal command through the redundant control path.">▲ hold · withdraw</button>
+        <button id="rod-in-reserve" title="Reserve KUS channel: same insertion command through the redundant control path.">▼ hold · insert</button>
       </div>
-      <div class="row">
-        <button id="rod-stop" title="Stop motion of currently selected rods (hold targets at present depth).">stop</button>
-        <button id="rod-stop-all" title="Halt every rod drive in the core, including unselected banks still traveling.">stop all</button>
+      <div class="row" style="margin-top:2px">
+        <button id="sel-az-bank" title="Dedicated PK-AZ group control: select the emergency-protection bank for cocking before startup.">select AZ protection bank</button>
+        <button id="rod-stop-all" title="Simulator safety convenience: halt every rod drive, including unselected banks still travelling.">stop all drives</button>
         <button id="rod-override" title="Take selected AR/LAR rods out of automatic control so you can drive them manually.">override auto</button>
         <button id="rod-return" title="Return selected AR/LAR rods to the automatic regulator; the PI controller will reclaim them.">return to auto</button>
       </div>
@@ -392,7 +412,7 @@
         <div class="lamp" id="an-period" title="LIT: reactor period &lt; 60 s (startup caution). ACTION: stop withdrawing rods; wait for period to lengthen. AZS will trip AZ-5 if period falls below 10 s."><i></i>period &lt;60 s</div>
         <div class="lamp" id="an-azm" title="GREEN: AZM armed (overpower trip at &gt;110%). AMBER 'BLOCKED': operator disabled AZM. ACTION when blocked: re-arm AZM unless you intentionally blocked it for a controlled test."><i></i>AZM armed</div>
         <div class="lamp" id="an-azs" title="GREEN: AZS armed (period trip at &lt;10 s). AMBER 'BLOCKED': operator disabled AZS. ACTION when blocked: re-arm AZS; do not leave period protection off at power."><i></i>AZS armed</div>
-        <div class="lamp" id="an-silblok" title="LIT: silovaya (power interlock) — ≥8 non-AZ rods were withdrawing; all halted and selection cleared. ACTION: select ≤4 rods for withdrawal (panel limit ≥5 refused); use 'next RR squad'."><i></i>power interlock</div>
+        <div class="lamp" id="an-silblok" title="LIT: silovaya (power interlock) — ≥8 non-AZ rods were withdrawing; all halted and selection cleared. ACTION: individually select no more than 4 rods for withdrawal."><i></i>power interlock</div>
         <div class="lamp" id="an-chg" title="LIT: AR automatic changeover — active subgroup saturated/lost authority; standby taking over. ACTION: watch imbalance and bank depth; check subgroup auto switches if changeovers repeat."><i></i>AR changeover</div>
         <div class="lamp" id="an-lar" title="LIT: LAR dropout — local regulator lost authority (often blind below ~10% or zone fault). ACTION: switch to AR/ARM or take manual control; raise power above the LAR band before re-engaging LAR."><i></i>LAR dropout</div>
         <div class="lamp" id="an-orm" title="LIT (advisory): last PRIZMA printout insertion-sum is below 15 (crude metric, NOT true equivalent-rod ORM). No automatic trip pre-1986. ACTION: insert rods / lower power to recover margin; treat as advisory until sim-core uses real ORM."><i></i>ORM low (approx)</div>

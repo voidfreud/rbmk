@@ -2,7 +2,6 @@ import {
   N_AXIAL,
   Reactor,
   equilibriumIodineXenon,
-  type RodGroup,
 } from "@rbmk/sim-core";
 import { Cartogram, depthLabel, rodCoord } from "./cartogram";
 import { ChannelMap } from "./channelmap";
@@ -14,7 +13,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
 
 /**
  * Shared canvas hover tooltip (#tooltip). labelFn returns the label string,
- * or null/undefined/"" to hide. Cartogram passes !dragStart + worth via labelFn.
+ * or null/undefined/"" to hide.
  */
 function attachTooltip(
   canvas: HTMLCanvasElement,
@@ -166,60 +165,26 @@ reactor.initAtPower(1.0, { manualInsertion: 0.55 });
 // Rod selection & control
 // ---------------------------------------------------------------------------
 const selected = new Set<number>();
-let dragStart: [number, number] | null = null;
-let dragNow: [number, number] | null = null;
 
 const mapCanvas = $<HTMLCanvasElement>("cartogram");
 
-mapCanvas.addEventListener("mousedown", (e) => {
-  // P0.6: only left-button starts a drag/box-select.
-  if (e.button !== 0) return;
-  dragStart = [e.clientX, e.clientY];
-  dragNow = dragStart;
-});
-window.addEventListener("mousemove", (e) => {
-  if (dragStart) dragNow = [e.clientX, e.clientY];
-});
-window.addEventListener("mouseup", (e) => {
-  if (!dragStart) return;
-  const dist = Math.hypot(e.clientX - dragStart[0], e.clientY - dragStart[1]);
-  const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-  if (dist < 5) {
-    const rod = cartogram.hit(e.clientX, e.clientY);
-    if (rod && (!selFilterRR || rod.group === "RR")) {
-      if (!additive) selected.clear();
-      if (selected.has(rod.id)) selected.delete(rod.id);
-      else selected.add(rod.id);
-    } else if (!rod && !additive) {
-      selected.clear();
-    }
-  } else {
-    if (!additive) selected.clear();
-    for (const rod of cartogram.rodsInRect(dragStart[0], dragStart[1], e.clientX, e.clientY)) {
-      if (selFilterRR && rod.group !== "RR") continue;
-      selected.add(rod.id);
-    }
-  }
-  dragStart = null;
-  dragNow = null;
+// TEZ L.24 addressing: every mimic-field button toggles one physical rod.
+// Selection accumulates until the operator presses Sbros vybora (clear).
+mapCanvas.addEventListener("click", (e) => {
+  const rod = cartogram.hit(e.clientX, e.clientY);
+  if (!rod) return;
+  if (selected.has(rod.id)) selected.delete(rod.id);
+  else selected.add(rod.id);
   rebuildSelRows();
   updateSelInfo();
 });
 
-// P0.6: cancel in-progress drag on context menu / window blur.
 mapCanvas.addEventListener("contextmenu", (e) => {
   e.preventDefault();
-  dragStart = null;
-  dragNow = null;
-});
-window.addEventListener("blur", () => {
-  dragStart = null;
-  dragNow = null;
 });
 
-// Cartogram tooltip: hide while box-selecting; append rod-worth suffix.
+// Cartogram tooltip with the PRIZMA-style local worth estimate.
 attachTooltip(mapCanvas, (e) => {
-  if (dragStart) return null;
   const rod = cartogram.hit(e.clientX, e.clientY);
   if (!rod) return null;
   // PRIZMA-style worth estimate for this rod from its current position.
@@ -230,48 +195,18 @@ attachTooltip(mapCanvas, (e) => {
   return depthLabel(rod) + worth;
 });
 
-function selectGroup(group: RodGroup): void {
-  selected.clear();
-  for (const rod of reactor.state.rods) {
-    if (rod.group === group) selected.add(rod.id);
-  }
-  rebuildSelRows();
-  updateSelInfo();
-}
-$("sel-manual").onclick = () => selectGroup("RR");
-$("sel-auto").onclick = () => selectGroup("AR");
-$("sel-lar").onclick = () => selectGroup("LAR");
-$("sel-shortened").onclick = () => selectGroup("USP");
-$("sel-emergency").onclick = () => selectGroup("AZ");
 $("sel-none").onclick = () => {
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
 };
-
-// "Next RR squad": the real startup withdrawal order was computer-planned -
-// groups of four, spread across the core. Deterministic spread sequence via
-// a coprime stride; one click selects the next squad.
-const rrSeq = (() => {
-  const rr = reactor.state.rods.filter((r) => r.group === "RR");
-  return rr.map((_, i) => rr[(i * 53) % rr.length]!);
-})();
-let squadCursor = 0;
-$("sel-squad").onclick = () => {
+$("sel-az-bank").onclick = () => {
   selected.clear();
-  for (let j = 0; j < 4; j++) {
-    selected.add(rrSeq[(squadCursor + j) % rrSeq.length]!.id);
+  for (const rod of reactor.state.rods) {
+    if (rod.group === "AZ") selected.add(rod.id);
   }
-  squadCursor = (squadCursor + 4) % rrSeq.length;
   rebuildSelRows();
   updateSelInfo();
-};
-
-// RR-only selection filter: map clicks and drag-boxes ignore other classes.
-let selFilterRR = false;
-$("sel-filter").onclick = () => {
-  selFilterRR = !selFilterRR;
-  $("sel-filter").classList.toggle("active", selFilterRR);
 };
 
 /** Per-rod servo rows (selsyn-style) for up to 30 selected rods. */
@@ -290,14 +225,6 @@ function rebuildSelRows(): void {
       `<span class="bar"><i style="width:${rod.insertion * 100}%"></i></span>` +
       `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>` +
       `<span class="lim num"></span>`;
-    const up = document.createElement("button");
-    up.textContent = "▲";
-    const down = document.createElement("button");
-    down.textContent = "▼";
-    const stopRod = () => reactor.setRodTarget(id, reactor.state.rods[id]!.insertion);
-    lever(up, () => reactor.setRodTarget(id, 0), stopRod);
-    lever(down, () => reactor.setRodTarget(id, 1), stopRod);
-    row.append(up, down);
     wrap.append(row);
   }
 }
@@ -325,24 +252,29 @@ function refreshSelRows(): void {
 
 function updateSelInfo(): void {
   const info = $("sel-info");
+  const selectedRods = [...selected].map((id) => reactor.state.rods[id]!);
+  const nonAz = selectedRods.filter((rod) => rod.group !== "AZ").length;
+  for (let n = 1; n <= 5; n++) {
+    const lamp = $(`sel-count-${n}`);
+    const on = n < 5 ? selected.size === n : selected.size >= 5;
+    lamp.classList.toggle("on", on);
+    lamp.classList.toggle("blocked", n === 5 && nonAz >= 5);
+  }
   if (selected.size === 0) {
-    info.textContent = "no rods selected";
+    info.textContent = "No rods selected · click individual buttons on the core map";
   } else if (selected.size === 1) {
     const id = [...selected][0]!;
     const rod = reactor.state.rods[id]!;
-    const w = reactor.rodWorthBeta(id);
-    const worth = w ? ` · worth ↑+${w.toOut.toFixed(2)}β` : "";
-    info.textContent = depthLabel(rod) + worth;
+    info.textContent = `${depthLabel(rod)} · withdrawal available`;
   } else {
-    // The ORM arithmetic in hand: total worth if this selection pulled out.
-    const rods = [...selected].map((id) => reactor.state.rods[id]!);
-    const avg = rods.reduce((a, r) => a + r.insertion, 0) / rods.length;
-    let pull = 0;
-    if (rods.length <= 30) {
-      for (const r of rods) pull += reactor.rodWorthBeta(r.id)?.toOut ?? 0;
-    }
-    const pullTxt = rods.length <= 30 ? ` · pull-worth +${pull.toFixed(2)}β` : "";
-    info.textContent = `${rods.length} rods — mean insertion ${(avg * 7).toFixed(2)} m${pullTxt}`;
+    const groups = [...new Set(selectedRods.map((rod) => rod.group))].join("/");
+    const state =
+      nonAz >= 5
+        ? "withdrawal BLOCKED · insertion available"
+        : selectedRods.every((rod) => rod.group === "AZ")
+          ? "AZ protection bank · cocking withdrawal available"
+          : "withdrawal available";
+    info.textContent = `${selectedRods.length} selected · ${groups} · ${state}`;
   }
   refreshSelRows();
 }
@@ -361,16 +293,14 @@ reactor.log.addSink((e) => {
   }
 });
 
-const STEP = 0.05; // 35 cm
-
-/** Drive command for the selection: continuous lever, pulse step, or stop.
+/** Drive command for the selection: continuous lever or stop.
  * Panel rule (TEZ L.24): WITHDRAWAL is restricted at 5+ non-AZ rods (max 4);
  * insertion is never count-restricted. AZ rods are exempt - the emergency
  * bank is cocked as a SET before startup (which is why the power interlock
  * excludes them too). */
 let lastSelLimitT = -Infinity;
-function driveSelected(cmd: "out" | "in" | "stop" | number): void {
-  const isWithdrawal = cmd === "out" || (typeof cmd === "number" && cmd < 0);
+function driveSelected(cmd: "out" | "in" | "stop"): void {
+  const isWithdrawal = cmd === "out";
   const nonAz = [...selected].filter(
     (id) => reactor.state.rods[id]!.group !== "AZ",
   ).length;
@@ -391,7 +321,6 @@ function driveSelected(cmd: "out" | "in" | "stop" | number): void {
     if (cmd === "stop") reactor.setRodTarget(id, rod.insertion);
     else if (cmd === "out") reactor.setRodTarget(id, 0);
     else if (cmd === "in") reactor.setRodTarget(id, 1);
-    else reactor.setRodTarget(id, rod.target + cmd);
   }
 }
 
@@ -420,9 +349,8 @@ function lever(el: HTMLElement, drive: () => void, release: () => void): void {
 }
 lever($("rod-out"), () => driveSelected("out"), () => driveSelected("stop"));
 lever($("rod-in"), () => driveSelected("in"), () => driveSelected("stop"));
-$("rod-step-out").onclick = () => driveSelected(-STEP);
-$("rod-step-in").onclick = () => driveSelected(+STEP);
-$("rod-stop").onclick = () => driveSelected("stop");
+lever($("rod-out-reserve"), () => driveSelected("out"), () => driveSelected("stop"));
+lever($("rod-in-reserve"), () => driveSelected("in"), () => driveSelected("stop"));
 $("rod-stop-all").onclick = () => {
   for (const rod of reactor.state.rods) reactor.setRodTarget(rod.id, rod.insertion);
 };
@@ -822,11 +750,7 @@ function frame(now: number): void {
   }
 
   // Panels.
-  const dragRect =
-    dragStart && dragNow
-      ? ([dragStart[0], dragStart[1], dragNow[0], dragNow[1]] as [number, number, number, number])
-      : null;
-  cartogram.draw(selected, dragRect);
+  cartogram.draw(selected);
   channelMap.draw(disp.power, t);
   slice.draw(reactor.state.nodes, reactor.state.rods);
   trends.draw();

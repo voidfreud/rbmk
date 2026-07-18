@@ -55,7 +55,7 @@ doc (or note "fixed on grok" under the finding).
 | [x] | P0.3 | Reset annunciator `lampT` (and use `t >= lampT` guards); fix LAR dropout lamp | #2, #3 |
 | [x] | P0.4 | Reset reactor alarm cooldown timestamps / period latch on re-init | #11 |
 | [x] | P0.5 | Lever: left-button only; window `mouseup` + `blur` release | #5 |
-| [x] | P0.6 | Cartogram: ignore non-left mousedown; clear drag on contextmenu/blur | #6 |
+| [x] | P0.6 | Cartogram uses TEZ L.24-style individual toggle selection; no drag-box/group shortcut | #6 |
 | [x] | P0.7 | Resync setpoint slider when AZ-1 (or reactor) changes `arSetpoint` | #4 |
 | [x] | P0.8 | While SCRAMMED: refuse withdrawal / re-assert insert targets; UI drive disabled or inert | #8 |
 
