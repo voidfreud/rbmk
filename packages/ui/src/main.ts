@@ -84,20 +84,23 @@ const trends = new MultiTrendChart(
     {
       id: "rho", label: "reactivity", color: "#9085e9",
       fmt: (v) => `${v.toFixed(2)}β`, clampAbs: 25,
-      refLines: [{ v: 1, color: "#d03b3b", label: "prompt critical +1β", stretch: true }],
+      refLines: [{ v: 1, color: "#d03b3b", label: "PHYSICAL LIMIT +1β · not an RPS trip" }],
     },
     {
       id: "power", label: "power", color: "#3987e5",
       fmt: (v) => v >= 0.1 ? `${v.toFixed(1)}%` : `${v.toExponential(0)}%`,
-      refLines: [{ v: 110, color: "#d03b3b", label: "AZM trip 110%", stretch: true }],
+      refLines: [{ v: 110, color: "#d03b3b", label: "AZM SCRAM · 110%" }],
     },
     {
       id: "period", label: "period", color: "#199e70",
-      fmt: (v) => v >= 200 ? "≥200s" : v <= -200 ? "≤-200s" : `${v.toFixed(0)}s`,
-      clampAbs: 200,
+      fmt: (v) => Math.abs(v) < 1 / 200
+        ? "steady"
+        : `${Math.abs(1 / v).toFixed(0)} s ${v > 0 ? "rise" : "fall"}`,
+      clampAbs: 0.2,
       refLines: [
-        { v: 10, color: "#d03b3b", label: "AZS trip 10 s" },
-        { v: 60, color: "#fab219", label: "withdrawal block 60 s" },
+        { v: 1 / 10, color: "#d03b3b", label: "AZS SCRAM · 10 s" },
+        { v: 1 / 15, color: "#fab219", label: "WARNING · 15 s" },
+        { v: 1 / 60, color: "#c98500", label: "WITHDRAWAL BLOCK · 60 s" },
       ],
     },
     {
@@ -570,6 +573,45 @@ function drawImbalance(err: number): void {
   g.stroke();
 }
 
+// ZRT-A-style reactivity indication. This is an operator instrument, while
+// the +1 beta mark is a physical prompt-critical boundary, not an AZ trip.
+const rhoCanvas = $<HTMLCanvasElement>("reactivity-meter");
+const rhoCtx = rhoCanvas.getContext("2d")!;
+{
+  const dpr = window.devicePixelRatio || 1;
+  rhoCanvas.style.width = `${rhoCanvas.width}px`;
+  rhoCanvas.style.height = `${rhoCanvas.height}px`;
+  rhoCanvas.width *= dpr;
+  rhoCanvas.height *= dpr;
+  rhoCtx.scale(dpr, dpr);
+}
+function drawReactivity(rho: number): void {
+  const w = 230;
+  const h = 46;
+  const g = rhoCtx;
+  g.clearRect(0, 0, w, h);
+  const x = (v: number) => 14 + ((v + 1) / 2) * (w - 28);
+  g.font = "9px system-ui, sans-serif";
+  g.textAlign = "center";
+  for (const v of [-1, -0.5, 0, 0.5, 1]) {
+    g.strokeStyle = v === 1 ? "#d03b3b" : v === 0 ? "#199e70" : "#2c2c2a";
+    g.lineWidth = v === 0 || v === 1 ? 1.5 : 1;
+    g.beginPath();
+    g.moveTo(x(v), 7);
+    g.lineTo(x(v), h - 15);
+    g.stroke();
+    g.fillStyle = v === 1 ? "#d03b3b" : "#898781";
+    g.fillText(v > 0 ? `+${v}` : String(v), x(v), h - 3);
+  }
+  const shown = Math.max(-1, Math.min(1, rho));
+  g.strokeStyle = rho >= 1 ? "#d03b3b" : rho > 0.5 ? "#fab219" : "#9085e9";
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(x(shown), 3);
+  g.lineTo(x(shown), h - 13);
+  g.stroke();
+}
+
 let lastWall = performance.now();
 let nextSample = 0;
 let nextDomUpdate = 0;
@@ -615,11 +657,10 @@ function frame(now: number): void {
   if (t >= nextSample) {
     // Charts sample the same sim-time-smoothed instruments as the meters
     // (tau = 0.5 sim-s), so thresholds drawn on the strip match the panel.
-    const period = 1 / Math.max(1 / 200, Math.abs(disp.periodRate)) *
-      Math.sign(disp.periodRate || 1);
     trends.push(t, {
       power: disp.power * 100,
-      period: Math.abs(period) >= 200 ? 200 : period,
+      // Inverse period (growth rate) separates the 60/15/10 s limits.
+      period: disp.periodRate,
       rho: disp.rho,
       xe: disp.xe,
     });
@@ -694,8 +735,14 @@ function frame(now: number): void {
     setLamp("an-scram", reactor.state.scrammed ? "alarm" : "");
     setLamp("an-azm", reactor.protection.overpower ? "ok" : "warn");
     setLamp("an-azs", reactor.protection.period ? "ok" : "warn");
-    $("an-azm").lastChild!.textContent = reactor.protection.overpower ? "AZM armed" : "AZM BLOCKED";
-    $("an-azs").lastChild!.textContent = reactor.protection.period ? "AZS armed" : "AZS BLOCKED";
+    $("an-azm-detail").textContent = reactor.protection.overpower
+      ? "Power >110% → AZ-5"
+      : "BLOCKED · overpower will only log";
+    $("an-azs-detail").textContent = reactor.protection.period
+      ? "Rising period <10 s → AZ-5"
+      : "BLOCKED · short period will only log";
+    $("rps-azm").textContent = reactor.protection.overpower ? "AZM armed · 110%" : "AZM BLOCKED";
+    $("rps-azs").textContent = reactor.protection.period ? "AZS armed · 10 s" : "AZS BLOCKED";
     setLamp("an-period", periodDisp > 0 && periodDisp < 60 ? "warn" : "");
     // P0.3: hold-time lamps require t >= stamp (so re-init at t=0 does not
     // light them from a stale Infinity-delta) and LAR uses the same 15 s hold.
@@ -716,7 +763,15 @@ function frame(now: number): void {
     setLamp("an-orm", reactor.prizma().orm < 15 && disp.power > 0.1 ? "warn" : "");
 
     // AR imbalance galvanometer ("zaichik"): power minus active setpoint.
-    drawImbalance(reactor.powerFraction() - reactor.activeSetpoint());
+    const arErr = reactor.powerFraction() - reactor.activeSetpoint();
+    drawImbalance(arErr);
+    $("imbalance-state").textContent = Math.abs(arErr) < 0.001
+      ? `balanced · error ${(arErr * 100).toFixed(2)} percentage points`
+      : arErr > 0
+        ? `power high by ${(arErr * 100).toFixed(2)} points · regulator inserts rods`
+        : `power low by ${Math.abs(arErr * 100).toFixed(2)} points · regulator withdraws rods`;
+    drawReactivity(disp.rho);
+    $("reactivity-state").textContent = `${disp.rho >= 0 ? "+" : ""}${disp.rho.toFixed(2)} β · ${disp.rho > 0 ? "power tends to rise" : disp.rho < 0 ? "power tends to fall" : "critical / steady"}`;
 
     // Power-channel scale and the startup checklist.
     trends.powerLogMode =

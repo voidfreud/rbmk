@@ -8,7 +8,7 @@ export interface RefLine {
   v: number;
   color: string;
   label: string;
-  /** Pull the y-domain out to show this line once data comes near it. */
+  /** Retained for compatibility with the older single-lane recorder. */
   stretch?: boolean;
 }
 
@@ -316,17 +316,19 @@ export class MultiTrendChart {
       const transformed = raw.map(tv);
       let lo = Math.min(...transformed);
       let hi = Math.max(...transformed);
+      // Protection limits are part of the instrument, not decorations that
+      // appear only when the plant is already close to them. Keep every
+      // configured threshold in view at all times (including log power).
+      for (const ref of s.refLines ?? []) {
+        const u = tv(ref.v);
+        if (!Number.isFinite(u)) continue;
+        lo = Math.min(lo, u);
+        hi = Math.max(hi, u);
+      }
       if (hi - lo < 1e-9) {
         const spread = Math.max(1, Math.abs(hi) * 0.05);
         lo -= spread;
         hi += spread;
-      }
-      if (!log) {
-        for (const ref of s.refLines ?? []) {
-          if (!ref.stretch) continue;
-          if (ref.v > 0 && hi > ref.v * 0.55) hi = Math.max(hi, ref.v * 1.06);
-          if (ref.v < 0 && lo < ref.v * 0.55) lo = Math.min(lo, ref.v * 1.06);
-        }
       }
       const pad = (hi - lo) * 0.1;
       lo -= pad;
