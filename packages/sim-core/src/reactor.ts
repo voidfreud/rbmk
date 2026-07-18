@@ -22,6 +22,7 @@ import {
   VOID_COEFF,
 } from "./constants";
 import {
+  createKineticsWorkspace,
   equilibriumPrecursor,
   equilibriumPrecursors,
   globalReactivity,
@@ -67,6 +68,12 @@ export class Reactor {
 
   /** Long-term flux shape (normalized, sums to 1) for decay-heat placement. */
   private decayShape: number[];
+  /** Hot-loop workspaces are instance-owned: no garbage and no cross-reactor state. */
+  private readonly kineticsWorkspace = createKineticsWorkspace();
+  private readonly rodRhoScratch = new Array<number>(N_AXIAL);
+  private readonly feedbackScratch = new Array<number>(N_AXIAL);
+  private readonly rhoScratch = new Array<number>(N_AXIAL);
+  private readonly nodePowerScratch = new Array<number>(N_AXIAL);
   /** EMA-smoothed inverse period (growth rate) [1/s]; period = 1/rate. */
   private smoothedRate = 0;
   private periodAlarmLatched = false;
@@ -341,7 +348,7 @@ export class Reactor {
       // supercritical trials cannot overflow to Infinity.
       let logGrowth = 0;
       for (let i = 0; i < steps; i++) {
-        stepKinetics(trial, rho, dt);
+        stepKinetics(trial, rho, dt, this.kineticsWorkspace);
         const p = powerFraction(trial);
         if (!(p > 0) || !Number.isFinite(p)) return 1e3;
         if (i >= steps / 2) logGrowth += Math.log(p);
@@ -808,11 +815,12 @@ export class Reactor {
 
     stepRodDrives(s.rods, dt);
 
-    const rodRho = rodReactivityByNode(s.rods);
-    const feedback = this.feedbackRhoByNode();
-    const rhoByNode = rodRho.map(
-      (r, k) => s.rhoBase + s.rhoExtra + r + feedback[k]!,
-    );
+    const rodRho = rodReactivityByNode(s.rods, this.rodRhoScratch);
+    const feedback = this.feedbackRhoByNode(this.feedbackScratch);
+    const rhoByNode = this.rhoScratch;
+    for (let k = 0; k < N_AXIAL; k++) {
+      rhoByNode[k] = s.rhoBase + s.rhoExtra + rodRho[k]! + feedback[k]!;
+    }
 
     // Subdivide kinetics when any node is strongly prompt-supercritical so
     // a large maxStep (e.g. 0.1 s fast-forward) cannot pole the implicit
@@ -827,7 +835,7 @@ export class Reactor {
     let kinLeft = dt;
     while (kinLeft > 1e-12) {
       const kdt = Math.min(maxKinDt, kinLeft);
-      stepKinetics(s.nodes, rhoByNode, kdt);
+      stepKinetics(s.nodes, rhoByNode, kdt, this.kineticsWorkspace);
       kinLeft -= kdt;
     }
 
@@ -837,7 +845,12 @@ export class Reactor {
       node.iodine = ix.iodine;
       node.xenon = ix.xenon;
     }
-    s.decayHeat.groups = stepDecayHeat(s.decayHeat.groups, fissionPower, dt);
+    stepDecayHeat(
+      s.decayHeat.groups,
+      fissionPower,
+      dt,
+      s.decayHeat.groups,
+    );
     this.refreshDecayShape(dt / TAU_DECAY_SHAPE);
     stepThermal(s.nodes, this.nodePowers(), s.flowFraction, dt);
 
@@ -960,8 +973,9 @@ export class Reactor {
   // -------------------------------------------------------------------------
 
   /** Feedback reactivity per node: void + Doppler + graphite + xenon. */
-  private feedbackRhoByNode(): number[] {
-    const out = new Array<number>(N_AXIAL);
+  private feedbackRhoByNode(
+    out = new Array<number>(N_AXIAL),
+  ): number[] {
     const nodes = this.state.nodes;
     for (let k = 0; k < N_AXIAL; k++) {
       const n = nodes[k]!;
@@ -975,13 +989,12 @@ export class Reactor {
   }
 
   /** Thermal power deposited per node [W], including decay heat. */
-  private nodePowers(): number[] {
+  private nodePowers(out = this.nodePowerScratch): number[] {
     const s = this.state;
     const fission = powerFraction(s.nodes) * P_RATED;
     const total = thermalPower(fission, s.decayHeat.groups);
     const promptShare = fission * (1 - DECAY_FRACTION_TOTAL);
     const decayShare = total - promptShare;
-    const out = new Array<number>(N_AXIAL);
     const fluxSum = s.nodes.reduce((a, n) => a + n.flux, 0);
     for (let k = 0; k < N_AXIAL; k++) {
       const fluxShare = fluxSum > 1e-9 ? s.nodes[k]!.flux / fluxSum : 0;

@@ -63,17 +63,38 @@ export interface FluxNode {
   photoneutrons?: number[];
 }
 
+/** Per-reactor scratch storage for the implicit tridiagonal kinetics solve. */
+export interface KineticsWorkspace {
+  rhs: number[];
+  cPrime: number[];
+  dPrime: number[];
+}
+
+/**
+ * Allocate a kinetics workspace. Reactor owns one instance so its 100 Hz
+ * substeps do not allocate three temporary arrays on every solve. Callers
+ * that omit it retain the simple, allocation-owning API.
+ */
+export function createKineticsWorkspace(): KineticsWorkspace {
+  return {
+    rhs: new Array<number>(N_AXIAL),
+    cPrime: new Array<number>(N_AXIAL),
+    dPrime: new Array<number>(N_AXIAL),
+  };
+}
+
 export function stepKinetics(
   nodes: FluxNode[] | NodeState[],
   rhoByNode: number[],
   dt: number,
+  workspace = createKineticsWorkspace(),
 ): void {
   // Pin the axial mesh size so a caller that passes a wrong-length array
   // fails loudly rather than silently indexing past the end of rhoByNode.
   assertNodeCount(nodes as NodeState[]);
 
   // Precursors: implicit decay, source from the old flux.
-  const rhs = new Array<number>(N_AXIAL);
+  const { rhs, cPrime, dPrime } = workspace;
   for (let k = 0; k < N_AXIAL; k++) {
     const node = nodes[k]!;
     const fluxOld = node.flux;
@@ -113,8 +134,6 @@ export function stepKinetics(
   // One tridiagonal Thomas sweep; stable even with strongly heterogeneous
   // node reactivities and large dt (fast-forward).
   const a = dt * W;
-  const cPrime = new Array<number>(N_AXIAL);
-  const dPrime = new Array<number>(N_AXIAL);
   const diag0 =
     1 - (dt * (rhoByNode[0]! - BETA_EFF)) / GEN_TIME + 2 * a;
   cPrime[0] = -a / diag0;
@@ -176,4 +195,3 @@ export function globalReactivity(
   }
   return den > 0 ? num / den : 0;
 }
-

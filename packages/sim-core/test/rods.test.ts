@@ -7,6 +7,17 @@ import type { NodeState } from "../src/types";
 import { zeroNode } from "../src/types";
 
 describe("control rods", () => {
+  test("rod reactivity scratch output is reset before reuse", () => {
+    const rods = buildRods(211);
+    const expected = rodReactivityByNode(rods);
+    const scratch = new Array(N_AXIAL).fill(12345);
+    expect(rodReactivityByNode(rods, scratch)).toBe(scratch);
+    expect(scratch).toEqual(expected);
+    for (const rod of rods) rod.insertion = 0;
+    expect(rodReactivityByNode(rods, scratch)).toBe(scratch);
+    expect(scratch).not.toEqual(expected);
+  });
+
   test("inserting manual rods lowers power (regulator off)", () => {
     const r = new Reactor();
     r.initAtPower(1.0);

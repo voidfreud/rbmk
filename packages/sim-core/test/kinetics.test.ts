@@ -7,6 +7,7 @@ import {
   N_AXIAL,
 } from "../src/constants";
 import {
+  createKineticsWorkspace,
   equilibriumPrecursors,
   powerFraction,
   stepKinetics,
@@ -43,6 +44,32 @@ function inhourPeriod(rho: number): number {
 }
 
 describe("kinetics / inhour", () => {
+  test("reused solver workspace is numerically identical to allocating mode", () => {
+    const makeNodes = () =>
+      Array.from({ length: N_AXIAL }, (_, k) => {
+        const node = zeroNode();
+        node.flux = 0.4 + k / N_AXIAL;
+        return node;
+      });
+    const allocating = makeNodes();
+    const reused = makeNodes();
+    equilibriumPrecursors(allocating);
+    equilibriumPrecursors(reused);
+    const rho = Array.from(
+      { length: N_AXIAL },
+      (_, k) => -0.002 + (0.004 * k) / (N_AXIAL - 1),
+    );
+    const workspace = createKineticsWorkspace();
+    for (let i = 0; i < 100; i++) {
+      stepKinetics(allocating, rho, 0.01);
+      stepKinetics(reused, rho, 0.01, workspace);
+    }
+    for (let k = 0; k < N_AXIAL; k++) {
+      expect(reused[k]!.flux).toBe(allocating[k]!.flux);
+      expect(reused[k]!.precursors).toEqual(allocating[k]!.precursors);
+    }
+  });
+
   test("small +rho step period roughly matches inhour", () => {
     // Isolated nodal kinetics (no thermal feedback). Absorbing axial
     // boundaries make rho=0 subcritical, so first bisect critical rho,

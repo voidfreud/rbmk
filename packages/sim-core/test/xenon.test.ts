@@ -1,11 +1,21 @@
 import { describe, expect, test } from "bun:test";
 import {
+  stepDecayHeat,
   equilibriumIodineXenon,
   stepIodineXenon,
   xenonReactivity,
 } from "../src/isotopes";
 
 describe("iodine-xenon chain", () => {
+  test("decay heat can update in place without changing the result", () => {
+    const groups = [1.2e7, 3.4e7, 5.6e7];
+    const expected = stepDecayHeat(groups, 2.5e9, 0.1);
+    const inPlace = [...groups];
+    expect(stepDecayHeat(inPlace, 2.5e9, 0.1, inPlace)).toBe(inPlace);
+    expect(inPlace).toEqual(expected);
+    expect(groups).toEqual([1.2e7, 3.4e7, 5.6e7]);
+  });
+
   test("equilibrium xenon reactivity at full flux is in the textbook range", () => {
     const { xenon } = equilibriumIodineXenon(1.0);
     const rho = xenonReactivity(xenon);

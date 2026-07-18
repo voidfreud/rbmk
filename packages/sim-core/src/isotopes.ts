@@ -71,12 +71,15 @@ export function stepDecayHeat(
   groups: number[],
   fissionPower: number,
   dt: number,
+  out = new Array<number>(groups.length),
 ): number[] {
-  return groups.map((h, j) => {
+  for (let j = 0; j < groups.length; j++) {
+    const h = groups[j]!;
     const lam = DECAY_HEAT_LAMBDA[j]!;
     const frac = DECAY_HEAT_FRACTIONS[j]!;
-    return (h + dt * lam * frac * fissionPower) / (1 + dt * lam);
-  });
+    out[j] = (h + dt * lam * frac * fissionPower) / (1 + dt * lam);
+  }
+  return out;
 }
 
 /** Equilibrium decay-heat group powers at a given steady fission power. */

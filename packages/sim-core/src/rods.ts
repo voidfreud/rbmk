@@ -71,8 +71,11 @@ function overlapWithNode(
  * Node-local reactivity contribution [absolute reactivity] of all rods.
  * Node index 0 is the TOP of the core. Returns array of length N_AXIAL.
  */
-export function rodReactivityByNode(rods: RodState[]): number[] {
-  const rho = new Array<number>(N_AXIAL).fill(0);
+export function rodReactivityByNode(
+  rods: RodState[],
+  rho = new Array<number>(N_AXIAL),
+): number[] {
+  rho.fill(0);
   for (const rod of rods) {
     const abs = absorberInterval(rod);
     const disp = displacerInterval(rod);
