@@ -107,7 +107,7 @@ doc (or note "fixed on grok" under the finding).
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
 | [x] | P1.10 | Period warning threshold 15 s vs 20 s: pick and document | #27 |
-| [ ] | P1.11 | LAR band 10% vs 20%: reconcile physics.md + controls.md + code | #28 |
+| [x] | P1.11 | LAR band 10% vs 20%: reconcile physics.md + controls.md + code | #28 |
 | [x] | P1.12 | ARM upper band enforced; gate band/dropout during `initializing` | #51 |
 
 ---
@@ -119,15 +119,15 @@ doc (or note "fixed on grok" under the finding).
 | [ ] | P2.1 | Dead CSS tokens / unused markup (`--serious`, `--grid`, bare `.strip`, orphan ids) | #18 |
 | [ ] | P2.2 | Delete identity `GRP_SHORT` | #31 |
 | [ ] | P2.3 | Extract shared tooltip attach helper (3 canvas copies) | #32 |
-| [ ] | P2.4 | Share `hms()` in sim-core (demo + strips) | #33 |
+| [x] | P2.4 | Share `hms()` in sim-core (demo + strips) | #33 |
 | [x] | P2.5 | Remove or expose `lastRhoByNode` | #34 |
 | [x] | P2.6 | Use or delete `assertNodeCount` | #35 |
-| [ ] | P2.7 | `rhoExtra`: real setter + calibrateCritical include, or delete | #36, #43 |
-| [ ] | P2.8 | RodSelector `"all"` / `"AR1"`–`"AR3"`: test + ROD_AUTO guard, or drop | #37, #46 |
-| [ ] | P2.9 | Share IPK/precursor helpers with kinetics.ts | #38 |
+| [x] | P2.7 | `rhoExtra`: real setter + calibrateCritical include, or delete | #36, #43 |
+| [x] | P2.8 | RodSelector `"all"` / `"AR1"`–`"AR3"`: test + ROD_AUTO guard, or drop | #37, #46 |
+| [x] | P2.9 | Share IPK/precursor helpers with kinetics.ts | #38 |
 | [x] | P2.10 | `thermalPower` uses `DECAY_FRACTION_TOTAL` | #39 |
 | [ ] | P2.11 | Shared xenon/void average helpers (UI + demo) | #40 |
-| [ ] | P2.12 | `PRESSURE` constant: document-only or wire to properties | #41 |
+| [x] | P2.12 | `PRESSURE` constant: document-only or wire to properties | #41 |
 
 ---
 
@@ -137,18 +137,18 @@ doc (or note "fixed on grok" under the finding).
 |:----:|----|---------|------:|
 | [x] | P2.13 | `resetScram` test (no autonomous AR walkout) | #44 |
 | [x] | P2.14 | Reactimeter / IPK suite | #45 |
-| [ ] | P2.15 | Group-selector ROD_AUTO + AR subgroup targets | #46 |
-| [ ] | P2.16 | `azSetback` endpoint + non-latching | #47 |
-| [ ] | P2.17 | AR automatic changeover sequence | #48 |
+| [x] | P2.15 | Group-selector ROD_AUTO + AR subgroup targets | #46 |
+| [x] | P2.16 | `azSetback` endpoint + non-latching | #47 |
+| [x] | P2.17 | AR automatic changeover sequence | #48 |
 | [x] | P2.18 | `rodWorthBeta` purity (try/finally) + sign tests | #49 |
 | [x] | P2.19 | `field.ts` / RadialField id===index contract | #50 |
-| [ ] | P2.20 | ARM band + no band spam during init | #51 |
+| [x] | P2.20 | ARM band + no band spam during init | #51 |
 | [x] | P2.21 | Startup period-block continuous/command tests | #52 |
-| [ ] | P2.22 | `buildRods` count contract | #53 |
-| [ ] | P2.23 | PRIZMA cadence + re-init re-arm | #54 |
+| [x] | P2.22 | `buildRods` count contract | #53 |
+| [x] | P2.23 | PRIZMA cadence + re-init re-arm | #54 |
 | [x] | P2.24 | Operator `setArMode` re-seed | #55 |
 | [x] | P2.25 | Fast-forward (maxStep=0.1) vs 0.01 excursion agreement | #56 |
-| [ ] | P2.26 | Analytic inhour / reactimeter step kinetics tests | #57 |
+| [x] | P2.26 | Analytic inhour / reactimeter step kinetics tests | #57 |
 
 ---
 
@@ -189,6 +189,7 @@ These are first-class on this branch, not backlog leftovers.
 | 2026-07-18 | Branch `grok` created. Checklist written: all 57 audit items mapped + design goals G0/G1 (realistic exploitation, hover discoverability). |
 | 2026-07-18 | Second parallel wave: P0.17 + P1 physics/instruments + P2 tests (50 pass). |
 | 2026-07-18 | Parallel workflow doc; first multi-agent pass on grok lineage: P0.1–P0.15 (most), P0.18–P0.19, UX titles. `bun test` 29 pass. Topic branches: `grok-p0-core`, `grok-p0-ui`, `grok-ux-tooltips` merged into `grok`. |
+| 2026-07-18 | Hygiene core (`grok-hygiene-core`): P1.11 LAR band docs, P2.4 hms, P2.7 rhoExtra, P2.8/15 ROD_AUTO, P2.9 IPK helpers, P2.12 PRESSURE, P2.16–17/22/23/26 tests (P2.20 already present). |
 | | |
 
 ---

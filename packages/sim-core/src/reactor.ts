@@ -22,10 +22,12 @@ import {
   VOID_COEFF,
 } from "./constants";
 import {
+  equilibriumPrecursor,
   equilibriumPrecursors,
   globalReactivity,
   powerFraction,
   stepKinetics,
+  stepPrecursor,
 } from "./kinetics";
 import {
   equilibriumDecayHeat,
@@ -328,7 +330,11 @@ export class Reactor {
         flux: n.flux,
         precursors: [...n.precursors],
       }));
-      const rho = rodRho.map((r, k) => rhoBase + r + frozenFeedback[k]!);
+      // Include rhoExtra so a boron/perturbation hook stays critical after
+      // calibration (substep applies the same terms).
+      const rho = rodRho.map(
+        (r, k) => rhoBase + s.rhoExtra + r + frozenFeedback[k]!,
+      );
       const steps = 400;
       const dt = 0.005;
       // Renormalize every step and accumulate log growth so strongly
@@ -384,8 +390,9 @@ export class Reactor {
         }
         continue;
       }
+      // Refuse operator drive of any regulator-owned rod, whether addressed
+      // by numeric id or by group selector ("AR1", "AR", "LAR", "all", ...).
       if (
-        typeof selector === "number" &&
         rod.autoControlled &&
         this.arEnabled &&
         this.regulatorOwns(rod)
@@ -573,6 +580,16 @@ export class Reactor {
   setFlowFraction(fraction: number): void {
     this.state.flowFraction = Math.min(1.2, Math.max(0, fraction));
     this.log.info(this.state.time, "FLOW", `pump flow ${Math.round(fraction * 100)}%`);
+  }
+
+  /**
+   * Extra uniform reactivity [absolute Δk/k] for experiments (boron, fresh
+   * fuel, prescribed perturbations). Included in both substep and
+   * {@link calibrateCritical}. Does not log; call calibrateCritical after a
+   * step change if you want the core re-critical at the new value.
+   */
+  setRhoExtra(rho: number): void {
+    this.state.rhoExtra = rho;
   }
 
   private rodsFor(selector: RodSelector): RodState[] {
@@ -837,20 +854,29 @@ export class Reactor {
     // Reactimeter (inverse point kinetics): advance the instrument's own
     // precursor/photoneutron trackers from measured power, then solve
     //   rho = beta + L*(dn/dt)/n - (L/n)(sum lambda*c + S).
+    // Uses the same stepPrecursor formula as the core kinetics.
     const n = Math.max(pAfter, 1e-12);
     let delayed = 0;
     for (let i = 0; i < 6; i++) {
       const lam = DELAYED_LAMBDA[i]!;
-      this.ipkC[i] =
-        (this.ipkC[i]! + (dt * DELAYED_BETA[i]! * n) / GEN_TIME) /
-        (1 + dt * lam);
+      this.ipkC[i] = stepPrecursor(
+        this.ipkC[i]!,
+        DELAYED_BETA[i]!,
+        lam,
+        n,
+        dt,
+      );
       delayed += lam * this.ipkC[i]!;
     }
     for (let i = 0; i < 2; i++) {
       const lam = PHOTO_LAMBDA[i]!;
-      this.ipkPhoto[i] =
-        (this.ipkPhoto[i]! + (dt * PHOTO_BETA[i]! * n) / GEN_TIME) /
-        (1 + dt * lam);
+      this.ipkPhoto[i] = stepPrecursor(
+        this.ipkPhoto[i]!,
+        PHOTO_BETA[i]!,
+        lam,
+        n,
+        dt,
+      );
       delayed += lam * this.ipkPhoto[i]!;
     }
     this.lastRhoIpk =
@@ -1050,11 +1076,18 @@ export class Reactor {
   private resetIpk(): void {
     const n = Math.max(powerFraction(this.state.nodes), 1e-12);
     for (let i = 0; i < 6; i++) {
-      this.ipkC[i] =
-        (DELAYED_BETA[i]! * n) / (GEN_TIME * DELAYED_LAMBDA[i]!);
+      this.ipkC[i] = equilibriumPrecursor(
+        DELAYED_BETA[i]!,
+        DELAYED_LAMBDA[i]!,
+        n,
+      );
     }
     for (let i = 0; i < 2; i++) {
-      this.ipkPhoto[i] = (PHOTO_BETA[i]! * n) / (GEN_TIME * PHOTO_LAMBDA[i]!);
+      this.ipkPhoto[i] = equilibriumPrecursor(
+        PHOTO_BETA[i]!,
+        PHOTO_LAMBDA[i]!,
+        n,
+      );
     }
     this.lastRhoIpk = -(GEN_TIME * NEUTRON_SOURCE) / n;
   }

@@ -21,6 +21,32 @@ describe("control and protection system", () => {
     }
   });
 
+  test("buildRods count contract: ids 0..n-1 and fixed groups for 211", () => {
+    for (const n of [100, 211]) {
+      const rods = buildRods(n);
+      expect(rods.length).toBe(n);
+      for (let i = 0; i < n; i++) {
+        expect(rods[i]!.id).toBe(i);
+      }
+      // Lattice positions are unique.
+      const keys = new Set(rods.map((r) => `${r.x},${r.y}`));
+      expect(keys.size).toBe(n);
+    }
+    // Full complement only for the real 211 map.
+    const rods211 = buildRods(211);
+    const count = (g: string) => rods211.filter((r) => r.group === g).length;
+    expect(count("AR")).toBe(12);
+    expect(count("LAR")).toBe(12);
+    expect(count("AZ")).toBe(24);
+    expect(count("USP")).toBe(32);
+    expect(count("RR")).toBe(131);
+    for (const sub of [1, 2, 3] as const) {
+      expect(
+        rods211.filter((r) => r.group === "AR" && r.arSubgroup === sub).length,
+      ).toBe(4);
+    }
+  });
+
   test("USP absorbers enter from the bottom", () => {
     const iv = absorberInterval({ group: "USP", insertion: 0.5 });
     expect(iv).not.toBeNull();
@@ -62,6 +88,37 @@ describe("control and protection system", () => {
     expect(owned.target).toBeCloseTo(before, 5);
     const warns = r.log.all().filter((e) => e.code === "ROD_AUTO");
     expect(warns.length).toBe(1);
+  });
+
+  test("group selectors refuse ROD_AUTO for owned rods (AR1 / all)", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const active = r.arActiveGroup;
+    const sel = (`AR${active}` as "AR1" | "AR2" | "AR3");
+    const owned = r.state.rods.filter(
+      (rod) => rod.group === "AR" && rod.arSubgroup === active,
+    );
+    expect(owned.length).toBe(4);
+    const before = owned.map((rod) => rod.target);
+    r.setRodTarget(sel, 0);
+    for (let i = 0; i < owned.length; i++) {
+      expect(owned[i]!.target).toBeCloseTo(before[i]!, 5);
+    }
+    expect(r.log.all().some((e) => e.code === "ROD_AUTO")).toBe(true);
+
+    // "all" must not walk the owned bank either.
+    r.setRodTarget("all", 0);
+    for (let i = 0; i < owned.length; i++) {
+      expect(owned[i]!.target).toBeCloseTo(before[i]!, 5);
+    }
+    // Standby AR subgroup (not regulator-owned) accepts a numeric drive.
+    const standbySub = ((active % 3) + 1) as 1 | 2 | 3;
+    const s0 = r.state.rods.find(
+      (rod) => rod.group === "AR" && rod.arSubgroup === standbySub,
+    )!;
+    const tBefore = s0.target;
+    r.setRodTarget(s0.id, Math.min(1, s0.insertion + 0.1));
+    expect(s0.target).not.toBe(tBefore);
   });
 
   test("silovaya blokirovka: 8+ rods withdrawing are halted", () => {
@@ -231,7 +288,7 @@ describe("control and protection system", () => {
     r.protection.overpower = false;
     r.protection.period = false;
     // ~+4 beta step — would pole a single 0.1 s kinetics step without subdivision.
-    r.state.rhoExtra = 0.02;
+    r.setRhoExtra(0.02);
     r.tick(2, 0.1);
     const p = r.powerFraction();
     expect(Number.isFinite(p)).toBe(true);
@@ -239,5 +296,106 @@ describe("control and protection system", () => {
     for (const n of r.state.nodes) {
       expect(Number.isFinite(n.flux)).toBe(true);
     }
+  });
+
+  test("setRhoExtra + calibrateCritical keeps the core critical", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.arEnabled = false;
+    r.protection.overpower = false;
+    r.protection.period = false;
+    // +0.4 beta of extra reactivity, then re-calibrate so rhoBase absorbs it.
+    r.setRhoExtra(0.002);
+    r.calibrateCritical();
+    const p0 = r.powerFraction();
+    r.tick(20, 0.1);
+    // Without the fix, +0.4 beta would run away past AZM in ~20 s.
+    // With AR off there is mild thermal drift; stay within ~15%.
+    expect(r.powerFraction()).toBeGreaterThan(0.85 * p0);
+    expect(r.powerFraction()).toBeLessThan(1.15 * p0);
+    expect(r.state.scrammed).toBe(false);
+    expect(r.state.rhoExtra).toBe(0.002);
+  });
+
+  test("azSetback inserts AZ bank, drops setpoint, does not latch scram", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const p0 = r.powerFraction();
+    expect(r.arSetpoint).toBeCloseTo(1.0, 5);
+    r.azSetback();
+    expect(r.arSetpoint).toBeLessThanOrEqual(0.5);
+    expect(r.activeSetpoint()).toBeLessThanOrEqual(0.5);
+    expect(r.state.scrammed).toBe(false);
+    expect(r.log.all().some((e) => e.code === "AZ1")).toBe(true);
+    for (const rod of r.state.rods) {
+      if (rod.group === "AZ") expect(rod.target).toBe(1);
+    }
+    r.tick(40, 0.1);
+    for (const rod of r.state.rods) {
+      if (rod.group === "AZ") expect(rod.insertion).toBeGreaterThan(0.9);
+    }
+    expect(r.powerFraction()).toBeLessThan(p0 * 0.85);
+    expect(r.state.scrammed).toBe(false);
+  });
+
+  test("AR automatic changeover hands off to a standby subgroup", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const startGroup = r.arActiveGroup;
+    // Ignore any AR_CHANGEOVER logged during init settle (log is not cleared).
+    const logLen0 = r.log.all().length;
+    // Slow negative reactivity drift forces AR to withdraw (target → 0)
+    // and saturate, then change over to a bank that still has authority.
+    let maxP = 0;
+    let minP = 1;
+    let sawChangeover = false;
+    for (let i = 0; i < 900; i++) {
+      r.setRhoExtra(r.state.rhoExtra - 2e-5);
+      r.tick(1, 0.05);
+      const p = r.powerFraction();
+      maxP = Math.max(maxP, p);
+      minP = Math.min(minP, p);
+      const newEvents = r.log.all().slice(logLen0);
+      if (newEvents.some((e) => e.code === "AR_CHANGEOVER")) {
+        sawChangeover = true;
+        break;
+      }
+    }
+    expect(sawChangeover).toBe(true);
+    expect(r.arActiveGroup).not.toBe(startGroup);
+    expect(r.state.scrammed).toBe(false);
+    // Power held near setpoint throughout the handoff.
+    expect(maxP).toBeLessThan(1.08);
+    expect(minP).toBeGreaterThan(0.88);
+  });
+
+  test("PRIZMA cadence: ~12 printouts per hour; re-init resets age", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.tick(3600, 0.1);
+    const printouts = r.log.all().filter((e) => e.code === "PRIZMA");
+    // PRIZMA_PERIOD = 300 s; first fire at t~0 then every 300 s → ~13 in 3600 s.
+    expect(printouts.length).toBeGreaterThanOrEqual(11);
+    expect(printouts.length).toBeLessThanOrEqual(14);
+
+    // Re-init zeros sim time and re-arms nextPrizmaT=0 (schedule restarts).
+    // Without the re-arm, nextPrizmaT would still be ~3600 and no printout
+    // would appear for a full hour of the new run.
+    r.initAtPower(1.0);
+    expect(r.state.time).toBe(0);
+    expect(r.prizma().t).toBe(0);
+    const n0 = r.log.all().filter((e) => e.code === "PRIZMA").length;
+    r.tick(10, 0.1);
+    // Immediate re-arm: first post-init tick issues a printout (age reset).
+    const n10 = r.log.all().filter((e) => e.code === "PRIZMA").length;
+    expect(n10).toBe(n0 + 1);
+    const firstT = r.prizma().t;
+    expect(firstT).toBeLessThan(10);
+    // Next printout is a full PRIZMA_PERIOD later, not leftover from the
+    // previous hour's schedule.
+    r.tick(310, 0.1); // past firstT + 300
+    const nLater = r.log.all().filter((e) => e.code === "PRIZMA").length;
+    expect(nLater).toBe(n0 + 2);
+    expect(r.prizma().t).toBeGreaterThanOrEqual(firstT + 299);
   });
 });

@@ -16,6 +16,9 @@ NRC ML20202G309.
   band; LAR-BIK (8 peripheral rods on side chambers) 5-100% hot standby with
   auto-switchover. Operator-selected, not co-run. LAR-LAZ INOPERABLE below
   ~10-20% (in-core chambers blind) - central to the accident.
+  **Sim choice (P1.11):** code uses LAR band [0.1, 1.0] with dropout below
+  ~10% (matches physics.md). Research primary band is often quoted 20-100%
+  with blind 10-20%; we keep 10% so regulation remains valid at 10-20% power.
 - 00:28 Apr 26: at ~520 MWt Toptunov switched LAR off, engaged AR-1 (side
   chambers); AR-1 dropped on unbalance, AR-2 failed to pick up (fault logged
   00:30:50); with no regulator, power fell to ~30 MWt; xenon built. Root:
@@ -67,7 +70,7 @@ competing composition (vs NIKIET 131/12/12/24/32 and Karpan-derived 187).
 Note 48 AZ likely = 24 AZ + 24 PK-AZ. Unreconciled; we keep NIKIET.
 
 ## Fidelity punch list (ranked)
-T1: ORM printout latency (no live gauge); LAR primary 20-100% + dead <10-20%
+T1: ORM printout latency (no live gauge); LAR primary (research 20-100%, sim 10-100%) + dead <10-20%
     + handover-failure mode; AZ-5 slow insertion with tip effect; silovaya
     blokirovka >=8 + PK-mode AZ-5 coupling; fixed speeds (LAR out 0.2).
 T2: per-rod mimic-field selection + 2 hold-keys + count lamps + clear;

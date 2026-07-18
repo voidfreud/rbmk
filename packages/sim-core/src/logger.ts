@@ -3,6 +3,17 @@ import type { SimEvent } from "./types";
 export type EventSink = (event: SimEvent) => void;
 
 /**
+ * Format sim-time seconds as HH:MM:SS (shared by demo JSONL stamps and UI
+ * strip-chart axes). Pure; no Date.now().
+ */
+export function hms(t: number): string {
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = Math.floor(t % 60);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
  * Structured event log. Keeps an in-memory ring and forwards every event to
  * optional sinks (a JSONL file writer, a UI console, ...).
  */

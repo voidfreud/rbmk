@@ -170,9 +170,13 @@ export const ROD_DISP_WORTH_PER_M = 1.3e-4;
 
 /** Coolant inlet temperature [degC]. */
 export const T_INLET = 270;
-/** Primary circuit pressure [MPa]. */
+/**
+ * Nominal primary-circuit pressure [MPa]. Documentary until sim-plant:
+ * saturation properties below are hard-coded at 7 MPa and do not yet look
+ * this value up. Exported so UI/docs can label the operating point.
+ */
 export const PRESSURE = 7.0;
-/** Saturation temperature at 7 MPa [degC]. */
+/** Saturation temperature at 7 MPa [degC] (fixed; not derived from PRESSURE). */
 export const T_SAT = 285.8;
 /** Liquid enthalpy at inlet (270 degC, 7 MPa) [J/kg]. */
 export const H_INLET = 1185e3;

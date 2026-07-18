@@ -28,6 +28,33 @@ import { assertNodeCount, type NodeState } from "./types";
 
 const W = NODE_COUPLING / GEN_TIME;
 
+/**
+ * Equilibrium precursor concentration for one delayed/photo group at flux n:
+ * c = (beta / (L * lambda)) * n. Shared by core kinetics and the IPK meter.
+ */
+export function equilibriumPrecursor(
+  beta: number,
+  lambda: number,
+  flux: number,
+): number {
+  return (beta * flux) / (GEN_TIME * lambda);
+}
+
+/**
+ * One semi-implicit precursor step (source from old flux, implicit decay):
+ * c_new = (c + dt * beta * n / L) / (1 + dt * lambda).
+ * Shared by stepKinetics and the inverse-point-kinetics reactimeter.
+ */
+export function stepPrecursor(
+  c: number,
+  beta: number,
+  lambda: number,
+  flux: number,
+  dt: number,
+): number {
+  return (c + (dt * beta * flux) / GEN_TIME) / (1 + dt * lambda);
+}
+
 /** Kinetics state subset needed for a flux step (trial copies use this). */
 export interface FluxNode {
   flux: number;
@@ -54,9 +81,7 @@ export function stepKinetics(
     for (let i = 0; i < N_DELAYED_GROUPS; i++) {
       const lam = DELAYED_LAMBDA[i]!;
       const beta = DELAYED_BETA[i]!;
-      const c =
-        (node.precursors[i]! + (dt * beta * fluxOld) / GEN_TIME) /
-        (1 + dt * lam);
+      const c = stepPrecursor(node.precursors[i]!, beta, lam, fluxOld, dt);
       node.precursors[i] = c;
       delayedSource += lam * c;
     }
@@ -66,9 +91,13 @@ export function stepKinetics(
       for (let i = 0; i < PHOTO_BETA.length; i++) {
         const lam = PHOTO_LAMBDA[i]!;
         const beta = PHOTO_BETA[i]!;
-        const p =
-          (node.photoneutrons[i]! + (dt * beta * fluxOld) / GEN_TIME) /
-          (1 + dt * lam);
+        const p = stepPrecursor(
+          node.photoneutrons[i]!,
+          beta,
+          lam,
+          fluxOld,
+          dt,
+        );
         node.photoneutrons[i] = p;
         delayedSource += lam * p;
       }
@@ -107,12 +136,18 @@ export function stepKinetics(
 export function equilibriumPrecursors(nodes: NodeState[]): void {
   for (const node of nodes) {
     for (let i = 0; i < N_DELAYED_GROUPS; i++) {
-      node.precursors[i] =
-        (DELAYED_BETA[i]! * node.flux) / (GEN_TIME * DELAYED_LAMBDA[i]!);
+      node.precursors[i] = equilibriumPrecursor(
+        DELAYED_BETA[i]!,
+        DELAYED_LAMBDA[i]!,
+        node.flux,
+      );
     }
     for (let i = 0; i < PHOTO_BETA.length; i++) {
-      node.photoneutrons[i] =
-        (PHOTO_BETA[i]! * node.flux) / (GEN_TIME * PHOTO_LAMBDA[i]!);
+      node.photoneutrons[i] = equilibriumPrecursor(
+        PHOTO_BETA[i]!,
+        PHOTO_LAMBDA[i]!,
+        node.flux,
+      );
     }
   }
 }
