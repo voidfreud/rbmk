@@ -76,6 +76,7 @@
   canvas { display: block; }
   /* Strip-chart canvases: fill panel width; height set by JS. */
   canvas.strip { width: 100%; min-height: 128px; }
+  #st-trends { min-height: 180px; }
 
   #col-map { flex: 0 0 auto; }
   #col-field { flex: 0 0 auto; }
@@ -144,11 +145,12 @@
   #az5-cover.open { transform: translateY(-104%) rotate(-8deg); transition: transform 0.25s; }
   #az5-cover { transition: transform 0.25s; }
 
-  footer { display: flex; gap: 10px; height: 190px; }
+  footer { display: flex; gap: 10px; height: 242px; }
   footer .panel { flex: 1; min-width: 0; }
   #trends { flex: 1 1 auto; }
   #trends h2 { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
   #trends h2 .trend-label { margin-right: 3px; }
+  #trends h2 .trend-base { color: #9085e9; margin-right: 3px; }
   #trends h2 .scale-label { margin-left: auto; color: var(--muted); }
   #trends canvas[hidden] { display: none; }
   #alarms { flex: 0 0 360px; overflow: hidden; }
@@ -244,12 +246,12 @@
 
     <section class="panel" id="col-slice">
       <h2 title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">Core profile — top to bottom</h2>
-      <p class="panel-help">Follow the depth scale downward. Curves show <b>where conditions peak</b>; bars show <b>how far each rod bank is inserted</b>. Coolant enters at 7 m and flows upward.</p>
+      <p class="panel-help">Read across at any depth: farther right means <b>more</b>. Power, steam, and xenon each have their own printed scale; the rod bars use the same 0–7 m depth axis. Coolant enters at 7 m and flows upward.</p>
       <canvas id="slice" width="440" height="520" title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
       <div class="slice-guide">
-        <span title="Orange area: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">orange area</b> · local power shape</span>
-        <span title="Blue dashed curve: local steam void fraction from 0% at the left to 100% at the right."><b style="color:#9ec5f4">blue dashed</b> · steam, 0–100%</span>
-        <span title="Amber dotted curve: xenon poison relative to the core average; rightward means more xenon suppression."><b style="color:#c98500">amber dotted</b> · xenon poison</span>
+        <span title="Orange lane: axial neutron-flux shape, normalized to the current peak. Wider means more local fission power."><b style="color:#d95926">power lane</b> · 0 to current peak</span>
+        <span title="Blue lane: local steam void fraction on an absolute 0–100% scale."><b style="color:#9ec5f4">steam lane</b> · 0–100% void</span>
+        <span title="Amber lane: xenon poison from 0 to twice the core average; wider means stronger local neutron suppression."><b style="color:#c98500">xenon lane</b> · 0–2× core average</span>
         <span title="Thin blue-to-amber strip: coolant warms as it rises from the bottom inlet to the top outlet."><b>thin color strip</b> · coolant temperature</span>
         <span title="Rod-bank columns: light gray is neutron absorber in the core; dark gray is graphite displacer; blue is water."><b>bank bars</b> · white absorber / gray graphite</span>
         <span title="Arrow over a bank means it is moving. Down inserts from the top; up withdraws. USP enters from below."><b>▲ / ▼</b> · bank moving</span>
@@ -402,22 +404,19 @@
 
   <footer>
     <section class="panel" id="trends">
-      <h2 title="One shared trend recorder. Select the signal you need; all four continue recording in the background.">
+      <h2 title="One shared-time recorder. Reactivity is always shown; add or remove related signals as depth-aligned lanes with independent scales.">
         <span class="trend-label">Trend monitor</span>
-        <button class="active" data-trend="power" aria-pressed="true" title="Show reactor power history and the 110% AZM trip line.">power</button>
-        <button data-trend="period" aria-pressed="false" title="Show reactor-period history with the 60 s withdrawal block and 10 s AZS trip lines.">period</button>
-        <button data-trend="rho" aria-pressed="false" title="Show net-reactivity history in units of effective delayed-neutron fraction β.">reactivity</button>
-        <button data-trend="xe" aria-pressed="false" title="Show Xe-135 poison history relative to full-power equilibrium.">xenon</button>
+        <span class="trend-base" title="Reactivity is the permanent base trace: positive values drive power upward; negative values drive it downward.">base: reactivity</span>
+        <button class="active" data-overlay="power" aria-pressed="true" title="Add/remove reactor power on the shared time axis.">− power</button>
+        <button class="active" data-overlay="period" aria-pressed="true" title="Add/remove reactor period on the shared time axis.">− period</button>
+        <button data-overlay="xe" aria-pressed="false" title="Add/remove the slower Xe-135 poison trend on the shared time axis.">+ xenon</button>
         <span id="pw-scale" class="scale-label">power scale
           <button id="pw-auto" class="active" title="Auto scale: logarithmic below 0.5% power, linear above.">auto</button>
           <button id="pw-lin" title="Linear vertical power scale.">lin</button>
           <button id="pw-log" title="Log power scale: exponential power rise appears as a straight line.">log</button>
         </span>
       </h2>
-      <canvas class="strip" id="st-power" title="Power history [% rated]. Ref line: AZM trip at 110%. Hover for value at time."></canvas>
-      <canvas class="strip" id="st-period" hidden title="Period history [s]. Short positive period means power is rising quickly. Refs: 60 s withdrawal block and 10 s AZS trip."></canvas>
-      <canvas class="strip" id="st-rho" hidden title="Reactivity history [β]. Positive is supercritical. Ref: prompt critical at +1β."></canvas>
-      <canvas class="strip" id="st-xe" hidden title="Xenon history [× equilibrium]. Xenon usually rises for hours after a power reduction."></canvas>
+      <canvas class="strip" id="st-trends" title="Shared-time trend monitor. Each enabled signal has its own labeled lane and scale; hover to compare all values at the same simulation time."></canvas>
     </section>
     <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, protection trips, and refused operator actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info. Refused drives and interlocks always log here — never silent."></ul></section>
   </footer>

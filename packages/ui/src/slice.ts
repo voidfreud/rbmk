@@ -14,10 +14,12 @@ const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
 const TOP = 34;
 const BOTTOM_PAD = 30;
 const SCALE_X = 30; // depth scale gutter
-const FLUX_W = 150; // flux/void plot width
-const TEMP_W = 16; // coolant temperature strip
-const BANK_W = 30; // per-bank column width
-const BANK_GAP = 10;
+const PROFILE_W = 44; // one independent condition lane
+const PROFILE_GAP = 6;
+const CONDITION_W = PROFILE_W * 3 + PROFILE_GAP * 2;
+const TEMP_W = 12; // coolant temperature strip
+const BANK_W = 28; // per-bank column width
+const BANK_GAP = 7;
 
 /**
  * Axial cutaway of the core, top of core at the top of the plot:
@@ -61,7 +63,7 @@ export class Slice {
     const depth = ((py - TOP) / this.coreH()) * CORE_HEIGHT;
 
     // Bank columns: report the bank's geometry at this depth.
-    const banksX = SCALE_X + FLUX_W + TEMP_W + 16;
+    const banksX = SCALE_X + CONDITION_W + TEMP_W + 18;
     if (px >= banksX) {
       const slot = Math.floor((px - banksX) / (BANK_W + BANK_GAP));
       const within = (px - banksX) % (BANK_W + BANK_GAP) <= BANK_W;
@@ -80,7 +82,7 @@ export class Slice {
       );
     }
 
-    if (px < SCALE_X || px > SCALE_X + FLUX_W + TEMP_W + 6) return null;
+    if (px < SCALE_X || px > SCALE_X + CONDITION_W + TEMP_W + 6) return null;
     const k = Math.min(N_AXIAL - 1, Math.floor((depth / CORE_HEIGHT) * N_AXIAL));
     const n = this.lastNodes[k];
     if (!n) return null;
@@ -99,14 +101,33 @@ export class Slice {
     g.clearRect(0, 0, this.w, this.h);
     const coreH = this.coreH();
 
-    // Section headers.
+    // Direct lane headers: every condition has its own honest horizontal
+    // scale. Farther right always means "more" within that lane.
     g.fillStyle = "#898781";
-    g.font = "600 10px system-ui, sans-serif";
+    g.font = "600 9px system-ui, sans-serif";
     g.textBaseline = "alphabetic";
-    g.textAlign = "left";
-    g.fillText("CORE CONDITIONS (shape →)", SCALE_X, TOP - 17);
-    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 17);
-    g.fillText("ROD BANK INSERTION", SCALE_X + FLUX_W + TEMP_W + 16, TOP - 17);
+    g.textAlign = "center";
+    const profileX = (lane: number) => SCALE_X + lane * (PROFILE_W + PROFILE_GAP);
+    g.fillStyle = "#d95926";
+    g.fillText("POWER", profileX(0) + PROFILE_W / 2, TOP - 17);
+    g.fillStyle = "#9ec5f4";
+    g.fillText("STEAM", profileX(1) + PROFILE_W / 2, TOP - 17);
+    g.fillStyle = "#c98500";
+    g.fillText("XENON", profileX(2) + PROFILE_W / 2, TOP - 17);
+    g.fillStyle = "#898781";
+    g.font = "8px system-ui, sans-serif";
+    g.fillText("0 → peak", profileX(0) + PROFILE_W / 2, TOP - 6);
+    g.fillText("0 → 100%", profileX(1) + PROFILE_W / 2, TOP - 6);
+    g.fillText("0 → 2×avg", profileX(2) + PROFILE_W / 2, TOP - 6);
+    const tx = SCALE_X + CONDITION_W + 4;
+    g.save();
+    g.translate(tx + 7, TOP - 5);
+    g.rotate(-Math.PI / 2);
+    g.fillText("TEMP", 0, 0);
+    g.restore();
+    const banksX = SCALE_X + CONDITION_W + TEMP_W + 18;
+    g.font = "600 9px system-ui, sans-serif";
+    g.fillText("ROD BANKS", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 12);
 
     // Depth scale.
     g.textAlign = "right";
@@ -119,7 +140,7 @@ export class Slice {
       g.lineWidth = 1;
       g.beginPath();
       g.moveTo(SCALE_X, y);
-      g.lineTo(SCALE_X + FLUX_W, y);
+      g.lineTo(SCALE_X + CONDITION_W, y);
       g.stroke();
     }
     g.textAlign = "left";
@@ -128,29 +149,43 @@ export class Slice {
     g.fillText("TOP · coolant outlet ↑", SCALE_X + 2, TOP + 10);
     g.fillText("BOTTOM · coolant inlet ↑", SCALE_X + 2, TOP + coreH - 3);
 
-    // Flux profile as a filled area (x = flux, y = depth), normalized to its
-    // own peak so the SHAPE reads at any power; the peak label carries the
-    // absolute scale.
+    // Three separate condition profiles. They share depth/time but never share
+    // a horizontal scale, which makes the picture readable without decoding
+    // line styles or comparing unlike units.
+    for (let lane = 0; lane < 3; lane++) {
+      const x0 = profileX(lane);
+      g.fillStyle = "rgba(255,255,255,0.025)";
+      g.fillRect(x0, TOP, PROFILE_W, coreH);
+      g.strokeStyle = "rgba(255,255,255,0.10)";
+      g.strokeRect(x0, TOP, PROFILE_W, coreH);
+      g.strokeStyle = "rgba(255,255,255,0.08)";
+      g.beginPath();
+      g.moveTo(x0 + PROFILE_W / 2, TOP);
+      g.lineTo(x0 + PROFILE_W / 2, TOP + coreH);
+      g.stroke();
+    }
+
+    // Power profile, normalized to its current axial peak.
     const maxFlux = Math.max(1e-12, ...nodes.map((n) => n.flux));
-    const fx = (f: number) => SCALE_X + (f / maxFlux) * (FLUX_W - 8);
-    g.fillStyle = "#898781";
+    const powerX = profileX(0);
+    const fx = (f: number) => powerX + (f / maxFlux) * (PROFILE_W - 3);
+    g.fillStyle = "#d95926";
     g.font = "9px system-ui, sans-serif";
-    g.textAlign = "right";
-    g.fillText(
-      `peak ${maxFlux >= 0.01 ? maxFlux.toFixed(2) + "x" : maxFlux.toExponential(1) + "x"}`,
-      SCALE_X + FLUX_W - 2,
-      TOP - 2,
-    );
     g.textAlign = "left";
+    g.fillText(
+      `peak ${maxFlux >= 0.01 ? maxFlux.toFixed(2) + "×" : maxFlux.toExponential(1) + "×"}`,
+      powerX,
+      this.h - 5,
+    );
     g.beginPath();
-    g.moveTo(SCALE_X, this.yAt(0));
+    g.moveTo(powerX, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
       const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
       g.lineTo(fx(nodes[k]!.flux), y);
     }
-    g.lineTo(SCALE_X, this.yAt(CORE_HEIGHT));
+    g.lineTo(powerX, this.yAt(CORE_HEIGHT));
     g.closePath();
-    const grad = g.createLinearGradient(SCALE_X, 0, SCALE_X + FLUX_W, 0);
+    const grad = g.createLinearGradient(powerX, 0, powerX + PROFILE_W, 0);
     grad.addColorStop(0, "rgba(217, 89, 38, 0.12)");
     grad.addColorStop(1, "rgba(217, 89, 38, 0.55)");
     g.fillStyle = grad;
@@ -159,41 +194,44 @@ export class Slice {
     g.lineWidth = 2;
     g.stroke();
 
-    // Void curve (0..1 across the same width).
+    // Steam void fraction, honest 0..100% lane.
+    const steamX = profileX(1);
     g.beginPath();
+    g.moveTo(steamX, this.yAt(0));
     for (let k = 0; k < N_AXIAL; k++) {
       const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
-      const x = SCALE_X + nodes[k]!.voidFrac * (FLUX_W - 8);
-      if (k === 0) g.moveTo(x, y);
-      else g.lineTo(x, y);
+      g.lineTo(steamX + nodes[k]!.voidFrac * (PROFILE_W - 3), y);
     }
+    g.lineTo(steamX, this.yAt(CORE_HEIGHT));
+    g.closePath();
+    g.fillStyle = "rgba(158,197,244,0.16)";
+    g.fill();
     g.strokeStyle = "#9ec5f4";
     g.lineWidth = 2;
-    g.setLineDash([4, 3]);
     g.stroke();
 
-    // Xenon axial distribution (dotted amber), relative to its own mean so
-    // the axial DISTORTION is what reads - watch it crawl during transients.
+    // Xenon poison relative to its core average, on a printed 0..2x lane.
+    const xenonX = profileX(2);
     const xeMean =
       nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL || 1;
     if (xeMean > 1e-6) {
       g.beginPath();
+      g.moveTo(xenonX, this.yAt(0));
       for (let k = 0; k < N_AXIAL; k++) {
         const y = this.yAt(((k + 0.5) / N_AXIAL) * CORE_HEIGHT);
         const relXe = nodes[k]!.xenon / xeMean; // ~1 when flat
-        const x = SCALE_X + Math.min(1, relXe / 2) * (FLUX_W - 8);
-        if (k === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
+        g.lineTo(xenonX + Math.min(1, relXe / 2) * (PROFILE_W - 3), y);
       }
+      g.lineTo(xenonX, this.yAt(CORE_HEIGHT));
+      g.closePath();
+      g.fillStyle = "rgba(201,133,0,0.13)";
+      g.fill();
       g.strokeStyle = "#c98500";
-      g.lineWidth = 1.5;
-      g.setLineDash([2, 3]);
+      g.lineWidth = 2;
       g.stroke();
     }
-    g.setLineDash([]);
 
     // Coolant temperature strip (inlet blue -> saturation amber).
-    const tx = SCALE_X + FLUX_W + 4;
     for (let k = 0; k < N_AXIAL; k++) {
       const y0 = this.yAt((k / N_AXIAL) * CORE_HEIGHT);
       const y1 = this.yAt(((k + 1) / N_AXIAL) * CORE_HEIGHT);
@@ -208,7 +246,7 @@ export class Slice {
     g.strokeRect(tx, TOP, TEMP_W - 4, coreH);
 
     // Rod banks with true geometry, one column per group.
-    let x = SCALE_X + FLUX_W + TEMP_W + 16;
+    let x = banksX;
     g.textAlign = "center";
     for (const group of GROUPS) {
       const members = rods.filter((r) => r.group === group);

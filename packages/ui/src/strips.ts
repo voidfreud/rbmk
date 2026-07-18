@@ -215,3 +215,213 @@ export class StripChart {
     }
   }
 }
+
+export interface TrendSeries {
+  id: string;
+  label: string;
+  color: string;
+  fmt: (v: number) => string;
+  clampAbs?: number;
+  refLines?: RefLine[];
+}
+
+/**
+ * Shared-time recorder. Every enabled signal gets its own vertical lane and
+ * scale, so unlike a multi-axis overlay the shapes align in time without
+ * pretending that %, seconds, beta, and xenon share units.
+ */
+export class MultiTrendChart {
+  private readonly ctx: CanvasRenderingContext2D;
+  private readonly w: number;
+  private readonly h = 180;
+  private readonly ts: number[] = [];
+  private readonly values = new Map<string, number[]>();
+  private readonly enabled: Set<string>;
+  private hoverX: number | null = null;
+  powerLogMode = false;
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private readonly series: TrendSeries[],
+    enabled: string[],
+    private readonly windowSamples = 360,
+  ) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement!.getBoundingClientRect();
+    this.w = Math.max(420, rect.width - 20);
+    this.enabled = new Set(enabled);
+    for (const s of series) this.values.set(s.id, []);
+    canvas.style.width = `${this.w}px`;
+    canvas.style.height = `${this.h}px`;
+    canvas.width = this.w * dpr;
+    canvas.height = this.h * dpr;
+    this.ctx = canvas.getContext("2d")!;
+    this.ctx.scale(dpr, dpr);
+    canvas.addEventListener("mousemove", (e) => {
+      const r = canvas.getBoundingClientRect();
+      this.hoverX = e.clientX - r.left;
+    });
+    canvas.addEventListener("mouseleave", () => (this.hoverX = null));
+  }
+
+  setEnabled(id: string, enabled: boolean): void {
+    if (enabled) this.enabled.add(id);
+    else this.enabled.delete(id);
+  }
+
+  isEnabled(id: string): boolean {
+    return this.enabled.has(id);
+  }
+
+  push(t: number, frame: Record<string, number>): void {
+    this.ts.push(t);
+    for (const s of this.series) {
+      let v = frame[s.id] ?? 0;
+      if (s.clampAbs !== undefined) {
+        v = Math.max(-s.clampAbs, Math.min(s.clampAbs, v));
+      }
+      this.values.get(s.id)!.push(v);
+    }
+    if (this.ts.length > this.windowSamples) {
+      this.ts.shift();
+      for (const values of this.values.values()) values.shift();
+    }
+  }
+
+  reset(): void {
+    this.ts.length = 0;
+    for (const values of this.values.values()) values.length = 0;
+    this.hoverX = null;
+  }
+
+  draw(): void {
+    const g = this.ctx;
+    g.clearRect(0, 0, this.w, this.h);
+    const shown = this.series.filter((s) => this.enabled.has(s.id));
+    if (shown.length === 0 || this.ts.length < 2) return;
+
+    const left = 62;
+    const right = 8;
+    const bottom = 14;
+    const plotW = this.w - left - right;
+    const laneH = (this.h - bottom) / shown.length;
+    const i0 = this.windowSamples - this.ts.length;
+    const x = (i: number) => left + (i / (this.windowSamples - 1)) * plotW;
+
+    for (let lane = 0; lane < shown.length; lane++) {
+      const s = shown[lane]!;
+      const raw = this.values.get(s.id)!;
+      const log = s.id === "power" && this.powerLogMode;
+      const tv = (v: number) => log ? Math.log10(Math.max(v, 1e-7)) : v;
+      const transformed = raw.map(tv);
+      let lo = Math.min(...transformed);
+      let hi = Math.max(...transformed);
+      if (hi - lo < 1e-9) {
+        const spread = Math.max(1, Math.abs(hi) * 0.05);
+        lo -= spread;
+        hi += spread;
+      }
+      if (!log) {
+        for (const ref of s.refLines ?? []) {
+          if (!ref.stretch) continue;
+          if (ref.v > 0 && hi > ref.v * 0.55) hi = Math.max(hi, ref.v * 1.06);
+          if (ref.v < 0 && lo < ref.v * 0.55) lo = Math.min(lo, ref.v * 1.06);
+        }
+      }
+      const pad = (hi - lo) * 0.1;
+      lo -= pad;
+      hi += pad;
+      const y0 = lane * laneH;
+      const y = (v: number) =>
+        y0 + laneH - 5 - ((tv(v) - lo) / (hi - lo)) * (laneH - 12);
+
+      if (lane > 0) {
+        g.strokeStyle = "rgba(255,255,255,0.08)";
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(0, y0);
+        g.lineTo(this.w, y0);
+        g.stroke();
+      }
+      g.strokeStyle = "#2c2c2a";
+      g.beginPath();
+      g.moveTo(left, y0 + laneH / 2);
+      g.lineTo(this.w - right, y0 + laneH / 2);
+      g.stroke();
+
+      for (const ref of s.refLines ?? []) {
+        const u = tv(ref.v);
+        if (u <= lo || u >= hi) continue;
+        const yy = y(ref.v);
+        g.strokeStyle = ref.color;
+        g.setLineDash([5, 4]);
+        g.beginPath();
+        g.moveTo(left, yy);
+        g.lineTo(this.w - right, yy);
+        g.stroke();
+        g.setLineDash([]);
+        g.fillStyle = ref.color;
+        g.font = "9px system-ui, sans-serif";
+        g.textAlign = "right";
+        g.fillText(ref.label, this.w - right - 2, yy - 2);
+      }
+
+      g.strokeStyle = s.color;
+      g.lineWidth = 2;
+      g.lineJoin = "round";
+      g.beginPath();
+      for (let i = 0; i < raw.length; i++) {
+        const px = x(i0 + i);
+        const py = y(raw[i]!);
+        if (i === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.stroke();
+
+      const hoverIndex = this.hoverX === null
+        ? raw.length - 1
+        : Math.round(((this.hoverX - left) / plotW) * (this.windowSamples - 1)) - i0;
+      const readIndex = Math.max(0, Math.min(raw.length - 1, hoverIndex));
+      g.fillStyle = s.color;
+      g.font = "600 10px system-ui, sans-serif";
+      g.textAlign = "left";
+      g.fillText(s.label.toUpperCase(), 4, y0 + 13);
+      g.fillStyle = "#ffffff";
+      g.font = "600 11px system-ui, sans-serif";
+      g.fillText(s.fmt(raw[readIndex]!), 4, y0 + 28);
+
+      if (this.hoverX !== null && hoverIndex >= 0 && hoverIndex < raw.length) {
+        const px = x(i0 + hoverIndex);
+        const py = y(raw[hoverIndex]!);
+        g.fillStyle = s.color;
+        g.beginPath();
+        g.arc(px, py, 3.5, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+
+    if (this.hoverX !== null) {
+      const hx = Math.max(left, Math.min(this.w - right, this.hoverX));
+      g.strokeStyle = "#898781";
+      g.setLineDash([3, 3]);
+      g.beginPath();
+      g.moveTo(hx, 0);
+      g.lineTo(hx, this.h - bottom);
+      g.stroke();
+      g.setLineDash([]);
+    }
+
+    const timeIndex = this.hoverX === null
+      ? this.ts.length - 1
+      : Math.max(0, Math.min(
+          this.ts.length - 1,
+          Math.round(((this.hoverX - left) / plotW) * (this.windowSamples - 1)) - i0,
+        ));
+    g.fillStyle = "#52514e";
+    g.font = "9px system-ui, sans-serif";
+    g.textAlign = "left";
+    g.fillText(hms(this.ts[0]!), left, this.h - 2);
+    g.textAlign = "right";
+    g.fillText(hms(this.ts[timeIndex]!), this.w - right, this.h - 2);
+  }
+}

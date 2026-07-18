@@ -8,7 +8,7 @@ import {
 import { Cartogram, depthLabel, rodCoord } from "./cartogram";
 import { ChannelMap } from "./channelmap";
 import { Slice } from "./slice";
-import { StripChart, hms } from "./strips";
+import { MultiTrendChart, hms } from "./strips";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -92,11 +92,35 @@ const sliceCanvas = $<HTMLCanvasElement>("slice");
 attachTooltip(sliceCanvas, (e) => slice.hit(e.clientX, e.clientY));
 
 // Recorders with their real working limits drawn in status colors.
-const stripPower = new StripChart(
-  $("st-power") as HTMLCanvasElement, "#3987e5",
-  (v) => (v >= 0.1 ? `${v.toFixed(1)}%` : `${v.toExponential(0)}%`),
-  360, undefined,
-  [{ v: 110, color: "#d03b3b", label: "AZM trip 110%", stretch: true }],
+const trends = new MultiTrendChart(
+  $<HTMLCanvasElement>("st-trends"),
+  [
+    {
+      id: "rho", label: "reactivity", color: "#9085e9",
+      fmt: (v) => `${v.toFixed(2)}β`, clampAbs: 25,
+      refLines: [{ v: 1, color: "#d03b3b", label: "prompt critical +1β", stretch: true }],
+    },
+    {
+      id: "power", label: "power", color: "#3987e5",
+      fmt: (v) => v >= 0.1 ? `${v.toFixed(1)}%` : `${v.toExponential(0)}%`,
+      refLines: [{ v: 110, color: "#d03b3b", label: "AZM trip 110%", stretch: true }],
+    },
+    {
+      id: "period", label: "period", color: "#199e70",
+      fmt: (v) => v >= 200 ? "≥200s" : v <= -200 ? "≤-200s" : `${v.toFixed(0)}s`,
+      clampAbs: 200,
+      refLines: [
+        { v: 10, color: "#d03b3b", label: "AZS trip 10 s" },
+        { v: 60, color: "#fab219", label: "withdrawal block 60 s" },
+      ],
+    },
+    {
+      id: "xe", label: "xenon", color: "#c98500",
+      fmt: (v) => `${v.toFixed(2)}×`,
+      refLines: [{ v: 1, color: "#898781", label: "full-power equilibrium" }],
+    },
+  ],
+  ["rho", "power", "period"],
 );
 
 // Power channel scale: auto follows the plant (log below 0.5%, like having
@@ -110,40 +134,17 @@ for (const m of ["auto", "lin", "log"] as const) {
     }
   };
 }
-const stripPeriod = new StripChart(
-  $("st-period") as HTMLCanvasElement, "#199e70",
-  (v) => v >= 200 ? "≥200s" : v <= -200 ? "≤-200s" : `${v.toFixed(0)}s`,
-  360, 200,
-  [
-    { v: 10, color: "#d03b3b", label: "AZS trip 10 s" },
-    { v: 60, color: "#fab219", label: "withdrawal block 60 s" },
-  ],
-);
-const stripRho = new StripChart(
-  $("st-rho") as HTMLCanvasElement, "#9085e9", (v) => `${v.toFixed(2)}β`,
-  360, 25,
-  [{ v: 1, color: "#d03b3b", label: "prompt critical +1β", stretch: true }],
-);
-const stripXe = new StripChart(
-  $("st-xe") as HTMLCanvasElement, "#c98500", (v) => `${v.toFixed(2)}×`,
-  360, undefined,
-  [{ v: 1, color: "#898781", label: "full-power equilibrium" }],
-);
-
-// One recorder surface, four continuously sampled signals. The operator picks
-// the question they are asking instead of scanning four tiny simultaneous plots.
-for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-trend]")) {
+// Reactivity is the base lane; related signals can be compared on the same
+// time axis without mixing their unlike units onto one deceptive y-axis.
+for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-overlay]")) {
   btn.onclick = () => {
-    const active = btn.dataset.trend!;
-    for (const other of document.querySelectorAll<HTMLButtonElement>("[data-trend]")) {
-      const selected = other.dataset.trend === active;
-      other.classList.toggle("active", selected);
-      other.setAttribute("aria-pressed", String(selected));
-    }
-    for (const metric of ["power", "period", "rho", "xe"] as const) {
-      $<HTMLCanvasElement>(`st-${metric}`).hidden = metric !== active;
-    }
-    $("pw-scale").hidden = active !== "power";
+    const id = btn.dataset.overlay!;
+    const enabled = !trends.isEnabled(id);
+    trends.setEnabled(id, enabled);
+    btn.classList.toggle("active", enabled);
+    btn.setAttribute("aria-pressed", String(enabled));
+    btn.textContent = `${enabled ? "−" : "+"} ${id === "xe" ? "xenon" : id}`;
+    $("pw-scale").hidden = !trends.isEnabled("power");
   };
 }
 
@@ -523,10 +524,7 @@ function snapDisplays(): void {
  * resync AR toggle / setpoint from the reactor.
  */
 function resetSessionUi(): void {
-  stripPower.reset();
-  stripPeriod.reset();
-  stripRho.reset();
-  stripXe.reset();
+  trends.reset();
   nextSample = 0;
   lampT.sil = -Infinity;
   lampT.chg = -Infinity;
@@ -704,10 +702,12 @@ function frame(now: number): void {
     // (tau = 0.5 sim-s), so thresholds drawn on the strip match the panel.
     const period = 1 / Math.max(1 / 200, Math.abs(disp.periodRate)) *
       Math.sign(disp.periodRate || 1);
-    stripPower.push(t, disp.power * 100);
-    stripPeriod.push(t, Math.abs(period) >= 200 ? 200 : period);
-    stripRho.push(t, disp.rho);
-    stripXe.push(t, disp.xe);
+    trends.push(t, {
+      power: disp.power * 100,
+      period: Math.abs(period) >= 200 ? 200 : period,
+      rho: disp.rho,
+      xe: disp.xe,
+    });
     nextSample = t + 0.5;
   }
 
@@ -810,7 +810,7 @@ function frame(now: number): void {
     drawImbalance(reactor.powerFraction() - reactor.activeSetpoint());
 
     // Power-channel scale and the startup checklist.
-    stripPower.logMode =
+    trends.powerLogMode =
       pwMode === "log" || (pwMode === "auto" && disp.power < 0.005);
     updateChecklist();
     $("setpoint-val").textContent =
@@ -847,10 +847,7 @@ function frame(now: number): void {
   cartogram.draw(selected, dragRect);
   channelMap.draw(reactor.state.nodes, disp.power, t);
   slice.draw(reactor.state.nodes, reactor.state.rods);
-  stripPower.draw();
-  stripPeriod.draw();
-  stripRho.draw();
-  stripXe.draw();
+  trends.draw();
 
   requestAnimationFrame(frame);
 }
