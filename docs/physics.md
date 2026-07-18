@@ -64,7 +64,7 @@ sources). Summary of what is cited vs estimated.
 | Withdrawal restriction | >=5 rods selected: withdrawal refused (insertion never restricted); >=8 rods withdrawing: power interlock halts all + annunciates ("silovaya blokirovka") | TEZ L.24 (studfile SUZ manual mirror) | high |
 | Regulator ladder | ARM 0.25-6% / AR 5-105% (one of 3 subgroups active) / LAR 10-100% (PRIMARY at power, in-core chambers, BLIND below ~10% - drops out) | pavrda.cz/62, topwar 269168, Gospromatomnadzor 1991 (00:28 failure) | high |
 | Rod speeds | 0.4 m/s all drives; LAR WITHDRAWS at 0.2 m/s | TEZ L.24 | high |
-| Startup period rule | withdrawal blocked while period < 60 s (below 5% power); AZ-5 trip floor 10 s (sources spread 5-10 s) | poznayka s27313, consultant.ru NP rule | medium-high |
+| Startup period rule | withdrawal blocked while period < 60 s (below 5% power); PERIOD warn < 15 s (clear > 25 s); AZS trip floor 10 s (sources spread 5-10 s) | poznayka s27313, consultant.ru NP rule; warn threshold ESTIMATED | medium-high |
 | Rod complement (3rd variant) | The 00:39 SKALA printout header reads "127 RR + 48 AZ + 12 AR + 24 USP = 211" (48 AZ likely 24 AZ + 24 PK-AZ; no separate LAR line). Three compositions now compete; we keep NIKIET 131/12/12/24/32 | accidont.ru/datable.html | unresolved |
 
 ## Known simplifications (v0)

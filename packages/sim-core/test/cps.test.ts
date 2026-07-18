@@ -206,4 +206,38 @@ describe("control and protection system", () => {
     const owned = r.state.rods.filter((rod) => rod.group === "LAR");
     for (const rod of owned) expect(rod.target).toBeCloseTo(0.8, 5);
   });
+
+  test("ARM upper band warns when power is above the band", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.setArMode("ARM");
+    r.tick(120, 0.1);
+    expect(r.log.all().some((e) => e.code === "AR_BAND")).toBe(true);
+  });
+
+  test("initAtPower low power does not emit AR_BAND during settle", () => {
+    const r = new Reactor();
+    r.initAtPower(0.03);
+    const band = r.log.all().filter((e) => e.code === "AR_BAND");
+    const dropout = r.log.all().filter((e) => e.code === "LAR_DROPOUT");
+    expect(band.length).toBe(0);
+    expect(dropout.length).toBe(0);
+  });
+
+  test("high reactivity at maxStep=0.1 stays finite (kinetics substep)", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.arEnabled = false;
+    r.protection.overpower = false;
+    r.protection.period = false;
+    // ~+4 beta step — would pole a single 0.1 s kinetics step without subdivision.
+    r.state.rhoExtra = 0.02;
+    r.tick(2, 0.1);
+    const p = r.powerFraction();
+    expect(Number.isFinite(p)).toBe(true);
+    expect(p).not.toBe(Infinity);
+    for (const n of r.state.nodes) {
+      expect(Number.isFinite(n.flux)).toBe(true);
+    }
+  });
 });

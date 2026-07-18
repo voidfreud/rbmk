@@ -190,6 +190,12 @@ export const SLIP = 1.5;
 export const FLOW_RATED = 13333;
 /** Liquid specific heat near operating point [J/kg/K]. */
 export const CP_LIQUID = 5400;
+/**
+ * Superheated steam specific heat near 7 MPa [J/kg/K].
+ * Order-of-magnitude for dry steam above T_SAT; real cp varies with T.
+ * ESTIMATED (~2000).
+ */
+export const CP_STEAM = 2000;
 /** Void fraction relaxation time constant [s]. */
 export const TAU_VOID = 3.0;
 

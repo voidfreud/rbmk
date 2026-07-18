@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { N_AXIAL } from "../src/constants";
+import { N_AXIAL, ROD_SPEED, USP_ABS_LENGTH } from "../src/constants";
 import { globalReactivity } from "../src/kinetics";
 import { Reactor } from "../src/reactor";
-import { buildRods, rodReactivityByNode } from "../src/rods";
+import { buildRods, rodReactivityByNode, stepRodDrives } from "../src/rods";
 import type { NodeState } from "../src/types";
 import { zeroNode } from "../src/types";
 
@@ -75,5 +75,40 @@ describe("control rods", () => {
       full.map((v, k) => v - before[k]!),
     );
     expect(fullDelta).toBeLessThan(-0.02);
+  });
+
+  test("USP full stroke completes in ~7–9 s (stroke = USP_ABS_LENGTH)", () => {
+    const rods = buildRods(211);
+    const usp = rods.filter((r) => r.group === "USP");
+    for (const rod of usp) {
+      rod.insertion = 0;
+      rod.target = 1;
+    }
+    // Expected travel time = USP_ABS_LENGTH / ROD_SPEED ≈ 7.6 s.
+    const expected = USP_ABS_LENGTH / ROD_SPEED;
+    expect(expected).toBeGreaterThan(7);
+    expect(expected).toBeLessThan(9);
+
+    let t = 0;
+    const dt = 0.05;
+    while (t < 20 && usp.some((r) => r.insertion < 1 - 1e-9)) {
+      stepRodDrives(rods, dt);
+      t += dt;
+    }
+    expect(t).toBeGreaterThan(7);
+    expect(t).toBeLessThan(9);
+    for (const rod of usp) expect(rod.insertion).toBeCloseTo(1, 5);
+
+    // Standard rods still take ~CORE_HEIGHT/speed ≈ 17.5 s.
+    const rr = rods.find((r) => r.group === "RR")!;
+    rr.insertion = 0;
+    rr.target = 1;
+    t = 0;
+    while (t < 30 && rr.insertion < 1 - 1e-9) {
+      stepRodDrives(rods, dt);
+      t += dt;
+    }
+    expect(t).toBeGreaterThan(16);
+    expect(t).toBeLessThan(19);
   });
 });

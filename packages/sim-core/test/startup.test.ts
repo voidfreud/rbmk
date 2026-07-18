@@ -33,8 +33,11 @@ describe("shutdown state and startup", () => {
   test("yanking the whole manual bank is caught by the power interlock", () => {
     const r = new Reactor();
     r.initShutdown();
-    r.setRodTarget("AZ", 0);
-    r.tick(60, 0.1);
+    // Cock AZ fully first (Rule 3.1.7); re-issue past the period block.
+    for (let i = 0; i < 12; i++) {
+      r.setRodTarget("AZ", 0);
+      r.tick(10, 0.1);
+    }
     r.setRodTarget("RR", 0.5); // 131 rods at once - reckless
     r.tick(30, 0.1);
     // Silovaya blokirovka halts the withdrawal before any excursion:
@@ -68,8 +71,11 @@ describe("shutdown state and startup", () => {
   test("a disciplined squad-by-squad startup reaches criticality without tripping", () => {
     const r = new Reactor();
     r.initShutdown();
-    r.setRodTarget("AZ", 0);
-    r.tick(90, 0.1);
+    // Cock AZ bank fully (Rule 3.1.7) before any RR motion.
+    for (let i = 0; i < 12; i++) {
+      r.setRodTarget("AZ", 0);
+      r.tick(10, 0.1);
+    }
 
     const rr = r.state.rods.filter((rod) => rod.group === "RR");
     let cursor = 0;
@@ -96,5 +102,31 @@ describe("shutdown state and startup", () => {
     r.tick(90, 0.05);
     expect(r.state.scrammed).toBe(false);
     expect(r.powerFraction()).toBeGreaterThan(p0 * 1.5);
+  });
+
+  test("Rule 3.1.7: RR withdrawal refused until AZ bank is cocked", () => {
+    const r = new Reactor();
+    r.initShutdown();
+    const rr = r.state.rods.find((rod) => rod.group === "RR")!;
+    const before = rr.target;
+    // AZ still fully in — RR withdrawal must be refused.
+    r.setRodTarget("RR", 0.5);
+    expect(rr.target).toBeCloseTo(before, 5);
+    expect(r.log.all().some((e) => e.code === "AZ_COCK")).toBe(true);
+
+    // Cock the AZ bank (re-issue while period recovers).
+    for (let i = 0; i < 12; i++) {
+      r.setRodTarget("AZ", 0);
+      r.tick(10, 0.1);
+    }
+    const azMax = Math.max(
+      ...r.state.rods.filter((rod) => rod.group === "AZ").map((rod) => rod.insertion),
+    );
+    expect(azMax).toBeLessThanOrEqual(0.05);
+
+    // Now a small RR squad may withdraw.
+    const squad = r.state.rods.filter((rod) => rod.group === "RR").slice(0, 4);
+    for (const rod of squad) r.setRodTarget(rod.id, 0.7);
+    for (const rod of squad) expect(rod.target).toBeCloseTo(0.7, 5);
   });
 });

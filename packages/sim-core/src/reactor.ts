@@ -124,6 +124,7 @@ export class Reactor {
   private lastScramHoldT = -Infinity;
   private lastSilBlokT = -Infinity;
   private lastBandWarnT = -Infinity;
+  private lastAzCockT = -Infinity;
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
   private lastPrizma = { t: 0, orm: 0 };
   private nextPrizmaT = 0;
@@ -303,6 +304,7 @@ export class Reactor {
   private resetAlarmState(): void {
     this.lastSilBlokT = -Infinity;
     this.lastBandWarnT = -Infinity;
+    this.lastAzCockT = -Infinity;
     this.lastBlockedWarnT = -Infinity;
     this.lastPeriodBlockWarnT = -Infinity;
     this.lastRodAutoWarnT = -Infinity;
@@ -414,6 +416,29 @@ export class Reactor {
               this.state.time,
               "PERIOD_BLOCK",
               "withdrawal blocked: period below 60 s - wait for it to recover",
+            );
+          }
+          continue;
+        }
+      }
+      // Rule 3.1.7: no positive reactivity (withdrawal of non-AZ rods) until
+      // the AZ bank is cocked (essentially fully withdrawn). AZ rods may
+      // still withdraw so the bank can be cocked. Insertions always ok.
+      if (
+        t < rod.insertion &&
+        rod.group !== "AZ" &&
+        !this.initializing
+      ) {
+        const azIn = this.state.rods.some(
+          (r) => r.group === "AZ" && r.insertion > 0.05,
+        );
+        if (azIn) {
+          if (this.state.time - this.lastAzCockT > 5) {
+            this.lastAzCockT = this.state.time;
+            this.log.warn(
+              this.state.time,
+              "AZ_COCK",
+              "withdrawal refused: AZ bank not cocked (Rule 3.1.7)",
             );
           }
           continue;
@@ -591,10 +616,16 @@ export class Reactor {
 
     // Regulator band enforcement: LAR's in-core chambers are blind below
     // ~10% - it DROPS OUT (the 00:28 accident-night failure mode). Other
-    // modes warn when the plant is outside their band. Idle regulator
-    // (no setpoint dialed in) has nothing to enforce.
-    if (this.arEnabled && !s.scrammed && this.arSetpoint > 0) {
-      const [lo] = this.regulatorBand();
+    // modes warn when the plant is outside their band (low or high). Idle
+    // regulator (no setpoint dialed in) has nothing to enforce. Skipped
+    // during init settle so the wobble does not spam AR_BAND / LAR_DROPOUT.
+    if (
+      this.arEnabled &&
+      !s.scrammed &&
+      this.arSetpoint > 0 &&
+      !this.initializing
+    ) {
+      const [lo, hi] = this.regulatorBand();
       if (pBefore < lo * 0.9) {
         if (this.arMode === "LAR") {
           // Automatic changeover to the standby regulator on side chambers
@@ -618,6 +649,15 @@ export class Reactor {
             s.time,
             "AR_BAND",
             `power below the ${this.arMode} band - switch to a lower-range regulator`,
+          );
+        }
+      } else if (pBefore > hi * 1.05) {
+        if (s.time - this.lastBandWarnT > ALARM_COOLDOWN) {
+          this.lastBandWarnT = s.time;
+          this.log.warn(
+            s.time,
+            "AR_BAND",
+            `power above the ${this.arMode} band - switch to a higher-range regulator`,
           );
         }
       }
@@ -759,7 +799,22 @@ export class Reactor {
     );
     this.lastRhoByNode = rhoByNode;
 
-    stepKinetics(s.nodes, rhoByNode, dt);
+    // Subdivide kinetics when any node is strongly prompt-supercritical so
+    // a large maxStep (e.g. 0.1 s fast-forward) cannot pole the implicit
+    // Thomas solve. Cap dt_kin * max_k((rho_k - beta)/L) ≲ 0.5.
+    let maxPromptRate = 0;
+    for (let k = 0; k < N_AXIAL; k++) {
+      const rate = (rhoByNode[k]! - BETA_EFF) / GEN_TIME;
+      if (rate > maxPromptRate) maxPromptRate = rate;
+    }
+    const maxKinDt =
+      maxPromptRate > 1e-9 ? Math.min(dt, 0.5 / maxPromptRate) : dt;
+    let kinLeft = dt;
+    while (kinLeft > 1e-12) {
+      const kdt = Math.min(maxKinDt, kinLeft);
+      stepKinetics(s.nodes, rhoByNode, kdt);
+      kinLeft -= kdt;
+    }
 
     const fissionPower = powerFraction(s.nodes) * P_RATED;
     for (const node of s.nodes) {
@@ -812,18 +867,19 @@ export class Reactor {
     if (this.initializing) return;
     const s = this.state;
     const period = this.period();
-    if (period > 0 && period < 20 && power > 0.001) {
+    // PERIOD warning at 15 s (AZS trip remains 10 s). Latch clears above ~25 s.
+    if (period > 0 && period < 15 && power > 0.001) {
       if (
         !this.periodAlarmLatched &&
         s.time - this.lastPeriodAlarmT > ALARM_COOLDOWN
       ) {
         this.periodAlarmLatched = true;
         this.lastPeriodAlarmT = s.time;
-        this.log.alarm(s.time, "PERIOD", "reactor period below 20 s", {
+        this.log.alarm(s.time, "PERIOD", "reactor period below 15 s", {
           period: Number(period.toFixed(1)),
         });
       }
-    } else if (this.periodAlarmLatched && (period < 0 || period > 30)) {
+    } else if (this.periodAlarmLatched && (period < 0 || period > 25)) {
       this.periodAlarmLatched = false;
     }
 

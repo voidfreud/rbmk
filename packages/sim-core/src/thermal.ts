@@ -1,5 +1,6 @@
 import {
   CP_LIQUID,
+  CP_STEAM,
   FLOW_RATED,
   FUEL_HEAT_CAP,
   FUEL_UA,
@@ -25,6 +26,13 @@ import type { NodeState } from "./types";
  * (index N_AXIAL-1) and boils on the way up.
  */
 
+/**
+ * Fraction of node thermal power deposited directly in the coolant
+ * (fast neutrons / gammas). Remainder goes through fuel and graphite
+ * heat capacities and reaches the coolant via UA. ESTIMATED ~4%.
+ */
+const DIRECT_COOLANT_FRACTION = 0.04;
+
 /** Homogeneous void fraction with a fixed slip ratio from steam quality. */
 export function voidFromQuality(quality: number): number {
   if (quality <= 0) return 0;
@@ -33,10 +41,16 @@ export function voidFromQuality(quality: number): number {
 }
 
 /**
- * March the coolant up the channel: per-node enthalpy from the thermal power
- * deposited below and in the node, giving coolant temperature, equilibrium
- * quality, and target void. Then relax actual void and integrate fuel and
- * graphite temperatures (semi-implicit).
+ * March the coolant up the channel from heat that actually crosses into
+ * the fluid, not raw fission power:
+ *
+ *   q = FUEL_UA*(Tf − Tc) + GRAPHITE_UA*(Tg − Tc) + f_direct * power
+ *
+ * Temperatures are the previous-step values already on the node (stable at
+ * dt ≤ 0.1 s given fuel/graphite time constants). At equilibrium the UA
+ * flows equal the non-direct power shares, so q → power and the enthalpy
+ * march matches the old power-driven result. Fuel and graphite still
+ * integrate their share of `power` against the updated coolant temp.
  *
  * nodePowers: thermal power deposited per node [W] (length N_AXIAL, index 0 = top).
  */
@@ -52,18 +66,27 @@ export function stepThermal(
   for (let k = N_AXIAL - 1; k >= 0; k--) {
     const node = nodes[k]!;
     const power = nodePowers[k]!;
+    // Heat to coolant from cladding/graphite UA (prev-step temps) + direct.
+    const q =
+      FUEL_UA * (node.fuelTemp - node.coolantTemp) +
+      GRAPHITE_UA * (node.graphiteTemp - node.coolantTemp) +
+      DIRECT_COOLANT_FRACTION * power;
     // Node-exit enthalpy; use mid-node value for local properties.
-    const hMid = h + (0.5 * power) / flow;
-    h += power / flow;
+    const hMid = h + (0.5 * q) / flow;
+    h += q / flow;
 
     let coolantTemp: number;
     let quality = 0;
     if (hMid < H_F) {
       coolantTemp = T_INLET + (hMid - H_INLET) / CP_LIQUID;
       coolantTemp = Math.min(coolantTemp, T_SAT);
-    } else {
+    } else if (hMid < H_F + H_FG) {
       coolantTemp = T_SAT;
-      quality = Math.min(1, (hMid - H_F) / H_FG);
+      quality = (hMid - H_F) / H_FG;
+    } else {
+      // Superheat / post-dryout: fully dry steam, temperature above T_SAT.
+      quality = 1;
+      coolantTemp = T_SAT + (hMid - H_F - H_FG) / CP_STEAM;
     }
     node.coolantTemp = coolantTemp;
     node.quality = quality;
@@ -73,8 +96,9 @@ export function stepThermal(
     const r = dt / TAU_VOID;
     node.voidFrac = (node.voidFrac + r * targetVoid) / (1 + r);
 
-    // Fuel: heated by (most of) node power, cooled to coolant.
-    const fuelPower = power * (1 - GRAPHITE_POWER_FRACTION);
+    // Fuel: heated by non-graphite, non-direct share; cooled to coolant.
+    const fuelPower =
+      power * (1 - GRAPHITE_POWER_FRACTION - DIRECT_COOLANT_FRACTION);
     node.fuelTemp =
       (node.fuelTemp +
         (dt / FUEL_HEAT_CAP) * (fuelPower + FUEL_UA * coolantTemp)) /

@@ -94,7 +94,10 @@ export function stepRodDrives(rods: RodState[], dt: number): void {
     const delta = rod.target - rod.insertion;
     const speed =
       rod.group === "LAR" && delta < 0 ? ROD_SPEED_LAR_OUT : ROD_SPEED;
-    const maxStep = (speed * dt) / CORE_HEIGHT;
+    // USP insertion 0..1 spans USP_ABS_LENGTH (~3.05 m), not the full 7 m
+    // core; other groups map insertion to CORE_HEIGHT of travel.
+    const stroke = rod.group === "USP" ? USP_ABS_LENGTH : CORE_HEIGHT;
+    const maxStep = (speed * dt) / stroke;
     if (Math.abs(delta) <= maxStep) {
       rod.insertion = rod.target;
     } else {
