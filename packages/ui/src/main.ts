@@ -112,7 +112,8 @@ for (const m of ["auto", "lin", "log"] as const) {
 }
 const stripPeriod = new StripChart(
   $("st-period") as HTMLCanvasElement, "#199e70",
-  (v) => (Math.abs(v) >= 200 ? "inf" : `${v.toFixed(0)}s`), 360, 200,
+  (v) => v >= 200 ? "≥200s" : v <= -200 ? "≤-200s" : `${v.toFixed(0)}s`,
+  360, 200,
   [
     { v: 10, color: "#d03b3b", label: "AZS trip 10 s" },
     { v: 60, color: "#fab219", label: "withdrawal block 60 s" },
@@ -128,6 +129,23 @@ const stripXe = new StripChart(
   360, undefined,
   [{ v: 1, color: "#898781", label: "full-power equilibrium" }],
 );
+
+// One recorder surface, four continuously sampled signals. The operator picks
+// the question they are asking instead of scanning four tiny simultaneous plots.
+for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-trend]")) {
+  btn.onclick = () => {
+    const active = btn.dataset.trend!;
+    for (const other of document.querySelectorAll<HTMLButtonElement>("[data-trend]")) {
+      const selected = other.dataset.trend === active;
+      other.classList.toggle("active", selected);
+      other.setAttribute("aria-pressed", String(selected));
+    }
+    for (const metric of ["power", "period", "rho", "xe"] as const) {
+      $<HTMLCanvasElement>(`st-${metric}`).hidden = metric !== active;
+    }
+    $("pw-scale").hidden = active !== "power";
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Event log feed

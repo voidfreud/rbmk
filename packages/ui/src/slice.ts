@@ -11,7 +11,7 @@ import {
 const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
 
 /** Layout constants (logical px). */
-const TOP = 26;
+const TOP = 34;
 const BOTTOM_PAD = 30;
 const SCALE_X = 30; // depth scale gutter
 const FLUX_W = 150; // flux/void plot width
@@ -85,9 +85,10 @@ export class Slice {
     const n = this.lastNodes[k];
     if (!n) return null;
     return (
-      `depth ${depth.toFixed(1)} m — flux ${n.flux.toFixed(2)}× · ` +
-      `void ${(n.voidFrac * 100).toFixed(0)}% · fuel ${Math.round(n.fuelTemp)}°C · ` +
-      `coolant ${n.coolantTemp.toFixed(1)}°C`
+      `depth ${depth.toFixed(1)} m from top — power ${n.flux.toFixed(2)}× · ` +
+      `steam void ${(n.voidFrac * 100).toFixed(0)}% · xenon ` +
+      `${(n.xenon / Math.max(1e-12, this.lastNodes.reduce((a, node) => a + node.xenon, 0) / N_AXIAL)).toFixed(2)}× core avg · ` +
+      `fuel ${Math.round(n.fuelTemp)}°C · coolant ${n.coolantTemp.toFixed(1)}°C`
     );
   }
 
@@ -103,9 +104,9 @@ export class Slice {
     g.font = "600 10px system-ui, sans-serif";
     g.textBaseline = "alphabetic";
     g.textAlign = "left";
-    g.fillText("FLUX + VOID", SCALE_X, TOP - 12);
-    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 12);
-    g.fillText("ROD BANKS (absorber / displacer / water)", SCALE_X + FLUX_W + TEMP_W + 16, TOP - 12);
+    g.fillText("CORE CONDITIONS (shape →)", SCALE_X, TOP - 17);
+    g.fillText("T", SCALE_X + FLUX_W + 4, TOP - 17);
+    g.fillText("ROD BANK INSERTION", SCALE_X + FLUX_W + TEMP_W + 16, TOP - 17);
 
     // Depth scale.
     g.textAlign = "right";
@@ -124,8 +125,8 @@ export class Slice {
     g.textAlign = "left";
     g.fillStyle = "#52514e";
     g.font = "9px system-ui, sans-serif";
-    g.fillText("top of core", SCALE_X + 2, TOP + 9);
-    g.fillText("bottom", SCALE_X + 2, TOP + coreH - 3);
+    g.fillText("TOP · coolant outlet ↑", SCALE_X + 2, TOP + 10);
+    g.fillText("BOTTOM · coolant inlet ↑", SCALE_X + 2, TOP + coreH - 3);
 
     // Flux profile as a filled area (x = flux, y = depth), normalized to its
     // own peak so the SHAPE reads at any power; the peak label carries the
@@ -241,7 +242,7 @@ export class Slice {
       g.fillText(group, x + BANK_W / 2, this.h - 18);
       g.font = "10px system-ui, sans-serif";
       g.fillStyle = "#898781";
-      g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m`, x + BANK_W / 2, this.h - 6);
+      g.fillText(`${(ins * CORE_HEIGHT).toFixed(1)}m in`, x + BANK_W / 2, this.h - 6);
       if (moving) {
         g.fillStyle = "#ffffff";
         g.fillText(dirIn ? "▼" : "▲", x + BANK_W / 2, TOP - 2);
