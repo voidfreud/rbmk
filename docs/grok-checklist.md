@@ -35,7 +35,7 @@ doc (or note "fixed on grok" under the finding).
   expansion in the tooltip (e.g. "AZS — emergency period protection; trips
   AZ-5 if period < 10 s"). Canvases already have some tooltips; the rest of
   the desk must match that standard.
-- [ ] **G2. Control panel first** — Reactor control fidelity over plant
+- [x] **G2. Control panel first** — Reactor control fidelity over plant
   water/turbine (deferred). Fix CPS, instruments, drives, and core feedback
   that the panel depends on before sim-plant work.
 - [ ] **G3. Honest instruments** — If a quantity is approximate or not yet
@@ -71,7 +71,7 @@ doc (or note "fixed on grok" under the finding).
 | [x] | P0.14 | `SIL_BLOK` clears UI selection (or stop claiming it does) | #20 |
 | [x] | P0.15 | Startup period <60 s: **continuously** stop withdrawals, not only at command time | #22 |
 | [x] | P0.16 | AZS period trip: remove or justify power >0.5% floor; docs match code | #25 |
-| [ ] | P0.17 | Rule 3.1.7: no positive reactivity insert unless AZ bank cocked | #29 |
+| [x] | P0.17 | Rule 3.1.7: no positive reactivity insert unless AZ bank cocked | #29 |
 | [x] | P0.18 | AR subgroup switches via `setAutoControl`; resync auto/manual lamp state | #7 |
 | [x] | P0.19 | `setArMode` re-seeds `arTarget` from owned bank (UI must not bare-write `arMode`) | #55 |
 
@@ -81,11 +81,11 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P1.1 | ORM: real equivalent-rod scale **or** honest labeling + threshold; floor can fire in accident-like configs | #24 |
-| [ ] | P1.2 | Channel field "temp" view shows temperature (or remove toggle) | #42 |
-| [ ] | P1.3 | Strip/instrument damping on **sim** time (or unsmoothed chart samples); period lamp vs meter agree | #16 |
-| [ ] | P1.4 | Reactimeter tests + pin steady/scram/shutdown readings | #45 |
-| [ ] | P1.5 | Correct documented RR-bank reactivity rate (~0.5–0.7 β/s or retune worth) | #30 |
+| [x] | P1.1 | ORM: real equivalent-rod scale **or** honest labeling + threshold; floor can fire in accident-like configs | #24 |
+| [x] | P1.2 | Channel field "temp" view shows temperature (or remove toggle) | #42 |
+| [x] | P1.3 | Strip/instrument damping on **sim** time (or unsmoothed chart samples); period lamp vs meter agree | #16 |
+| [x] | P1.4 | Reactimeter tests + pin steady/scram/shutdown readings | #45 |
+| [x] | P1.5 | Correct documented RR-bank reactivity rate (~0.5–0.7 β/s or retune worth) | #30 |
 
 ---
 
@@ -95,10 +95,10 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P1.6 | Coolant enthalpy from UA heat transfer (+ small direct fraction), not raw fission power | #14 |
-| [ ] | P1.7 | Superheat branch or document dryout quality cap | #13 |
-| [ ] | P1.8 | Kinetics substep under high ρ so dt=0.1 (10x/60x) does not pole/NaN | #17, #56 |
-| [ ] | P1.9 | USP drive speed uses USP stroke (~3.05–3.5 m), not 7 m core height | #15, #23 |
+| [x] | P1.6 | Coolant enthalpy from UA heat transfer (+ small direct fraction), not raw fission power | #14 |
+| [x] | P1.7 | Superheat branch or document dryout quality cap | #13 |
+| [x] | P1.8 | Kinetics substep under high ρ so dt=0.1 (10x/60x) does not pole/NaN | #17, #56 |
+| [x] | P1.9 | USP drive speed uses USP stroke (~3.05–3.5 m), not 7 m core height | #15, #23 |
 
 ---
 
@@ -106,9 +106,9 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P1.10 | Period warning threshold 15 s vs 20 s: pick and document | #27 |
+| [x] | P1.10 | Period warning threshold 15 s vs 20 s: pick and document | #27 |
 | [ ] | P1.11 | LAR band 10% vs 20%: reconcile physics.md + controls.md + code | #28 |
-| [ ] | P1.12 | ARM upper band enforced; gate band/dropout during `initializing` | #51 |
+| [x] | P1.12 | ARM upper band enforced; gate band/dropout during `initializing` | #51 |
 
 ---
 
@@ -120,12 +120,12 @@ doc (or note "fixed on grok" under the finding).
 | [ ] | P2.2 | Delete identity `GRP_SHORT` | #31 |
 | [ ] | P2.3 | Extract shared tooltip attach helper (3 canvas copies) | #32 |
 | [ ] | P2.4 | Share `hms()` in sim-core (demo + strips) | #33 |
-| [ ] | P2.5 | Remove or expose `lastRhoByNode` | #34 |
-| [ ] | P2.6 | Use or delete `assertNodeCount` | #35 |
+| [x] | P2.5 | Remove or expose `lastRhoByNode` | #34 |
+| [x] | P2.6 | Use or delete `assertNodeCount` | #35 |
 | [ ] | P2.7 | `rhoExtra`: real setter + calibrateCritical include, or delete | #36, #43 |
 | [ ] | P2.8 | RodSelector `"all"` / `"AR1"`–`"AR3"`: test + ROD_AUTO guard, or drop | #37, #46 |
 | [ ] | P2.9 | Share IPK/precursor helpers with kinetics.ts | #38 |
-| [ ] | P2.10 | `thermalPower` uses `DECAY_FRACTION_TOTAL` | #39 |
+| [x] | P2.10 | `thermalPower` uses `DECAY_FRACTION_TOTAL` | #39 |
 | [ ] | P2.11 | Shared xenon/void average helpers (UI + demo) | #40 |
 | [ ] | P2.12 | `PRESSURE` constant: document-only or wire to properties | #41 |
 
@@ -135,19 +135,19 @@ doc (or note "fixed on grok" under the finding).
 
 | Done | ID | Summary | Audit |
 |:----:|----|---------|------:|
-| [ ] | P2.13 | `resetScram` test (no autonomous AR walkout) | #44 |
-| [ ] | P2.14 | Reactimeter / IPK suite | #45 |
+| [x] | P2.13 | `resetScram` test (no autonomous AR walkout) | #44 |
+| [x] | P2.14 | Reactimeter / IPK suite | #45 |
 | [ ] | P2.15 | Group-selector ROD_AUTO + AR subgroup targets | #46 |
 | [ ] | P2.16 | `azSetback` endpoint + non-latching | #47 |
 | [ ] | P2.17 | AR automatic changeover sequence | #48 |
-| [ ] | P2.18 | `rodWorthBeta` purity (try/finally) + sign tests | #49 |
-| [ ] | P2.19 | `field.ts` / RadialField id===index contract | #50 |
+| [x] | P2.18 | `rodWorthBeta` purity (try/finally) + sign tests | #49 |
+| [x] | P2.19 | `field.ts` / RadialField id===index contract | #50 |
 | [ ] | P2.20 | ARM band + no band spam during init | #51 |
-| [ ] | P2.21 | Startup period-block continuous/command tests | #52 |
+| [x] | P2.21 | Startup period-block continuous/command tests | #52 |
 | [ ] | P2.22 | `buildRods` count contract | #53 |
 | [ ] | P2.23 | PRIZMA cadence + re-init re-arm | #54 |
-| [ ] | P2.24 | Operator `setArMode` re-seed | #55 |
-| [ ] | P2.25 | Fast-forward (maxStep=0.1) vs 0.01 excursion agreement | #56 |
+| [x] | P2.24 | Operator `setArMode` re-seed | #55 |
+| [x] | P2.25 | Fast-forward (maxStep=0.1) vs 0.01 excursion agreement | #56 |
 | [ ] | P2.26 | Analytic inhour / reactimeter step kinetics tests | #57 |
 
 ---
@@ -160,11 +160,11 @@ These are first-class on this branch, not backlog leftovers.
 |:----:|----|---------|
 | [x] | UX.1 | **Hover audit**: every control and indicator in `packages/ui/index.html` has a plain-language `title` (or live tooltip) stating name, function, units, and trip/band if any |
 | [x] | UX.2 | Expand CPS jargon on hover: AZ-5, AZ-1, AZS, AZM, AR/ARM/LAR, RR, USP, SIL, ORM, PRIZMA, VK/NK, selsyn, gradient, silovaya, ORM floor, period block |
-| [ ] | UX.3 | Annunciator lamps: hover = what fired, what it means, what to do (not just a short label) |
-| [ ] | UX.4 | Strip charts: axis units + threshold lines explained on hover (AZS 10 s, power 110%, etc.) |
+| [x] | UX.3 | Annunciator lamps: hover = what fired, what it means, what to do (not just a short label) |
+| [x] | UX.4 | Strip charts: axis units + threshold lines explained on hover (AZS 10 s, power 110%, etc.) |
 | [ ] | UX.5 | Checklist / guide steps use operator language consistent with tooltips (same terms, no private nicknames) |
 | [ ] | UX.6 | **Exploitability pass**: cold start → criticality → power raise → hold → AZ-1 → AZ-5 → reset is doable from the UI alone without reading source; document any remaining sim-only shortcuts |
-| [ ] | UX.7 | Disabled / refused actions always feedback (log + optional toast/lamp): SEL_LIMIT, SIL_BLOK, ROD_AUTO, PERIOD_BLOCK, scrammed drive — never silent no-ops |
+| [x] | UX.7 | Disabled / refused actions always feedback (log + optional toast/lamp): SEL_LIMIT, SIL_BLOK, ROD_AUTO, PERIOD_BLOCK, scrammed drive — never silent no-ops |
 | [ ] | UX.8 | Prefer real panel layout language (BShchU / SIUR desk) where we already researched it (`docs/research/controls.md` fidelity punch list T1–T3) |
 
 ---
@@ -187,6 +187,7 @@ These are first-class on this branch, not backlog leftovers.
 | Date | Note |
 |------|------|
 | 2026-07-18 | Branch `grok` created. Checklist written: all 57 audit items mapped + design goals G0/G1 (realistic exploitation, hover discoverability). |
+| 2026-07-18 | Second parallel wave: P0.17 + P1 physics/instruments + P2 tests (50 pass). |
 | 2026-07-18 | Parallel workflow doc; first multi-agent pass on grok lineage: P0.1–P0.15 (most), P0.18–P0.19, UX titles. `bun test` 29 pass. Topic branches: `grok-p0-core`, `grok-p0-ui`, `grok-ux-tooltips` merged into `grok`. |
 | | |
 
