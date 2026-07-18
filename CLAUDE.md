@@ -80,7 +80,11 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Private repo; pushing and merging to GitHub allowed without asking.
 - Commit AND push after every completed change/iteration (owner request) -
   small checkpoints, not batched mega-commits.
-- Parallel work: use git worktrees when tasks are independent.
+- Parallel work: **grok lineage + isolated worktrees** (see
+  `docs/parallel-workflow.md`). Integration branch is **`grok`**; agents
+  use short-lived **`grok/<task>`** branches forked from `grok`; **never
+  merge agent work to `main`** until an explicit promote. Phrase to
+  request: “parallel on the grok lineage; protect main.”
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.

@@ -58,6 +58,13 @@ export class StripChart {
     }
   }
 
+  /** Clear the trace (e.g. after re-init rewinds sim time to 0). */
+  reset(): void {
+    this.ts.length = 0;
+    this.vs.length = 0;
+    this.hoverX = null;
+  }
+
   draw(): void {
     const g = this.ctx;
     g.clearRect(0, 0, this.w, this.h);
