@@ -797,11 +797,18 @@ function frame(now: number): void {
     // happens every frame so the detector shimmer stays smooth).
     channelMap.update(reactor.state.nodes);
     const field = channelMap.summary();
-    const sign = field.highOffsetPct >= 0 ? "+" : "";
-    $("field-balance").textContent =
-      `Hottest channel ${field.hottest.toFixed(2)}× average · ` +
-      `${field.highQuadrant} quadrant highest (${sign}${field.highOffsetPct.toFixed(0)}%) · ` +
-      `quadrant spread ${field.spreadPct.toFixed(0)}%`;
+    $("field-hot").textContent = `${field.hottest.toFixed(2)}× average`;
+    $<HTMLElement>("field-scale").style.setProperty(
+      "--average-pos",
+      `${Math.min(100, 100 / field.hottest).toFixed(1)}%`,
+    );
+    $("field-side").textContent =
+      `${field.highQuadrant} · +${Math.max(0, field.highOffsetPct).toFixed(0)}%`;
+    $("field-spread").textContent = field.spreadPct < 5
+      ? `${field.spreadPct.toFixed(0)}% · even`
+      : field.spreadPct < 10
+        ? `${field.spreadPct.toFixed(0)}% · watch`
+        : `${field.spreadPct.toFixed(0)}% · tilted`;
   }
 
   // Panels.

@@ -78,8 +78,42 @@
   .profile-key .power i { border-color: #d95926; }
   .profile-key .steam i { border-color: #9ec5f4; border-top-style: dashed; }
   .profile-key .xenon i { border-color: #fab219; border-top-style: dotted; }
-  .field-scale { height: 8px; width: 140px; border-radius: 3px; background: linear-gradient(90deg, rgba(217,89,38,.08), rgba(217,89,38,.5), #f0713d); }
-  .field-balance { color: var(--ink-2); font-size: 11px; padding-top: 2px; }
+  .map-key, .field-key {
+    border: 1px solid var(--hairline); border-radius: 5px;
+    background: rgba(255,255,255,.018); padding: 9px;
+  }
+  .map-key { display: grid; grid-template-columns: 1.05fr 1.6fr; gap: 12px; }
+  .key-title { color: var(--ink-2); font-size: 10px; font-weight: 700; letter-spacing: .55px; text-transform: uppercase; }
+  .key-copy { color: var(--muted); font-size: 9px; line-height: 1.35; }
+  .depth-examples { display: flex; align-items: flex-end; gap: 9px; margin: 7px 0 5px; }
+  .depth-example { display: grid; justify-items: center; gap: 3px; color: var(--muted); font-size: 9px; }
+  .depth-cell { width: 24px; height: 31px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.35); border-radius: 3px; background: #0d0d0d; }
+  .depth-cell i { position: absolute; inset: 0 1px auto; height: var(--level); background: #5598e7; }
+  .depth-arrow { color: #5598e7; font-size: 18px; line-height: 31px; }
+  .role-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 5px; margin-top: 7px; }
+  .role-chip { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.15; }
+  .role-chip i, .channel-sample { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 3px; background: #0d0d0d; font-style: normal; font-size: 9px; font-weight: 700; }
+  .role-chip b { display: block; color: var(--ink-2); font-size: 9px; }
+  .role-chip.rr i { border: 1px solid rgba(255,255,255,.35); color: var(--ink-2); }
+  .role-chip.ar i { border: 1.5px solid #199e70; color: #199e70; }
+  .role-chip.lar i { border: 1.5px solid #9085e9; color: #9085e9; }
+  .role-chip.az i { border: 1.5px solid #d55181; color: #d55181; }
+  .role-chip.usp i { border: 1.5px solid #c98500; color: #c98500; }
+  .role-chip.selected i { border: 2px solid #fff; color: #fff; }
+  .field-key { display: grid; gap: 9px; }
+  .field-scale { height: 12px; width: 100%; border-radius: 3px; position: relative; background: linear-gradient(90deg, #20110d 0%, #71301f 48%, #d95926 72%, #f0713d 100%); }
+  .field-scale::after { content: ""; position: absolute; left: var(--average-pos, 50%); top: -3px; bottom: -3px; width: 1px; background: #fff; opacity: .75; }
+  .scale-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; color: var(--muted); font-size: 9px; margin-top: 3px; }
+  .scale-labels span:nth-child(2) { text-align: center; color: var(--ink-2); }
+  .scale-labels span:last-child { text-align: right; }
+  .channel-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .channel-key { display: flex; gap: 7px; align-items: center; color: var(--muted); font-size: 9px; line-height: 1.25; }
+  .channel-key b { display: block; color: var(--ink-2); font-size: 10px; }
+  .channel-sample.fuel { background: #d95926; }
+  .channel-sample.cps { border: 1.5px solid #9ec5f4; }
+  .field-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .field-stat { border-left: 2px solid #d95926; padding-left: 7px; color: var(--muted); font-size: 9px; line-height: 1.25; }
+  .field-stat b { display: block; color: var(--ink); font-size: 13px; font-weight: 600; }
   .slice-guide {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px 12px; font-size: 10px; color: var(--muted);
@@ -248,25 +282,53 @@
     <section class="panel" id="col-map">
       <h2 title="Real-style CPS selection field: each square is one rod-selection button. Click individual rods to add or remove them from the active selection.">Core map — rod positions and individual selection</h2>
       <canvas id="cartogram" width="640" height="640" title="Control-rod mimic field. Click individual rod buttons to select or deselect them; use Clear selection on the SIUR desk."></canvas>
-      <div class="legend" id="map-legend">
-        <span title="Selsyn-style depth: filled portion = absorber insertion from the top (0 = fully out, full = fully in)."><span class="sw" style="background:#5598e7"></span>fill level = absorber depth in the 7 m channel</span>
-        <span title="AR — Automatic Regulator rods (12 total, 3 subgroups of 4). Main-range PI control."><span class="sw" style="border:1.5px solid #199e70; background:none"></span>AR</span>
-        <span title="LAR — Local Automatic Regulator rods (12 zones). Follow in-core chambers; blind below ~10%."><span class="sw" style="border:1.5px solid #9085e9; background:none"></span>LAR</span>
-        <span title="AZ — emergency protection rods (24). Driven by AZ-5 full scram and AZ-1 setback."><span class="sw" style="border:1.5px solid #d55181; background:none"></span>AZ</span>
-        <span title="USP — shortened absorber rods (32). Enter from BELOW; pre-1986 NOT driven by AZ-5."><span class="sw" style="border:1.5px solid #c98500; background:none"></span>USP (fills from below)</span>
-        <span style="color:#fff" title="White outline: rods currently selected for drive commands.">□ selected</span>
+      <div class="map-key" id="map-legend">
+        <div>
+          <div class="key-title">Blue height = insertion depth</div>
+          <div class="depth-examples" aria-label="Rod insertion examples">
+            <span class="depth-example"><span class="depth-cell" style="--level:0%"><i></i></span>0 m · out</span>
+            <span class="depth-arrow">↓</span>
+            <span class="depth-example"><span class="depth-cell" style="--level:50%"><i></i></span>3.5 m</span>
+            <span class="depth-arrow">↓</span>
+            <span class="depth-example"><span class="depth-cell" style="--level:100%"><i></i></span>7 m · in</span>
+          </div>
+          <div class="key-copy">Standard rods fill downward from the top. USP is the exception: its short absorber fills upward from below.</div>
+        </div>
+        <div>
+          <div class="key-title">Outline + letter = rod function</div>
+          <div class="role-grid">
+            <span class="role-chip rr"><i>R</i><span><b>RR</b>manual control</span></span>
+            <span class="role-chip ar"><i>A</i><span><b>AR</b>automatic</span></span>
+            <span class="role-chip lar"><i>L</i><span><b>LAR</b>local auto</span></span>
+            <span class="role-chip az"><i>Z</i><span><b>AZ</b>emergency</span></span>
+            <span class="role-chip usp"><i>S</i><span><b>USP</b>short · bottom</span></span>
+            <span class="role-chip selected"><i>✓</i><span><b>Selected</b>white outline</span></span>
+          </div>
+          <div class="key-copy" style="margin-top:7px">Click a cell to select that individual rod. The blue amount is position; the border color is type.</div>
+        </div>
       </div>
     </section>
 
     <section class="panel" id="col-field">
       <h2 title="Estimated radial power distribution reconstructed from rod positions and the axial flux field.">Radial power field</h2>
-      <p class="panel-help">Each small square is a fuel channel. Brighter orange means more power in that channel; dark outlined squares are control-rod channels.</p>
+      <p class="panel-help">A top-down heat map of where fission power is being produced. Compare colors across the core; hover any fuel channel for its MW value.</p>
       <canvas id="channelmap" width="440" height="440" title="Radial channel-power map. Hover a fuel channel for its estimated MW and relation to the core average."></canvas>
-      <div class="legend">
-        <span><span class="field-scale"></span>low → average → highest channel</span>
-        <span title="Control and Protection System channel; the blue outline gets brighter as its rod is inserted."><span class="sw" style="border:1px solid #9ec5f4"></span>control-rod channel</span>
+      <div class="field-key">
+        <div>
+          <div class="key-title">Orange brightness = power in that fuel channel</div>
+          <div class="field-scale" id="field-scale"></div>
+          <div class="scale-labels"><span>low power</span><span>core average</span><span>highest channel</span></div>
+        </div>
+        <div class="channel-keys">
+          <div class="channel-key"><span class="channel-sample fuel"></span><span><b>Fuel channel</b>orange is its relative power</span></div>
+          <div class="channel-key"><span class="channel-sample cps"></span><span><b>Control-rod channel</b>dark square; not a power reading</span></div>
+        </div>
       </div>
-      <div class="field-balance num" id="field-balance">Field balance —</div>
+      <div class="field-stats num">
+        <div class="field-stat"><span>hottest fuel channel</span><b id="field-hot">—</b></div>
+        <div class="field-stat"><span>highest-power side</span><b id="field-side">—</b></div>
+        <div class="field-stat"><span>quadrant balance</span><b id="field-spread">—</b></div>
+      </div>
     </section>
 
     <section class="panel" id="col-slice">
