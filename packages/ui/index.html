@@ -181,8 +181,8 @@
     <div class="tile" title="Net reactivity in dollars ($). 1 $ = β_eff = 0.005. Positive = supercritical (power rising); 0 = critical.">
       <div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub num" id="i-rho-pct">—</div>
     </div>
-    <div class="tile" title="ORM — Operating Reactivity Margin [equivalent rods], from the PRIZMA/SKALA computer. Pre-1986: printout every ~5 min, not a live gauge. Administrative floor 15 rods (no automatic trip).">
-      <div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">printout pending</div>
+    <div class="tile" title="PRIZMA margin printout — currently a crude rod-insertion sum (Σ insertion over all CPS rods), NOT true equivalent-rod ORM. Real plant ORM was worth-normalized (~26–30 rods at full power). Pre-1986: printout every ~5 min, not a live gauge. Advisory floor uses the same crude scale (not yet recalibrated).">
+      <div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">insertion sum · pending</div>
     </div>
     <div class="tile" title="Xe-135 neutron poison relative to full-power equilibrium (1.0 = equilibrium at 100%). Builds after power drops; deep xenon pit can block restart for hours.">
       <div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div>
@@ -210,14 +210,14 @@
     </section>
 
     <section class="panel" id="col-field">
-      <h2 title="Radial power/temperature field reconstructed from channel instrumentation (PRIZMA-style).">Channel field
-        <button id="view-power" class="active" style="margin-left:8px" title="Color channels by relative thermal power.">power</button>
-        <button id="view-temp" title="Color channels by fuel temperature.">temp</button>
+      <h2 title="Radial power / fuel-temp-estimate field reconstructed from channel instrumentation (PRIZMA-style).">Channel field
+        <button id="view-power" class="active" style="margin-left:8px" title="Color channels by relative thermal power (shape normalized to max channel).">power</button>
+        <button id="view-temp" title="Color channels by estimated fuel temperature: core-average axial fuel/coolant temps scaled by relative channel power. Fixed 270–800°C scale.">temp</button>
       </h2>
-      <canvas id="channelmap" width="440" height="440" title="Channel field map. Hover a cell for power, temperature, and CPS status."></canvas>
+      <canvas id="channelmap" width="440" height="440" title="Channel field map. Hover a cell for power or fuel-temp estimate and relative field."></canvas>
       <div class="legend">
         <span title="Relative channel power (hot = high)."><span class="sw" style="background:#d95926"></span>channel power</span>
-        <span title="Fuel temperature scale when temp view is selected."><span class="sw" style="background:#c98500"></span>fuel temp</span>
+        <span title="Fuel temperature estimate [°C]: T_cool_avg + (T_fuel_avg − T_cool_avg)×rel, colored on a fixed 270–800°C scale (scram cools the map)."><span class="sw" style="background:#c98500"></span>fuel temp est. 270–800°C</span>
         <span title="Control &amp; Protection System (CPS) channel outline; brighter fill means more rod insertion."><span class="sw" style="border:1px solid #9ec5f4"></span>CPS channel (bright = inserted)</span>
       </div>
       <div class="row" style="margin-top:2px">
@@ -363,14 +363,14 @@
         <button id="scram-reset" title="Reset the AZ-5 scram latch. Rods stay where they stopped; re-enables automatic regulation. Then re-cock AZ and restart carefully (xenon!).">reset scram</button>
       </div>
       <div id="annunciators">
-        <div class="lamp" id="an-scram" title="AZ-5 scram latched: full emergency insertion of RR/AR/LAR/AZ (USP excluded pre-1986). Clear with reset scram after rods settle."><i></i>AZ-5 scram</div>
-        <div class="lamp" id="an-period" title="Period warning: reactor period is below 60 s (startup withdrawal should stop; AZS trips at 10 s)."><i></i>period &lt;60 s</div>
-        <div class="lamp" id="an-azm" title="AZM armed — overpower protection is enabled (trip if power &gt; 110%). Dark/off = operator-blocked."><i></i>AZM armed</div>
-        <div class="lamp" id="an-azs" title="AZS armed — period protection is enabled (trip if period &lt; 10 s). Dark/off = operator-blocked."><i></i>AZS armed</div>
-        <div class="lamp" id="an-silblok" title="Silovaya blokirovka (power interlock / SIL): ≥8 RR/USP/AR/LAR rods withdrawing at once — all halted and selection cleared."><i></i>power interlock</div>
-        <div class="lamp" id="an-chg" title="AR automatic changeover: active AR subgroup saturated or lost authority; standby subgroup taking over."><i></i>AR changeover</div>
-        <div class="lamp" id="an-lar" title="LAR dropout: local automatic regulator lost authority (often blind below ~10% or zone imbalance)."><i></i>LAR dropout</div>
-        <div class="lamp" id="an-orm" title="ORM low: last PRIZMA printout shows Operating Reactivity Margin below the administrative floor of 15 equivalent rods. No automatic trip pre-1986."><i></i>ORM low</div>
+        <div class="lamp" id="an-scram" title="LIT: AZ-5 latched — RR/AR/LAR/AZ driving in (USP hold pre-1986). ACTION: wait for rods to settle → press reset scram → re-cock AZ bank before any withdrawal."><i></i>AZ-5 scram</div>
+        <div class="lamp" id="an-period" title="LIT: reactor period &lt; 60 s (startup caution). ACTION: stop withdrawing rods; wait for period to lengthen. AZS will trip AZ-5 if period falls below 10 s."><i></i>period &lt;60 s</div>
+        <div class="lamp" id="an-azm" title="GREEN: AZM armed (overpower trip at &gt;110%). AMBER 'BLOCKED': operator disabled AZM. ACTION when blocked: re-arm AZM unless you intentionally blocked it for a controlled test."><i></i>AZM armed</div>
+        <div class="lamp" id="an-azs" title="GREEN: AZS armed (period trip at &lt;10 s). AMBER 'BLOCKED': operator disabled AZS. ACTION when blocked: re-arm AZS; do not leave period protection off at power."><i></i>AZS armed</div>
+        <div class="lamp" id="an-silblok" title="LIT: silovaya (power interlock) — ≥8 non-AZ rods were withdrawing; all halted and selection cleared. ACTION: select ≤4 rods for withdrawal (panel limit ≥5 refused); use 'next RR squad'."><i></i>power interlock</div>
+        <div class="lamp" id="an-chg" title="LIT: AR automatic changeover — active subgroup saturated/lost authority; standby taking over. ACTION: watch imbalance and bank depth; check subgroup auto switches if changeovers repeat."><i></i>AR changeover</div>
+        <div class="lamp" id="an-lar" title="LIT: LAR dropout — local regulator lost authority (often blind below ~10% or zone fault). ACTION: switch to AR/ARM or take manual control; raise power above the LAR band before re-engaging LAR."><i></i>LAR dropout</div>
+        <div class="lamp" id="an-orm" title="LIT (advisory): last PRIZMA printout insertion-sum is below 15 (crude metric, NOT true equivalent-rod ORM). No automatic trip pre-1986. ACTION: insert rods / lower power to recover margin; treat as advisory until sim-core uses real ORM."><i></i>ORM low (approx)</div>
       </div>
       <div id="az5-wrap">
         <button id="az5" disabled title="AZ-5 — full emergency scram button. Inserts RR/AR/LAR/AZ banks; pre-1986 USP shortened rods are NOT driven. Requires lifting the safety cover first.">AZ-5</button>
@@ -380,14 +380,14 @@
   </section>
 
   <footer>
-    <section class="panel"><h2 title="Strip chart: reactor power [% of rated] vs time. AZM trip line conceptually at 110%.">Power %
+    <section class="panel"><h2 title="Strip chart: reactor power [% of rated] vs sim time. Dashed ref: AZM trip 110%.">Power % · AZM 110%
       <button id="pw-auto" class="active" style="margin-left:6px" title="Auto vertical scale: chart rescales to recent power range.">auto</button>
       <button id="pw-lin" title="Linear vertical scale for power %.">lin</button>
       <button id="pw-log" title="Log scale: exponential power rise draws a straight line; slope relates to reactor period.">log</button>
-    </h2><canvas class="strip" id="st-power" title="Power history [% rated]. Hover for value at time."></canvas></section>
-    <section class="panel"><h2 title="Strip chart: reactor period [s]. Startup caution &lt;60 s; AZS trip &lt;10 s.">Period s</h2><canvas class="strip" id="st-period" title="Period history [s]. Short positive period = fast rising power."></canvas></section>
-    <section class="panel"><h2 title="Strip chart: net reactivity in units of β_eff (1 $ = 0.005).">Reactivity β</h2><canvas class="strip" id="st-rho" title="Reactivity history [β]. Positive = supercritical."></canvas></section>
-    <section class="panel"><h2 title="Strip chart: Xe-135 inventory relative to full-power equilibrium.">Xenon ×eq</h2><canvas class="strip" id="st-xe" title="Xenon history [× equilibrium]. Rises after power drops (iodine pit)."></canvas></section>
+    </h2><canvas class="strip" id="st-power" title="Power history [% rated]. Ref line: AZM trip at 110%. Hover for value at time."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: reactor period [s]. Ref lines: withdrawal block 60 s; AZS trip 10 s.">Period s · block 60 · AZS 10</h2><canvas class="strip" id="st-period" title="Period history [s]. Short positive period = fast rising power. Refs: 60 s block, 10 s AZS."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: net reactivity in units of β_eff (1 $ = 0.005). Ref: prompt critical +1β.">Reactivity β · +1β prompt</h2><canvas class="strip" id="st-rho" title="Reactivity history [β]. Positive = supercritical. Ref line: prompt critical +1β."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: Xe-135 inventory relative to full-power equilibrium. Ref: 1.0× equil.">Xenon ×eq · 1.0 equil</h2><canvas class="strip" id="st-xe" title="Xenon history [× equilibrium]. Ref: 1.0 = full-power equilibrium. Rises after power drops (iodine pit)."></canvas></section>
     <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, and protection trips.">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info."></ul></section>
   </footer>
 
