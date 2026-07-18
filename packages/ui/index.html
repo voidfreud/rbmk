@@ -167,56 +167,70 @@
 </head>
 <body>
   <header id="instruments">
-    <div class="tile brand">
+    <div class="tile brand" title="RBMK-1000 Unit 4 control-room instruments. Simulation time and plant state.">
       <div class="value">RBMK-1000 · UNIT 4</div>
       <div class="sub num" id="i-time">t = 00:00:00</div>
       <div class="sub" id="i-state" style="color:var(--warning)">—</div>
     </div>
-    <div class="tile"><div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div></div>
-    <div class="tile"><div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub num" id="i-doubling">—</div></div>
-    <div class="tile"><div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub num" id="i-rho-pct">—</div></div>
-    <div class="tile"><div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">printout pending</div></div>
-    <div class="tile"><div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div></div>
-    <div class="tile"><div class="label">Void</div><div class="value num" id="i-void">—</div><div class="sub">core average</div></div>
-    <div class="tile"><div class="label">Flow</div><div class="value num" id="i-flow">—</div><div class="sub">of rated</div></div>
+    <div class="tile" title="Reactor thermal power as % of rated (3200 MWt). AZM overpower protection trips AZ-5 above 110%.">
+      <div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div>
+    </div>
+    <div class="tile" title="Reactor period [s]: time for power to grow by a factor of e. Startup rule: stop withdrawing if period &lt; 60 s. AZS trips AZ-5 if period &lt; 10 s.">
+      <div class="label">Period</div><div class="value num" id="i-period">—</div><div class="sub num" id="i-doubling">—</div>
+    </div>
+    <div class="tile" title="Net reactivity in dollars ($). 1 $ = β_eff = 0.005. Positive = supercritical (power rising); 0 = critical.">
+      <div class="label">Reactivity</div><div class="value num" id="i-rho">—</div><div class="sub num" id="i-rho-pct">—</div>
+    </div>
+    <div class="tile" title="ORM — Operating Reactivity Margin [equivalent rods], from the PRIZMA/SKALA computer. Pre-1986: printout every ~5 min, not a live gauge. Administrative floor 15 rods (no automatic trip).">
+      <div class="label">ORM · PRIZMA</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">printout pending</div>
+    </div>
+    <div class="tile" title="Xe-135 neutron poison relative to full-power equilibrium (1.0 = equilibrium at 100%). Builds after power drops; deep xenon pit can block restart for hours.">
+      <div class="label">Xenon</div><div class="value num" id="i-xe">—</div><div class="sub">× full-power equil.</div>
+    </div>
+    <div class="tile" title="Core-average steam void fraction (0–1). RBMK has a positive void coefficient: more boiling adds reactivity.">
+      <div class="label">Void</div><div class="value num" id="i-void">—</div><div class="sub">core average</div>
+    </div>
+    <div class="tile" title="Main coolant pump flow as % of rated mass flow. Lower flow → more boiling → higher void.">
+      <div class="label">Flow</div><div class="value num" id="i-flow">—</div><div class="sub">of rated</div>
+    </div>
   </header>
 
   <main>
     <section class="panel" id="col-map">
-      <h2>Core map — rod depths (click to select, drag to multi-select)</h2>
-      <canvas id="cartogram" width="640" height="640"></canvas>
+      <h2 title="CPS rod map: click a channel to select, drag a box to multi-select. Fill = absorber insertion depth in the 7 m channel.">Core map — rod depths (click to select, drag to multi-select)</h2>
+      <canvas id="cartogram" width="640" height="640" title="Core cartogram of control rods. Hover a cell for coordinate, group, and depth. Click/drag to select for the rod drive."></canvas>
       <div class="legend" id="map-legend">
-        <span><span class="sw" style="background:#5598e7"></span>fill level = absorber depth in the 7 m channel</span>
-        <span><span class="sw" style="border:1.5px solid #199e70; background:none"></span>AR</span>
-        <span><span class="sw" style="border:1.5px solid #9085e9; background:none"></span>LAR</span>
-        <span><span class="sw" style="border:1.5px solid #d55181; background:none"></span>AZ</span>
-        <span><span class="sw" style="border:1.5px solid #c98500; background:none"></span>USP (fills from below)</span>
-        <span style="color:#fff">□ selected</span>
+        <span title="Selsyn-style depth: filled portion = absorber insertion from the top (0 = fully out, full = fully in)."><span class="sw" style="background:#5598e7"></span>fill level = absorber depth in the 7 m channel</span>
+        <span title="AR — Automatic Regulator rods (12 total, 3 subgroups of 4). Main-range PI control."><span class="sw" style="border:1.5px solid #199e70; background:none"></span>AR</span>
+        <span title="LAR — Local Automatic Regulator rods (12 zones). Follow in-core chambers; blind below ~10%."><span class="sw" style="border:1.5px solid #9085e9; background:none"></span>LAR</span>
+        <span title="AZ — emergency protection rods (24). Driven by AZ-5 full scram and AZ-1 setback."><span class="sw" style="border:1.5px solid #d55181; background:none"></span>AZ</span>
+        <span title="USP — shortened absorber rods (32). Enter from BELOW; pre-1986 NOT driven by AZ-5."><span class="sw" style="border:1.5px solid #c98500; background:none"></span>USP (fills from below)</span>
+        <span style="color:#fff" title="White outline: rods currently selected for drive commands.">□ selected</span>
       </div>
     </section>
 
     <section class="panel" id="col-field">
-      <h2>Channel field
-        <button id="view-power" class="active" style="margin-left:8px">power</button>
-        <button id="view-temp">temp</button>
+      <h2 title="Radial power/temperature field reconstructed from channel instrumentation (PRIZMA-style).">Channel field
+        <button id="view-power" class="active" style="margin-left:8px" title="Color channels by relative thermal power.">power</button>
+        <button id="view-temp" title="Color channels by fuel temperature.">temp</button>
       </h2>
-      <canvas id="channelmap" width="440" height="440"></canvas>
+      <canvas id="channelmap" width="440" height="440" title="Channel field map. Hover a cell for power, temperature, and CPS status."></canvas>
       <div class="legend">
-        <span><span class="sw" style="background:#d95926"></span>channel power</span>
-        <span><span class="sw" style="background:#c98500"></span>fuel temp</span>
-        <span><span class="sw" style="border:1px solid #9ec5f4"></span>CPS channel (bright = inserted)</span>
+        <span title="Relative channel power (hot = high)."><span class="sw" style="background:#d95926"></span>channel power</span>
+        <span title="Fuel temperature scale when temp view is selected."><span class="sw" style="background:#c98500"></span>fuel temp</span>
+        <span title="Control &amp; Protection System (CPS) channel outline; brighter fill means more rod insertion."><span class="sw" style="border:1px solid #9ec5f4"></span>CPS channel (bright = inserted)</span>
       </div>
       <div class="row" style="margin-top:2px">
-        <span class="mini num" title="field symmetry: mean relative power per quadrant (1.00 = balanced)"><b id="q-nw">—</b>NW</span>
-        <span class="mini num"><b id="q-ne">—</b>NE</span>
-        <span class="mini num"><b id="q-sw">—</b>SW</span>
-        <span class="mini num"><b id="q-se">—</b>SE</span>
+        <span class="mini num" title="Field symmetry: mean relative power in the NW quadrant (1.00 = balanced)."><b id="q-nw">—</b>NW</span>
+        <span class="mini num" title="Field symmetry: mean relative power in the NE quadrant (1.00 = balanced)."><b id="q-ne">—</b>NE</span>
+        <span class="mini num" title="Field symmetry: mean relative power in the SW quadrant (1.00 = balanced)."><b id="q-sw">—</b>SW</span>
+        <span class="mini num" title="Field symmetry: mean relative power in the SE quadrant (1.00 = balanced)."><b id="q-se">—</b>SE</span>
       </div>
     </section>
 
     <section class="panel" id="col-slice">
-      <h2>Axial cutaway — core profile by depth (hover for values)</h2>
-      <canvas id="slice" width="440" height="560"></canvas>
+      <h2 title="Axial (vertical) core cutaway: flux, void, coolant temperature, xenon, and rod absorber/displacer by depth. Node 0 = top.">Axial cutaway — core profile by depth (hover for values)</h2>
+      <canvas id="slice" width="440" height="560" title="Axial profiles vs core height. Hover for numerical values at depth."></canvas>
       <div class="legend">
         <span><span class="sw" style="background:#d95926"></span>flux profile</span>
         <span><span class="sw" style="background:#9ec5f4"></span>void fraction (dashed)</span>
@@ -232,149 +246,149 @@
 
   <section id="desk">
     <div class="panel" id="desk-plant">
-      <h2>1 · Plant</h2>
+      <h2 title="Plant session: initial conditions, sim time scale, coolant flow, thermal readouts.">1 · Plant</h2>
       <div class="row">
-        <button id="init-power" title="initialize steady at 100% rated">start at power</button>
-        <button id="init-shutdown" title="all rods in, fresh core, source-level flux">cold start</button>
+        <button id="init-power" title="Initialize a steady run at ~100% rated power with rods trimmed and xenon near equilibrium. Resets simulation time.">start at power</button>
+        <button id="init-shutdown" title="Cold start: all rods fully inserted, fresh core (no xenon), source-level flux. Bring the reactor critical by withdrawing rods.">cold start</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">time</span>
-        <button data-speed="0">pause</button>
-        <button data-speed="1" class="active">1×</button>
-        <button data-speed="10">10×</button>
-        <button data-speed="60">60×</button>
+        <span style="color:var(--muted)" title="Simulation time acceleration (does not change real plant physics rates, only how fast wall-clock advances sim time).">time</span>
+        <button data-speed="0" title="Pause the simulation. State freezes until you resume.">pause</button>
+        <button data-speed="1" class="active" title="Real-time: 1 second of sim per 1 second wall-clock.">1×</button>
+        <button data-speed="10" title="Fast-forward ×10. Useful for xenon and long holds.">10×</button>
+        <button data-speed="60" title="Fast-forward ×60. For multi-hour xenon evolution; keep an eye on alarms.">60×</button>
       </div>
-      <details id="guide">
+      <details id="guide" title="Suggested cold-start checklist in SIUR language. Steps light as you complete them.">
         <summary>startup procedure</summary>
         <ol id="checklist">
-          <li id="ck-1">cold start — core subcritical, watch the ИСС counts</li>
-          <li id="ck-2">select AZ bank, hold ▲▲ until fully out</li>
-          <li id="ck-3">pull RR rods in squads of ≤5, pausing between squads</li>
-          <li id="ck-4">period alive (&lt;150 s): stop pulling, let power rise</li>
-          <li id="ck-5">engage ARM (setpoint &gt; 0) below 6%</li>
-          <li id="ck-6">hand to AR above 5%, LAR above 10%; power at setpoint</li>
+          <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range instrumentation (ИСС counts).">cold start — core subcritical, watch the ИСС counts</li>
+          <li id="ck-2" title="AZ — emergency protection bank must be cocked (fully withdrawn) before positive reactivity insertion.">select AZ bank, hold ▲▲ until fully out</li>
+          <li id="ck-3" title="RR — manual regulation rods. Withdraw in squads of ≤4–5; ≥5 selected blocks withdrawal; ≥8 withdrawing trips silovaya (power interlock).">pull RR rods in squads of ≤5, pausing between squads</li>
+          <li id="ck-4" title="When period becomes finite and short (&lt;150 s), stop withdrawing and let power rise on residual reactivity.">period alive (&lt;150 s): stop pulling, let power rise</li>
+          <li id="ck-5" title="ARM — low-power automatic regulator (0.25–6% band). Engage with a non-zero setpoint before leaving the startup range.">engage ARM (setpoint &gt; 0) below 6%</li>
+          <li id="ck-6" title="Hand off to AR (5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">hand to AR above 5%, LAR above 10%; power at setpoint</li>
         </ol>
-        <p style="margin-top:6px"><b style="color:var(--ink-2)">after a scram:</b> reset scram,
+        <p style="margin-top:6px" title="After AZ-5: reset the scram latch, then re-cock rods. ORM printouts are your only pre-1986 margin gauge during the xenon pit."><b style="color:var(--ink-2)">after a scram:</b> reset scram,
         then restart as above — but mind the xenon: for hours after a
         power run the pit deepens, and ORM printouts are your only margin
         gauge. Sometimes the honest move is to wait it out.</p>
       </details>
       <div class="row">
-        <span style="color:var(--muted)">pumps · flow</span>
-        <input type="range" id="flow" min="30" max="120" value="100" step="1" />
-        <span class="readout num" id="flow-val">100%</span>
+        <span style="color:var(--muted)" title="Main circulation pump flow demand as % of rated. Range 30–120%.">pumps · flow</span>
+        <input type="range" id="flow" min="30" max="120" value="100" step="1" title="Coolant mass-flow fraction [% of rated]. Lower flow increases boiling and void (positive reactivity on this plant)." />
+        <span class="readout num" id="flow-val" title="Commanded flow as percent of rated mass flow.">100%</span>
       </div>
       <div class="divider"></div>
       <div class="row">
-        <span class="mini num"><b id="p-tf">—</b>fuel max</span>
-        <span class="mini num"><b id="p-tg">—</b>graphite avg</span>
-        <span class="mini num"><b id="p-x">—</b>exit quality</span>
-        <span class="mini num"><b id="p-dh">—</b>decay heat</span>
+        <span class="mini num" title="Hottest fuel temperature in the core [°C]."><b id="p-tf">—</b>fuel max</span>
+        <span class="mini num" title="Average graphite moderator temperature [°C]. Graphite feedback is slow (hours)."><b id="p-tg">—</b>graphite avg</span>
+        <span class="mini num" title="Core-exit steam quality (mass fraction vapor). Higher quality → more void."><b id="p-x">—</b>exit quality</span>
+        <span class="mini num" title="Decay heat power from fission products [fraction of rated]. Remains after scram."><b id="p-dh">—</b>decay heat</span>
       </div>
     </div>
 
     <div class="panel" id="desk-rods">
-      <h2>2 · Rod selection &amp; drive</h2>
+      <h2 title="Select CPS rods, then drive them with hold keys or 35 cm pulses. Selsyn rows show per-rod depth and VK/NK limits.">2 · Rod selection &amp; drive</h2>
       <div class="row">
-        <button id="sel-manual">RR manual</button>
-        <button id="sel-auto">AR</button>
-        <button id="sel-lar">LAR</button>
-        <button id="sel-emergency">AZ</button>
-        <button id="sel-shortened">USP</button>
-        <button id="sel-none">clear</button>
-        <button id="sel-squad" title="select the next 4 RR rods in the planned spread-out withdrawal sequence">next RR squad</button>
-        <button id="sel-filter" title="map clicks and drag-boxes select only RR rods">RR-only select</button>
+        <button id="sel-manual" title="RR — Manual regulation rods (~131). Primary bank for power shaping and startup withdrawal.">RR manual</button>
+        <button id="sel-auto" title="AR — Automatic Regulator rods (12). Selected for override/return; normally driven by the AR PI controller.">AR</button>
+        <button id="sel-lar" title="LAR — Local Automatic Regulator rods (12 zones). In-core zone control; inoperable (blind) below ~10% power.">LAR</button>
+        <button id="sel-emergency" title="AZ — emergency protection rods (24). Cock fully out before startup; driven in by AZ-5 and AZ-1.">AZ</button>
+        <button id="sel-shortened" title="USP — shortened absorbers (32). Enter from below (stroke ~3.5 m). Pre-1986: NOT driven by AZ-5.">USP</button>
+        <button id="sel-none" title="Clear rod selection (сброс выбора). Drive keys then do nothing until you select again.">clear</button>
+        <button id="sel-squad" title="Select the next 4 RR rods in the planned spread-out withdrawal sequence (procedure squads; panel hard limit is ≥5).">next RR squad</button>
+        <button id="sel-filter" title="When active: map clicks and drag-boxes select only RR (manual) rods, ignoring other groups.">RR-only select</button>
       </div>
       <div class="row">
-        <span id="sel-info" class="num" style="color:var(--ink)">no rods selected</span>
+        <span id="sel-info" class="num" style="color:var(--ink)" title="How many rods are selected and which groups. Withdrawal is refused at ≥5 selected; silovaya (power interlock) halts ≥8 withdrawing.">no rods selected</span>
       </div>
       <div class="row">
-        <button id="rod-out" title="hold: drive out continuously at 0.4 m/s">▲▲ hold to withdraw</button>
-        <button id="rod-in" title="hold: drive in continuously at 0.4 m/s">▼▼ hold to insert</button>
-        <button id="rod-step-out" title="one 35 cm pulse out">▲ step</button>
-        <button id="rod-step-in" title="one 35 cm pulse in">▼ step</button>
+        <button id="rod-out" title="Hold-to-move (KUS): withdraw selected rods continuously at 0.4 m/s (LAR out 0.2 m/s). Release to stop. Blocked if ≥5 selected or period short.">▲▲ hold to withdraw</button>
+        <button id="rod-in" title="Hold-to-move (KUS): insert selected rods continuously at 0.4 m/s. Insertion is never count-restricted.">▼▼ hold to insert</button>
+        <button id="rod-step-out" title="One discrete pulse: withdraw selected rods by 35 cm, then stop. Useful for careful criticality approach.">▲ step</button>
+        <button id="rod-step-in" title="One discrete pulse: insert selected rods by 35 cm, then stop.">▼ step</button>
       </div>
       <div class="row">
-        <button id="rod-stop">stop</button>
-        <button id="rod-stop-all">stop all</button>
-        <button id="rod-override" title="take selected AR/LAR rods out of automatic control">override auto</button>
-        <button id="rod-return" title="return them to the regulator (it will reclaim them)">return to auto</button>
+        <button id="rod-stop" title="Stop motion of currently selected rods (hold targets at present depth).">stop</button>
+        <button id="rod-stop-all" title="Halt every rod drive in the core, including unselected banks still traveling.">stop all</button>
+        <button id="rod-override" title="Take selected AR/LAR rods out of automatic control so you can drive them manually.">override auto</button>
+        <button id="rod-return" title="Return selected AR/LAR rods to the automatic regulator; the PI controller will reclaim them.">return to auto</button>
       </div>
-      <div id="sel-rows"></div>
+      <div id="sel-rows" title="Per-selected-rod selsyn readouts: coordinate, group, insertion bar, depth [m], VK (upper) / NK (lower) limit lamps."></div>
     </div>
 
     <div class="panel" id="desk-auto">
-      <h2>3 · Automatic regulation</h2>
+      <h2 title="Automatic power regulation (AR/ARM/LAR). The open-loop plant is unstable (positive void); the regulator holds power.">3 · Automatic regulation</h2>
       <div class="row">
-        <button id="ar-toggle" class="active">engaged</button>
-        <button id="ar-mode-arm" title="low-power regulator, 0.25-6% band">ARM</button>
-        <button id="ar-mode-ar" class="active" title="main range, 5-105%, side chambers">AR</button>
-        <button id="ar-mode-lar" title="local (in-core), 10-100% - BLIND below 10%">LAR</button>
+        <button id="ar-toggle" class="active" title="Engage or disengage the automatic regulator PI loop. Disengaged: open-loop; power will drift on void/xenon/Doppler.">engaged</button>
+        <button id="ar-mode-arm" title="ARM — low-power automatic regulator. Band ~0.25–6% rated, summed side-chamber signal, 4 rods.">ARM</button>
+        <button id="ar-mode-ar" class="active" title="AR — main-range automatic regulator. Band ~5–105% rated, side ionization chambers. Three subgroups; one active.">AR</button>
+        <button id="ar-mode-lar" title="LAR — Local Automatic Regulator (in-core KTV chambers). Primary ~10–100%; BLIND / inoperable below ~10% power.">LAR</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">bank at</span><span class="readout num" id="ar-pos">—</span>
-        <span style="color:var(--muted); margin-left:6px">active</span>
-        <span class="readout num" id="ar-active">AR-1</span>
+        <span style="color:var(--muted)" title="Average insertion of the active AR bank (0 = fully out, 1 = fully in).">bank at</span><span class="readout num" id="ar-pos" title="Active AR bank average insertion depth.">—</span>
+        <span style="color:var(--muted); margin-left:6px" title="Which AR subgroup is currently in automatic control.">active</span>
+        <span class="readout num" id="ar-active" title="Active AR subgroup (AR-1 / AR-2 / AR-3). Changeover switches on saturation or imbalance.">AR-1</span>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">subgroup auto:</span>
-        <button id="ar-sw-1" class="active">AR-1</button>
-        <button id="ar-sw-2" class="active">AR-2</button>
-        <button id="ar-sw-3" class="active">AR-3</button>
+        <span style="color:var(--muted)" title="Enable automatic changeover for each AR subgroup. Disable to hold a failed/saturated bank out of service.">subgroup auto:</span>
+        <button id="ar-sw-1" class="active" title="AR-1 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-1</button>
+        <button id="ar-sw-2" class="active" title="AR-2 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-2</button>
+        <button id="ar-sw-3" class="active" title="AR-3 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-3</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">setpoint</span>
-        <input type="range" id="setpoint" min="0" max="110" value="100" step="1" />
-        <span class="readout num" id="setpoint-val">100%</span>
+        <span style="color:var(--muted)" title="Operator power demand [% rated]. The active setpoint ramps toward this at the gradient limit.">setpoint</span>
+        <input type="range" id="setpoint" min="0" max="110" value="100" step="1" title="AR/ARM/LAR power setpoint target [% of rated]. 0 disengages demand; AZ-1 forces setback toward 50%." />
+        <span class="readout num" id="setpoint-val" title="Commanded power setpoint as % of rated thermal power.">100%</span>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">gradient</span>
-        <input type="range" id="gradient" min="1" max="35" value="3" step="1" />
-        <span class="readout num" id="gradient-val">0.03%/s</span>
+        <span style="color:var(--muted)" title="arGradient: maximum rate the active setpoint may ramp toward the operator target [%/s]. Prevents step-saturating the small AR bank.">gradient</span>
+        <input type="range" id="gradient" min="1" max="35" value="3" step="1" title="Setpoint ramp rate (gradient) in 0.01 %/s steps. Default 0.03 %/s. Higher = faster power maneuvers." />
+        <span class="readout num" id="gradient-val" title="Current setpoint gradient limit in % of rated per second.">0.03%/s</span>
       </div>
       <div class="row">
-        <span style="color:var(--muted)">imbalance</span>
-        <canvas id="imbalance" width="230" height="40"></canvas>
+        <span style="color:var(--muted)" title="AR imbalance (заячики): error between measured power and active setpoint. Large sustained imbalance triggers AR changeover.">imbalance</span>
+        <canvas id="imbalance" width="230" height="40" title="Imbalance galvanometer: left/right = power below/above setpoint. Needle near center = regulator holding."></canvas>
       </div>
     </div>
 
     <div class="panel" id="desk-protection">
-      <h2>4 · Protection (RPS)</h2>
+      <h2 title="Reactor Protection System (RPS / АЗ). Operator-blockable trips, setback, full scram, and annunciator lamps.">4 · Protection (RPS)</h2>
       <div class="row">
-        <button id="rps-azm" class="active">AZM overpower</button>
-        <button id="rps-azs" class="active">AZS period</button>
+        <button id="rps-azm" class="active" title="AZM — emergency overpower protection. When armed, trips AZ-5 if power &gt; 110% rated. Click to arm/block (blocked trips still log a warning).">AZM overpower</button>
+        <button id="rps-azs" class="active" title="AZS — emergency period protection. When armed, trips AZ-5 if reactor period &lt; 10 s. Click to arm/block (operator-blockable, as historically).">AZS period</button>
       </div>
       <div class="row">
-        <button id="az1">AZ-1 setback</button>
-        <button id="scram-reset">reset scram</button>
+        <button id="az1" title="AZ-1 — graduated setback: drives the AZ (emergency) bank in and reduces the AR setpoint toward 50% rated. Not a full scram.">AZ-1 setback</button>
+        <button id="scram-reset" title="Reset the AZ-5 scram latch. Rods stay where they stopped; re-enables automatic regulation. Then re-cock AZ and restart carefully (xenon!).">reset scram</button>
       </div>
       <div id="annunciators">
-        <div class="lamp" id="an-scram"><i></i>AZ-5 scram</div>
-        <div class="lamp" id="an-period"><i></i>period &lt;60 s</div>
-        <div class="lamp" id="an-azm"><i></i>AZM armed</div>
-        <div class="lamp" id="an-azs"><i></i>AZS armed</div>
-        <div class="lamp" id="an-silblok"><i></i>power interlock</div>
-        <div class="lamp" id="an-chg"><i></i>AR changeover</div>
-        <div class="lamp" id="an-lar"><i></i>LAR dropout</div>
-        <div class="lamp" id="an-orm"><i></i>ORM low</div>
+        <div class="lamp" id="an-scram" title="AZ-5 scram latched: full emergency insertion of RR/AR/LAR/AZ (USP excluded pre-1986). Clear with reset scram after rods settle."><i></i>AZ-5 scram</div>
+        <div class="lamp" id="an-period" title="Period warning: reactor period is below 60 s (startup withdrawal should stop; AZS trips at 10 s)."><i></i>period &lt;60 s</div>
+        <div class="lamp" id="an-azm" title="AZM armed — overpower protection is enabled (trip if power &gt; 110%). Dark/off = operator-blocked."><i></i>AZM armed</div>
+        <div class="lamp" id="an-azs" title="AZS armed — period protection is enabled (trip if period &lt; 10 s). Dark/off = operator-blocked."><i></i>AZS armed</div>
+        <div class="lamp" id="an-silblok" title="Silovaya blokirovka (power interlock / SIL): ≥8 RR/USP/AR/LAR rods withdrawing at once — all halted and selection cleared."><i></i>power interlock</div>
+        <div class="lamp" id="an-chg" title="AR automatic changeover: active AR subgroup saturated or lost authority; standby subgroup taking over."><i></i>AR changeover</div>
+        <div class="lamp" id="an-lar" title="LAR dropout: local automatic regulator lost authority (often blind below ~10% or zone imbalance)."><i></i>LAR dropout</div>
+        <div class="lamp" id="an-orm" title="ORM low: last PRIZMA printout shows Operating Reactivity Margin below the administrative floor of 15 equivalent rods. No automatic trip pre-1986."><i></i>ORM low</div>
       </div>
       <div id="az5-wrap">
-        <button id="az5" disabled>AZ-5</button>
-        <div id="az5-cover">SAFETY COVER</div>
+        <button id="az5" disabled title="AZ-5 — full emergency scram button. Inserts RR/AR/LAR/AZ banks; pre-1986 USP shortened rods are NOT driven. Requires lifting the safety cover first.">AZ-5</button>
+        <div id="az5-cover" title="Safety cover over AZ-5. Click to open/flip the cover, then press AZ-5 for a full scram. Click again to close.">SAFETY COVER</div>
       </div>
     </div>
   </section>
 
   <footer>
-    <section class="panel"><h2>Power %
-      <button id="pw-auto" class="active" style="margin-left:6px">auto</button>
-      <button id="pw-lin">lin</button>
-      <button id="pw-log" title="log scale: exponential rise draws a straight line, slope = period">log</button>
-    </h2><canvas class="strip" id="st-power"></canvas></section>
-    <section class="panel"><h2>Period s</h2><canvas class="strip" id="st-period"></canvas></section>
-    <section class="panel"><h2>Reactivity β</h2><canvas class="strip" id="st-rho"></canvas></section>
-    <section class="panel"><h2>Xenon ×eq</h2><canvas class="strip" id="st-xe"></canvas></section>
-    <section class="panel" id="alarms"><h2>Event log</h2><ul id="alarm-list"></ul></section>
+    <section class="panel"><h2 title="Strip chart: reactor power [% of rated] vs time. AZM trip line conceptually at 110%.">Power %
+      <button id="pw-auto" class="active" style="margin-left:6px" title="Auto vertical scale: chart rescales to recent power range.">auto</button>
+      <button id="pw-lin" title="Linear vertical scale for power %.">lin</button>
+      <button id="pw-log" title="Log scale: exponential power rise draws a straight line; slope relates to reactor period.">log</button>
+    </h2><canvas class="strip" id="st-power" title="Power history [% rated]. Hover for value at time."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: reactor period [s]. Startup caution &lt;60 s; AZS trip &lt;10 s.">Period s</h2><canvas class="strip" id="st-period" title="Period history [s]. Short positive period = fast rising power."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: net reactivity in units of β_eff (1 $ = 0.005).">Reactivity β</h2><canvas class="strip" id="st-rho" title="Reactivity history [β]. Positive = supercritical."></canvas></section>
+    <section class="panel"><h2 title="Strip chart: Xe-135 inventory relative to full-power equilibrium.">Xenon ×eq</h2><canvas class="strip" id="st-xe" title="Xenon history [× equilibrium]. Rises after power drops (iodine pit)."></canvas></section>
+    <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, and protection trips.">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info."></ul></section>
   </footer>
 
   <div id="tooltip"></div>
