@@ -34,6 +34,14 @@ when you want to work through startup from a shutdown state.
 | `bun run demo` | Runs a multi-hour operator scenario and writes `logs/run.jsonl`. |
 | `bun run check` | Type-checks the project and runs the physics suite. |
 
+## A look inside the model
+
+![Simplified RBMK-1000 core cross-section](docs/assets/rbmk-core-cross-section.svg)
+
+_A not-to-scale cutaway of the geometry simulated by `sim-core`: graphite
+moderation, vertical pressure channels, top-entering regulating and protection
+rods, bottom-entry USP rods, upward coolant flow, and the 14-node axial model._
+
 ## A shift in three moves
 
 The UI is built for experiments you can see and explain:
