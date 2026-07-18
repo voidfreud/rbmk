@@ -125,12 +125,9 @@ reactor.log.addSink((e) => {
 });
 
 // Annunciator memory: transient events light their lamp for a hold time.
+// Sink for lamp timestamps is attached after selection helpers so SIL_BLOK
+// can also clear the map selection (P0.14).
 const lampT = { sil: -Infinity, chg: -Infinity, lar: -Infinity };
-reactor.log.addSink((e) => {
-  if (e.code === "SIL_BLOK") lampT.sil = e.t;
-  else if (e.code === "AR_CHANGEOVER") lampT.chg = e.t;
-  else if (e.code === "LAR_DROPOUT") lampT.lar = e.t;
-});
 
 function setLamp(id: string, state: "" | "ok" | "warn" | "alarm"): void {
   const el = $(id);
@@ -138,6 +135,7 @@ function setLamp(id: string, state: "" | "ok" | "warn" | "alarm"): void {
 }
 
 // Bring the plant to power AFTER the log sink is attached so INIT shows up.
+// (lamp/SIL_BLOK sink is wired just below selection helpers.)
 reactor.initAtPower(1.0, { manualInsertion: 0.55 });
 
 // ---------------------------------------------------------------------------
@@ -151,6 +149,8 @@ const mapCanvas = $<HTMLCanvasElement>("cartogram");
 const tooltip = $("tooltip");
 
 mapCanvas.addEventListener("mousedown", (e) => {
+  // P0.6: only left-button starts a drag/box-select.
+  if (e.button !== 0) return;
   dragStart = [e.clientX, e.clientY];
   dragNow = dragStart;
 });
@@ -181,6 +181,17 @@ window.addEventListener("mouseup", (e) => {
   dragNow = null;
   rebuildSelRows();
   updateSelInfo();
+});
+
+// P0.6: cancel in-progress drag on context menu / window blur.
+mapCanvas.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  dragStart = null;
+  dragNow = null;
+});
+window.addEventListener("blur", () => {
+  dragStart = null;
+  dragNow = null;
 });
 
 mapCanvas.addEventListener("mousemove", (e) => {
@@ -326,10 +337,24 @@ function updateSelInfo(): void {
   refreshSelRows();
 }
 
+// Annunciator hold timestamps + P0.14: SIL_BLOK clears map selection.
+reactor.log.addSink((e) => {
+  if (e.code === "SIL_BLOK") {
+    lampT.sil = e.t;
+    selected.clear();
+    rebuildSelRows();
+    updateSelInfo();
+  } else if (e.code === "AR_CHANGEOVER") {
+    lampT.chg = e.t;
+  } else if (e.code === "LAR_DROPOUT") {
+    lampT.lar = e.t;
+  }
+});
+
 const STEP = 0.05; // 35 cm
 
 /** Drive command for the selection: continuous lever, pulse step, or stop.
- * Panel rule (TEZ L.24): WITHDRAWAL is restricted with 5+ rods selected;
+ * Panel rule (TEZ L.24): WITHDRAWAL is restricted at 5+ non-AZ rods (max 4);
  * insertion is never count-restricted. AZ rods are exempt - the emergency
  * bank is cocked as a SET before startup (which is why the power interlock
  * excludes them too). */
@@ -339,13 +364,14 @@ function driveSelected(cmd: "out" | "in" | "stop" | number): void {
   const nonAz = [...selected].filter(
     (id) => reactor.state.rods[id]!.group !== "AZ",
   ).length;
-  if (isWithdrawal && nonAz > 5) {
+  // P0.13: refuse at >=5 non-AZ (max 4 for withdrawal).
+  if (isWithdrawal && nonAz >= 5) {
     if (reactor.state.time - lastSelLimitT > 5) {
       lastSelLimitT = reactor.state.time;
       reactor.log.warn(
         reactor.state.time,
         "SEL_LIMIT",
-        `withdrawal restricted: ${nonAz} non-AZ rods selected (max 5 for withdrawal)`,
+        `withdrawal restricted: ${nonAz} non-AZ rods selected (max 4 for withdrawal)`,
       );
     }
     return;
@@ -359,10 +385,28 @@ function driveSelected(cmd: "out" | "in" | "stop" | number): void {
   }
 }
 
-/** Real lever feel: hold = rods drive at 0.4 m/s, release = they stop. */
+/** Real lever feel: hold = rods drive at 0.4 m/s, release = they stop.
+ * P0.5: left-button only; release on element mouseup/leave and window
+ * mouseup/blur. Window listeners remove themselves so rebinding is safe. */
 function lever(el: HTMLElement, drive: () => void, release: () => void): void {
-  el.addEventListener("mousedown", drive);
-  for (const ev of ["mouseup", "mouseleave"]) el.addEventListener(ev, release);
+  let held = false;
+  const stop = () => {
+    if (!held) return;
+    held = false;
+    window.removeEventListener("mouseup", stop);
+    window.removeEventListener("blur", stop);
+    release();
+  };
+  el.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    if (held) return;
+    held = true;
+    drive();
+    window.addEventListener("mouseup", stop);
+    window.addEventListener("blur", stop);
+  });
+  el.addEventListener("mouseup", stop);
+  el.addEventListener("mouseleave", stop);
 }
 lever($("rod-out"), () => driveSelected("out"), () => driveSelected("stop"));
 lever($("rod-in"), () => driveSelected("in"), () => driveSelected("stop"));
@@ -397,6 +441,7 @@ $("ar-mode-lar").onclick = () => setArMode("LAR");
 
 // AR subgroup auto/manual switches: off = the 4 rods of that subgroup are
 // released to manual control (and the regulator skips them).
+// P0.18: route through setAutoControl so the reactor owns the flag.
 for (const sub of [1, 2, 3] as const) {
   const btn = $(`ar-sw-${sub}`);
   btn.onclick = () => {
@@ -404,7 +449,10 @@ for (const sub of [1, 2, 3] as const) {
       (r) => r.group === "AR" && r.arSubgroup === sub,
     );
     const nowAuto = !rods[0]!.autoControlled;
-    for (const rod of rods) rod.autoControlled = nowAuto;
+    reactor.setAutoControl(
+      rods.map((r) => r.id),
+      nowAuto,
+    );
     btn.classList.toggle("active", nowAuto);
   };
 }
@@ -417,11 +465,15 @@ $("rps-azs").onclick = () => {
   reactor.protection.period = !reactor.protection.period;
   $("rps-azs").classList.toggle("active", reactor.protection.period);
 };
-$("az1").onclick = () => reactor.azSetback();
-
 const setpoint = $<HTMLInputElement>("setpoint");
 setpoint.oninput = () => {
   reactor.arSetpoint = Number(setpoint.value) / 100;
+  $("setpoint-val").textContent = `${setpoint.value}%`;
+};
+// P0.7: AZ-1 drops the AR setpoint — keep the slider in sync.
+$("az1").onclick = () => {
+  reactor.azSetback();
+  setpoint.value = String(Math.round(reactor.arSetpoint * 100));
   $("setpoint-val").textContent = `${setpoint.value}%`;
 };
 
@@ -443,27 +495,46 @@ function snapDisplays(): void {
   disp.periodRate = 0;
 }
 
+/**
+ * Shared re-init UI reset (P0.2 / P0.3 + polish): clear strip buffers, rewind
+ * sample clock, clear annunciator hold memory, snap damped displays, and
+ * resync AR toggle / setpoint from the reactor.
+ */
+function resetSessionUi(): void {
+  stripPower.reset();
+  stripPeriod.reset();
+  stripRho.reset();
+  stripXe.reset();
+  nextSample = 0;
+  lampT.sil = -Infinity;
+  lampT.chg = -Infinity;
+  lampT.lar = -Infinity;
+  snapDisplays();
+  arToggle.classList.toggle("active", reactor.arEnabled);
+  arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
+  setpoint.value = String(Math.round(reactor.arSetpoint * 100));
+  $("setpoint-val").textContent = `${setpoint.value}%`;
+}
+
 /** True after a cold start: the startup checklist tracks live progress. */
 let startupMode = false;
 
 $("init-power").onclick = () => {
   reactor.initAtPower(1.0, { manualInsertion: 0.55 });
-  setpoint.value = "100";
   startupMode = false;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
-  snapDisplays();
+  resetSessionUi();
 };
 $("init-shutdown").onclick = () => {
   reactor.initShutdown();
-  setpoint.value = "0";
   startupMode = true;
   $<HTMLDetailsElement>("guide").open = true;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
-  snapDisplays();
+  resetSessionUi();
 };
 
 /** Startup checklist: each step checks itself off from the plant's state. */
@@ -689,9 +760,20 @@ function frame(now: number): void {
     $("an-azm").lastChild!.textContent = reactor.protection.overpower ? "AZM armed" : "AZM BLOCKED";
     $("an-azs").lastChild!.textContent = reactor.protection.period ? "AZS armed" : "AZS BLOCKED";
     setLamp("an-period", period > 0 && period < 60 ? "warn" : "");
-    setLamp("an-silblok", t - lampT.sil < 15 ? "alarm" : "");
-    setLamp("an-chg", t - lampT.chg < 15 ? "warn" : "");
-    setLamp("an-lar", lampT.lar > 0 && !reactor.arEnabled ? "alarm" : "");
+    // P0.3: hold-time lamps require t >= stamp (so re-init at t=0 does not
+    // light them from a stale Infinity-delta) and LAR uses the same 15 s hold.
+    setLamp(
+      "an-silblok",
+      t >= lampT.sil && t - lampT.sil < 15 ? "alarm" : "",
+    );
+    setLamp(
+      "an-chg",
+      t >= lampT.chg && t - lampT.chg < 15 ? "warn" : "",
+    );
+    setLamp(
+      "an-lar",
+      t >= lampT.lar && t - lampT.lar < 15 ? "alarm" : "",
+    );
     setLamp("an-orm", reactor.prizma().orm < 15 && disp.power > 0.1 ? "warn" : "");
 
     // AR imbalance galvanometer ("zaichik"): power minus active setpoint.
@@ -703,6 +785,19 @@ function frame(now: number): void {
     updateChecklist();
     $("setpoint-val").textContent =
       `${Math.round(reactor.arSetpoint * 100)}% (at ${Math.round(reactor.activeSetpoint() * 100)}%)`;
+    // P0.7: resync slider from reactor when the operator is not dragging it
+    // (AZ-1 / plant-side setpoint changes).
+    if (document.activeElement !== setpoint) {
+      const sp = String(Math.round(reactor.arSetpoint * 100));
+      if (setpoint.value !== sp) setpoint.value = sp;
+    }
+    // P0.18: resync AR subgroup auto/manual lamps from reactor state.
+    for (const sub of [1, 2, 3] as const) {
+      const rod = reactor.state.rods.find(
+        (r) => r.group === "AR" && r.arSubgroup === sub,
+      );
+      $(`ar-sw-${sub}`).classList.toggle("active", rod?.autoControlled ?? false);
+    }
     if (selected.size > 0) updateSelInfo();
     // Field reconstruction is quasi-static; recompute at 5 Hz (drawing
     // happens every frame so the detector shimmer stays smooth).
