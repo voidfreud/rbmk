@@ -44,7 +44,7 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - The plant is genuinely unstable open-loop (positive void coefficient);
   the AR (automatic regulator) PI controller holds it, like the real one.
   Tests that probe raw feedback set `reactor.arEnabled = false`.
-- Rod worth rates matter: moving the whole RR bank at once is ~5 beta/s
+- Rod worth rates matter: moving the whole RR bank at once is ~0.5–0.7 beta/s
   and WILL trip the plant - move small squads (the real limit was ~4
   rods at once). The demo's operatorTrim shows the pattern.
 - Reactivity displayed in dollars of BETA_EFF = 0.005.

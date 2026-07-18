@@ -10,7 +10,7 @@ import {
   PHOTO_BETA,
   PHOTO_LAMBDA,
 } from "./constants";
-import type { NodeState } from "./types";
+import { assertNodeCount, type NodeState } from "./types";
 
 /**
  * 1D axial nodal kinetics: each node follows point-kinetics-like equations
@@ -41,6 +41,10 @@ export function stepKinetics(
   rhoByNode: number[],
   dt: number,
 ): void {
+  // Pin the axial mesh size so a caller that passes a wrong-length array
+  // fails loudly rather than silently indexing past the end of rhoByNode.
+  assertNodeCount(nodes as NodeState[]);
+
   // Precursors: implicit decay, source from the old flux.
   const rhs = new Array<number>(N_AXIAL);
   for (let k = 0; k < N_AXIAL; k++) {
