@@ -17,8 +17,13 @@ describe("shutdown state and startup", () => {
     const r = new Reactor();
     r.initShutdown();
     const p0 = r.powerFraction();
-    r.setRodTarget("AZ", 0);
-    r.tick(90, 0.1);
+    // Continuous period block freezes in-progress withdrawals while the
+    // period is short; re-issue the command as the period recovers so AZ
+    // can finish coming out (real startup procedure: wait, then step).
+    for (let i = 0; i < 9; i++) {
+      r.setRodTarget("AZ", 0);
+      r.tick(10, 0.1);
+    }
     const p1 = r.powerFraction();
     expect(p1).toBeGreaterThan(p0 * 1.2);
     expect(p1).toBeLessThan(1e-3); // still subcritical

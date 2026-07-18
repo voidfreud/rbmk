@@ -89,6 +89,10 @@ export class Reactor {
    * ARM 0.0025-0.06 (low-power regulator, drives the active AR subgroup),
    * AR 0.05-1.05 (main range, side chambers),
    * LAR 0.10-1.0 (in-core chambers; BLIND below ~10% - it drops out).
+   *
+   * Prefer {@link setArMode} over assigning this field directly so the PI
+   * state re-seeds from the newly owned bank (avoids a huge step). Left
+   * assignable for tests that only need the mode flag.
    */
   arMode: "ARM" | "AR" | "LAR" = "AR";
   /** Active AR subgroup (1..3); standby groups take over on saturation. */
@@ -96,6 +100,7 @@ export class Reactor {
   private arSaturatedFor = 0;
   private arErrPrev = 0;
   private arTarget = 0.5;
+  private lastArNoAuthT = -Infinity;
 
   /**
    * Inverse-point-kinetics reactimeter (the ZRT-A principle): global
@@ -116,6 +121,7 @@ export class Reactor {
   private lastBlockedWarnT = -Infinity;
   private lastPeriodBlockWarnT = -Infinity;
   private lastRodAutoWarnT = -Infinity;
+  private lastScramHoldT = -Infinity;
   private lastSilBlokT = -Infinity;
   private lastBandWarnT = -Infinity;
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
@@ -196,6 +202,9 @@ export class Reactor {
     this.refreshDecayShape(1);
     equilibriumThermal(s.nodes, this.nodePowers(), s.flowFraction);
     s.scrammed = false;
+    // Re-enable AR before the settle loop so cold-start → start-at-power is
+    // regulated (initShutdown leaves arEnabled = false).
+    this.arEnabled = true;
     this.arSetpoint = fraction;
     this.arSetpointActive = fraction;
     this.arTarget = auto;
@@ -231,6 +240,7 @@ export class Reactor {
     this.smoothedRate = 0;
     this.resetIpk();
     s.time = 0;
+    this.resetAlarmState();
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
     this.log.info(s.time, "INIT", `initialized at ${Math.round(fraction * 100)}% power`, {
@@ -278,6 +288,7 @@ export class Reactor {
     this.smoothedRate = 0;
     this.resetIpk();
     s.time = 0;
+    this.resetAlarmState();
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
     this.log.info(
@@ -286,6 +297,19 @@ export class Reactor {
       "shutdown hot standby: all rods in, fresh core, source-level flux",
       { fluxRel: Number(powerFraction(s.nodes).toExponential(2)) },
     );
+  }
+
+  /** Clear latched period alarm and re-arm all alarm cooldowns after re-init. */
+  private resetAlarmState(): void {
+    this.lastSilBlokT = -Infinity;
+    this.lastBandWarnT = -Infinity;
+    this.lastBlockedWarnT = -Infinity;
+    this.lastPeriodBlockWarnT = -Infinity;
+    this.lastRodAutoWarnT = -Infinity;
+    this.lastScramHoldT = -Infinity;
+    this.lastPeriodAlarmT = -Infinity;
+    this.lastArNoAuthT = -Infinity;
+    this.periodAlarmLatched = false;
   }
 
   /**
@@ -347,6 +371,18 @@ export class Reactor {
   setRodTarget(selector: RodSelector, target: number): void {
     const t = Math.min(1, Math.max(0, target));
     for (const rod of this.rodsFor(selector)) {
+      // Scram latch: refuse withdrawals while scrammed (drives stay in).
+      if (this.state.scrammed && t < rod.insertion) {
+        if (this.state.time - this.lastScramHoldT > 5) {
+          this.lastScramHoldT = this.state.time;
+          this.log.warn(
+            this.state.time,
+            "SCRAM_HOLD",
+            "withdrawal refused while scrammed",
+          );
+        }
+        continue;
+      }
       if (
         typeof selector === "number" &&
         rod.autoControlled &&
@@ -421,6 +457,19 @@ export class Reactor {
     return rod.group === "AR" && rod.arSubgroup === this.arActiveGroup;
   }
 
+  /**
+   * Switch regulation mode and re-seed the PI from the newly owned bank
+   * (mirrors the LAR-dropout path). Prefer this over assigning `arMode`
+   * directly so a mode change does not step the bank with a stale target.
+   */
+  setArMode(mode: "ARM" | "AR" | "LAR"): void {
+    this.arMode = mode;
+    const bank = this.state.rods.filter((r) => this.regulatorOwns(r));
+    this.arTarget =
+      bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+    this.arErrPrev = 0;
+  }
+
   /** Valid power band [lo, hi] (fraction of rated) for the current mode. */
   private regulatorBand(): [number, number] {
     if (this.arMode === "ARM") return [0.0025, 0.06];
@@ -453,8 +502,10 @@ export class Reactor {
       if (rod.group === "AZ") rod.target = 1;
     }
     // Graduated protection also lowers the regulation setpoint so the AR
-    // does not fight the setback.
+    // does not fight the setback (clamp the ramped active setpoint too, or
+    // AR spends ~28 min walking the gradient back down to 50%).
     this.arSetpoint = Math.min(this.arSetpoint, 0.5);
+    this.arSetpointActive = Math.min(this.arSetpointActive, 0.5);
     this.log.alarm(
       this.state.time,
       "AZ1",
@@ -467,6 +518,26 @@ export class Reactor {
     if (!this.state.scrammed) return;
     this.state.scrammed = false;
     for (const rod of this.state.rods) rod.target = rod.insertion;
+    // Re-seed AR so the PI does not yank the bank out toward a stale
+    // pre-scram setpoint (that caused a changeover storm and walked all
+    // AR rods to 0). Hold the post-scram power when it is still inside
+    // the engaged regulator's band; below-band (typical full scram) park
+    // the setpoint at 0 so AR stays idle until the operator re-dials —
+    // chasing a dying source-level power would just walk rods back out.
+    const p = Math.min(1, Math.max(0, this.powerFraction()));
+    const [lo] = this.regulatorBand();
+    if (p < lo) {
+      this.arSetpoint = 0;
+      this.arSetpointActive = 0;
+    } else {
+      this.arSetpoint = p;
+      this.arSetpointActive = p;
+    }
+    const bank = this.state.rods.filter((r) => this.regulatorOwns(r));
+    this.arTarget =
+      bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+    this.arErrPrev = 0;
+    this.arSaturatedFor = 0;
     this.log.info(this.state.time, "AZ5_RESET", "scram latch reset");
   }
 
@@ -568,25 +639,53 @@ export class Reactor {
         if (this.regulatorOwns(rod)) rod.target = this.arTarget;
       }
       // Automatic changeover: if the active AR subgroup sits saturated at
-      // either end of its range, hand regulation to the next subgroup
-      // (real behavior: standby group takes over when the active one runs
-      // out of authority or fails).
+      // either end of its range, hand regulation to a standby subgroup that
+      // still has travel authority in the needed direction. If none do,
+      // stop cycling and tell the operator to release with manual rods.
       if (this.arMode !== "LAR") {
         if (this.arTarget <= 0 || this.arTarget >= 1) {
           this.arSaturatedFor += dt;
           if (this.arSaturatedFor > 5) {
-            const next = ((this.arActiveGroup % 3) + 1) as 1 | 2 | 3;
-            this.log.warn(
-              s.time,
-              "AR_CHANGEOVER",
-              `AR-${this.arActiveGroup} out of authority - changeover to AR-${next}`,
-            );
-            this.arActiveGroup = next;
-            const bank = s.rods.filter(
-              (r) => r.group === "AR" && r.arSubgroup === next,
-            );
-            this.arTarget =
-              bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+            const needWithdraw = this.arTarget <= 0;
+            let nextWithAuth: 1 | 2 | 3 | null = null;
+            for (let step = 1; step <= 2; step++) {
+              const cand = ((((this.arActiveGroup - 1 + step) % 3) + 1) as
+                | 1
+                | 2
+                | 3);
+              const bank = s.rods.filter(
+                (r) => r.group === "AR" && r.arSubgroup === cand,
+              );
+              const mean =
+                bank.reduce((a, r) => a + r.insertion, 0) /
+                Math.max(1, bank.length);
+              // Withdraw authority = room to go further out; insert = room in.
+              if (needWithdraw ? mean > 0.05 : mean < 0.95) {
+                nextWithAuth = cand;
+                break;
+              }
+            }
+            if (nextWithAuth !== null) {
+              this.log.warn(
+                s.time,
+                "AR_CHANGEOVER",
+                `AR-${this.arActiveGroup} out of authority - changeover to AR-${nextWithAuth}`,
+              );
+              this.arActiveGroup = nextWithAuth;
+              const bank = s.rods.filter(
+                (r) => r.group === "AR" && r.arSubgroup === nextWithAuth,
+              );
+              this.arTarget =
+                bank.reduce((a, r) => a + r.insertion, 0) /
+                Math.max(1, bank.length);
+            } else if (s.time - this.lastArNoAuthT > ALARM_COOLDOWN) {
+              this.lastArNoAuthT = s.time;
+              this.log.warn(
+                s.time,
+                "AR_NO_AUTH",
+                "AR out of authority — release with manual rods",
+              );
+            }
             this.arSaturatedFor = 0;
           }
         } else {
@@ -595,12 +694,16 @@ export class Reactor {
       }
     }
 
-    // "Silovaya blokirovka": if 8 or more RR/USP/AR/LAR rods are being
-    // withdrawn simultaneously, the power interlock halts them all and
-    // annunciates (real panel logic; AZ rods excluded).
+    // "Silovaya blokirovka": if 8 or more non-regulator rods are being
+    // withdrawn simultaneously, the power interlock halts those operator
+    // withdrawals and annunciates (AZ excluded; regulator-owned rods are
+    // not frozen so LAR/AR can still trim).
     if (!this.initializing) {
       const withdrawing = s.rods.filter(
-        (r) => r.group !== "AZ" && r.target < r.insertion - 1e-6,
+        (r) =>
+          r.group !== "AZ" &&
+          r.target < r.insertion - 1e-6 &&
+          !this.regulatorOwns(r),
       );
       if (withdrawing.length >= 8) {
         for (const rod of withdrawing) rod.target = rod.insertion;
@@ -609,9 +712,41 @@ export class Reactor {
           this.log.alarm(
             s.time,
             "SIL_BLOK",
-            `power interlock: ${withdrawing.length} rods withdrawing - all halted, selection cleared`,
+            `power interlock: ${withdrawing.length} rods withdrawing - all operator withdrawals halted`,
           );
         }
+      }
+    }
+
+    // Continuous startup-range period block: freeze any rod still commanded
+    // out while period is short (setRodTarget alone is not enough once a
+    // target is already latched).
+    if (!this.initializing && pBefore < 0.05) {
+      const period = this.period();
+      if (period > 0 && period < 60) {
+        let blocked = false;
+        for (const rod of s.rods) {
+          if (rod.target < rod.insertion) {
+            rod.target = rod.insertion;
+            blocked = true;
+          }
+        }
+        if (blocked && s.time - this.lastPeriodBlockWarnT > 10) {
+          this.lastPeriodBlockWarnT = s.time;
+          this.log.warn(
+            s.time,
+            "PERIOD_BLOCK",
+            "withdrawal blocked: period below 60 s - wait for it to recover",
+          );
+        }
+      }
+    }
+
+    // Scram latch holds drives in: re-assert full insertion for non-USP rods
+    // every substep so nothing can walk them out while the latch is set.
+    if (s.scrammed) {
+      for (const rod of s.rods) {
+        if (rod.group !== "USP") rod.target = 1;
       }
     }
 
@@ -693,7 +828,9 @@ export class Reactor {
     }
 
     // AZS: emergency protection by reactor period.
-    if (period > 0 && period < 10 && power > 0.005 && !s.scrammed) {
+    // Power floor ~1e-4 (was 0.005) so AZS still covers low-power startups
+    // rather than leaving a blind band between source level and 0.5%.
+    if (period > 0 && period < 10 && power > 1e-4 && !s.scrammed) {
       if (this.protection.period) {
         this.scram("AZS: reactor period below 10 s");
       } else this.warnBlocked("AZS (period) trip condition met");

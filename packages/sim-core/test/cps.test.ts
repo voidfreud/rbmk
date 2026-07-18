@@ -116,4 +116,94 @@ describe("control and protection system", () => {
     const blocked = r.log.all().filter((e) => e.code === "RPS_BLOCKED");
     expect(blocked.length).toBeGreaterThan(0);
   });
+
+  test("initAtPower after initShutdown leaves arEnabled true", () => {
+    const r = new Reactor();
+    r.initShutdown();
+    expect(r.arEnabled).toBe(false);
+    r.initAtPower(0.5);
+    expect(r.arEnabled).toBe(true);
+  });
+
+  test("resetScram does not withdraw all AR rods", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.scram("test");
+    r.tick(30);
+    const arAfterScram = r.state.rods
+      .filter((rod) => rod.group === "AR")
+      .map((rod) => rod.insertion);
+    for (const ins of arAfterScram) expect(ins).toBeCloseTo(1, 2);
+
+    r.resetScram();
+    const tReset = r.state.time;
+    r.tick(120, 0.1);
+
+    const arAfter = r.state.rods.filter((rod) => rod.group === "AR");
+    // Bank must stay near post-scram (fully in), not walk out to 0.
+    for (const rod of arAfter) expect(rod.insertion).toBeGreaterThan(0.7);
+    // No changeover storm after the latch is cleared (init settle may have
+    // logged earlier AR_CHANGEOVERs; ignore those).
+    const changeovers = r.log
+      .all()
+      .filter((e) => e.code === "AR_CHANGEOVER" && e.t >= tReset);
+    expect(changeovers.length).toBe(0);
+  });
+
+  test("setRodTarget withdrawal refused while scrammed", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.scram("test");
+    // Full travel from ~0.45 takes ~10 s at 0.4 m/s over 7 m.
+    r.tick(20);
+    const rr = r.state.rods.find((rod) => rod.group === "RR")!;
+    expect(rr.insertion).toBeGreaterThan(0.9);
+    r.setRodTarget(rr.id, 0);
+    expect(rr.target).toBeCloseTo(1, 5);
+    expect(r.log.all().some((e) => e.code === "SCRAM_HOLD")).toBe(true);
+    // Latch still holds drives in over subsequent ticks.
+    r.tick(10);
+    expect(rr.insertion).toBeCloseTo(1, 5);
+  });
+
+  test("LAR mode can withdraw without permanent SIL_BLOK freeze", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.setArMode("LAR");
+    // Lower setpoint so LAR wants to withdraw (power above setpoint).
+    r.arGradient = 0.01;
+    r.arSetpoint = 0.7;
+    const larBefore = r.state.rods
+      .filter((rod) => rod.group === "LAR")
+      .map((rod) => rod.insertion);
+    r.tick(30, 0.1);
+    const larAfter = r.state.rods.filter((rod) => rod.group === "LAR");
+    // Some LAR motion is allowed (regulator-owned rods are not silovaya-frozen).
+    const moved = larAfter.some(
+      (rod, i) => Math.abs(rod.insertion - larBefore[i]!) > 0.01,
+    );
+    expect(moved).toBe(true);
+    // Power should not collapse solely due to silovaya freezing LAR.
+    expect(r.powerFraction()).toBeGreaterThan(0.4);
+  });
+
+  test("setArMode re-seeds arTarget from newly owned bank", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0, { autoInsertion: 0.5 });
+    // Park LAR bank at a different insertion so a naive mode switch would jump.
+    for (const rod of r.state.rods) {
+      if (rod.group === "LAR") {
+        rod.insertion = 0.8;
+        rod.target = 0.8;
+      }
+    }
+    r.setArMode("LAR");
+    expect(r.arMode).toBe("LAR");
+    // Mean LAR insertion is 0.8; re-seed should land near that, not AR's 0.5.
+    expect(r.arInsertion()).toBeCloseTo(0.8, 5);
+    // Immediately after setArMode, the owned bank target matches insertion
+    // (no huge PI step from a stale arTarget).
+    const owned = r.state.rods.filter((rod) => rod.group === "LAR");
+    for (const rod of owned) expect(rod.target).toBeCloseTo(0.8, 5);
+  });
 });
