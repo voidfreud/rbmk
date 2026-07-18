@@ -84,3 +84,6 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.
+- Control-panel usability checklist (includes all 57 audit findings plus
+  hover/exploitability goals): `docs/grok-checklist.md`. Detailed repros
+  remain in `docs/audit-backlog.md`.

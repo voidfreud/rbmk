@@ -4,6 +4,8 @@ Findings from the multi-agent deep audit (2026-07-15). Discovery done by six
 specialist reviewers on Fable at maximum reasoning; each finding is being
 adversarially re-verified by three Opus 4.8 skeptics (majority rules).
 
+**Tracked work checklist** (prioritised, includes all 57 plus UX goals):
+[`docs/grok-checklist.md`](grok-checklist.md).
 
 **57 findings** — status filled in as verification completes. Verdict column: `confirmed` (>=2/3 Opus skeptics agree it is real), `rejected`, or `pending`.
 
