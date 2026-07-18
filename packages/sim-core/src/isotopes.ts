@@ -9,6 +9,7 @@ import {
   SIGMA_XE,
   DECAY_HEAT_FRACTIONS,
   DECAY_HEAT_LAMBDA,
+  DECAY_FRACTION_TOTAL,
 } from "./constants";
 
 /**
@@ -85,7 +86,6 @@ export function equilibriumDecayHeat(fissionPower: number): number[] {
 
 /** Total thermal power = prompt fission share + released decay heat. */
 export function thermalPower(fissionPower: number, groups: number[]): number {
-  const decayFraction = DECAY_HEAT_FRACTIONS.reduce((a, b) => a + b, 0);
   const released = groups.reduce((a, b) => a + b, 0);
-  return fissionPower * (1 - decayFraction) + released;
+  return fissionPower * (1 - DECAY_FRACTION_TOTAL) + released;
 }

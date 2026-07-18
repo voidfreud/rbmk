@@ -82,7 +82,7 @@ function sample(note = ""): void {
  * (power off setpoint, or the AR bank near its end stops), trim a SMALL
  * squad of manual rods - the real BShchU allowed at most ~4 rods moving
  * at once, and that limit is what keeps reactivity rates sane. Moving the
- * whole 131-rod bank at drive speed would be ~5 beta/s - instant trip.
+ * whole 131-rod bank at drive speed would be ~0.5–0.7 beta/s - still trips.
  */
 const rrRods = reactor.state.rods.filter((r) => r.group === "RR");
 let rrCursor = 0;

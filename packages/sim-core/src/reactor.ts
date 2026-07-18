@@ -65,7 +65,6 @@ export class Reactor {
 
   /** Long-term flux shape (normalized, sums to 1) for decay-heat placement. */
   private decayShape: number[];
-  private lastRhoByNode: number[] = new Array(N_AXIAL).fill(0);
   /** EMA-smoothed inverse period (growth rate) [1/s]; period = 1/rate. */
   private smoothedRate = 0;
   private periodAlarmLatched = false;
@@ -757,7 +756,6 @@ export class Reactor {
     const rhoByNode = rodRho.map(
       (r, k) => s.rhoBase + s.rhoExtra + r + feedback[k]!,
     );
-    this.lastRhoByNode = rhoByNode;
 
     stepKinetics(s.nodes, rhoByNode, dt);
 
@@ -975,18 +973,21 @@ export class Reactor {
     const rod = this.state.rods[id];
     if (!rod) return null;
     const saved = rod.insertion;
-    const cur = rodReactivityByNode([rod]);
-    rod.insertion = 0;
-    const out = rodReactivityByNode([rod]);
-    rod.insertion = 1;
-    const inn = rodReactivityByNode([rod]);
-    rod.insertion = saved;
-    const weigh = (a: number[], b: number[]) =>
-      globalReactivity(
-        this.state.nodes,
-        a.map((v, k) => v - b[k]!),
-      ) / BETA_EFF;
-    return { toOut: weigh(out, cur), toIn: weigh(inn, cur) };
+    try {
+      const cur = rodReactivityByNode([rod]);
+      rod.insertion = 0;
+      const out = rodReactivityByNode([rod]);
+      rod.insertion = 1;
+      const inn = rodReactivityByNode([rod]);
+      const weigh = (a: number[], b: number[]) =>
+        globalReactivity(
+          this.state.nodes,
+          a.map((v, k) => v - b[k]!),
+        ) / BETA_EFF;
+      return { toOut: weigh(out, cur), toIn: weigh(inn, cur) };
+    } finally {
+      rod.insertion = saved;
+    }
   }
 
   /** Seed the reactimeter's trackers to equilibrium with current power. */
