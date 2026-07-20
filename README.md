@@ -131,6 +131,17 @@ the automatic regulator is what holds it.
 | `scripts/serve.ts` | Bun development server. |
 | `docs/` | Physics reconciliation and future plant research. |
 
+## Performance
+
+The control room runs a `requestAnimationFrame` loop at ~60 Hz. The hot
+paths (canvas draw, pointer hit-testing, the shared-time trend recorder)
+are zero-allocation: lattice pixel positions are precomputed into typed
+arrays, the recorder uses a fixed-size ring buffer (no per-frame
+`shift()`), and pointer events are coalesced to one hit-test per frame.
+Cross-package business rules (e.g. which rod the automatic regulator owns)
+live in `sim-core` as one public method the UI calls, so the UI never
+duplicates physics logic.
+
 ## Verification
 
 ```bash
