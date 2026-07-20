@@ -2,8 +2,9 @@ import {
   N_AXIAL,
   Reactor,
   equilibriumIodineXenon,
+  type RodState,
 } from "@rbmk/sim-core";
-import { Cartogram, depthLabel, rodCoord } from "./cartogram";
+import { Cartogram, depthLabel, rodCoord, rodStrokeM } from "./cartogram";
 import { ChannelMap } from "./channelmap";
 import { Slice } from "./slice";
 import { MultiTrendChart, hms } from "./strips";
@@ -226,7 +227,7 @@ function rebuildSelRows(): void {
       `<span class="coord">${rodCoord(rod)}</span>` +
       `<span class="grp">${rod.group}</span>` +
       `<span class="bar"><i style="width:${rod.insertion * 100}%"></i></span>` +
-      `<span class="depth num">${(rod.insertion * 7).toFixed(2)}m</span>` +
+      `<span class="depth num">${(rod.insertion * rodStrokeM(rod)).toFixed(2)}m</span>` +
       `<span class="lim num"></span>`;
     wrap.append(row);
   }
@@ -237,7 +238,7 @@ function refreshSelRows(): void {
   for (const row of document.querySelectorAll<HTMLElement>(".rod-row")) {
     const rod = reactor.state.rods[Number(row.dataset.rod)]!;
     row.querySelector<HTMLElement>(".bar > i")!.style.width = `${rod.insertion * 100}%`;
-    row.querySelector(".depth")!.textContent = `${(rod.insertion * 7).toFixed(2)}m`;
+    row.querySelector(".depth")!.textContent = `${(rod.insertion * rodStrokeM(rod)).toFixed(2)}m`;
     // Limit-switch lamps: VK = upper end stop (fully withdrawn),
     // NK = lower end stop (fully inserted), like the real selsyn LEDs.
     const lim = row.querySelector<HTMLElement>(".lim")!;
@@ -253,10 +254,18 @@ function refreshSelRows(): void {
   }
 }
 
+function regulatorOwns(rod: RodState): boolean {
+  if (!rod.autoControlled) return false;
+  if (reactor.arMode === "LAR") return rod.group === "LAR";
+  return rod.group === "AR" && rod.arSubgroup === reactor.arActiveGroup;
+}
+
 function updateSelInfo(): void {
   const info = $("sel-info");
   const selectedRods = [...selected].map((id) => reactor.state.rods[id]!);
   const nonAz = selectedRods.filter((rod) => rod.group !== "AZ").length;
+  const regBlock =
+    reactor.arEnabled && selectedRods.some((rod) => regulatorOwns(rod));
   for (let n = 1; n <= 5; n++) {
     const lamp = $(`sel-count-${n}`);
     const on = n < 5 ? selected.size === n : selected.size >= 5;
@@ -268,15 +277,19 @@ function updateSelInfo(): void {
   } else if (selected.size === 1) {
     const id = [...selected][0]!;
     const rod = reactor.state.rods[id]!;
-    info.textContent = `${depthLabel(rod)} · withdrawal available`;
+    info.textContent = regBlock
+      ? `${depthLabel(rod)} · under automatic control — switch to manual first`
+      : `${depthLabel(rod)} · withdrawal available`;
   } else {
     const groups = [...new Set(selectedRods.map((rod) => rod.group))].join("/");
     const state =
       nonAz >= 5
         ? "withdrawal BLOCKED · insertion available"
-        : selectedRods.every((rod) => rod.group === "AZ")
-          ? "AZ protection bank · cocking withdrawal available"
-          : "withdrawal available";
+        : regBlock
+          ? "automatic rods in selection — manual override required for withdrawal"
+          : selectedRods.every((rod) => rod.group === "AZ")
+            ? "AZ protection bank · cocking withdrawal available"
+            : "withdrawal available";
     info.textContent = `${selectedRods.length} selected · ${groups} · ${state}`;
   }
   refreshSelRows();
@@ -302,9 +315,21 @@ reactor.log.addSink((e) => {
  * bank is cocked as a SET before startup (which is why the power interlock
  * excludes them too). */
 let lastSelLimitT = -Infinity;
+/** Rod ids captured at lever press; release stops this set, not current selection. */
+let drivingIds: number[] | null = null;
 function driveSelected(cmd: "out" | "in" | "stop"): void {
+  if (cmd === "stop") {
+    const ids = drivingIds ?? [...selected];
+    drivingIds = null;
+    for (const id of ids) {
+      const rod = reactor.state.rods[id]!;
+      reactor.setRodTarget(id, rod.insertion);
+    }
+    return;
+  }
   const isWithdrawal = cmd === "out";
-  const nonAz = [...selected].filter(
+  const ids = [...selected];
+  const nonAz = ids.filter(
     (id) => reactor.state.rods[id]!.group !== "AZ",
   ).length;
   // P0.13: refuse at >=5 non-AZ (max 4 for withdrawal).
@@ -319,10 +344,10 @@ function driveSelected(cmd: "out" | "in" | "stop"): void {
     }
     return;
   }
-  for (const id of selected) {
+  drivingIds = ids;
+  for (const id of ids) {
     const rod = reactor.state.rods[id]!;
-    if (cmd === "stop") reactor.setRodTarget(id, rod.insertion);
-    else if (cmd === "out") reactor.setRodTarget(id, 0);
+    if (cmd === "out") reactor.setRodTarget(id, 0);
     else if (cmd === "in") reactor.setRodTarget(id, 1);
   }
 }
@@ -452,6 +477,16 @@ function resetSessionUi(): void {
   arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
   setpoint.value = String(Math.round(reactor.arSetpoint * 100));
   $("setpoint-val").textContent = `${setpoint.value}%`;
+  const flowPct = Math.round(reactor.state.flowFraction * 100);
+  flow.value = String(flowPct);
+  $("flow-val").textContent = `${flowPct}%`;
+  gradient.value = String(Math.round(reactor.arGradient * 10000));
+  $("gradient-val").textContent = `${(reactor.arGradient * 100).toFixed(2)}%/s`;
+  $("rps-azm").classList.toggle("active", reactor.protection.overpower);
+  $("rps-azs").classList.toggle("active", reactor.protection.period);
+  for (const m of ["arm", "ar", "lar"]) {
+    $(`ar-mode-${m}`).classList.toggle("active", m === reactor.arMode.toLowerCase());
+  }
 }
 
 /** True after a cold start: the startup checklist tracks live progress. */
@@ -483,15 +518,18 @@ function updateChecklist(): void {
   const azOut = rods
     .filter((r) => r.group === "AZ")
     .every((r) => r.insertion < 0.05);
-  const rrMean =
-    rods.filter((r) => r.group === "RR").reduce((a, r) => a + r.insertion, 0) /
-    131;
+  const rrSquadStarted = rods.some(
+    (r) => r.group === "RR" && r.insertion < 0.95,
+  );
   const done = [
     startupMode,
     startupMode && azOut,
-    startupMode && azOut && rrMean < 0.98,
+    startupMode && azOut && rrSquadStarted,
     startupMode && ((period > 0 && period < 150) || power > 0.0025),
-    startupMode && reactor.arEnabled && reactor.arSetpoint > 0,
+    startupMode &&
+      reactor.arMode === "ARM" &&
+      reactor.arEnabled &&
+      reactor.arSetpoint > 0,
     startupMode &&
       reactor.arEnabled &&
       power > 0.0025 &&
@@ -698,13 +736,12 @@ function frame(now: number): void {
       Math.abs(rate) < 1 / 200 ? "STEADY" : rate > 0 ? "RISING" : "FALLING";
     $("i-period").textContent = `period ${periodText()}`;
     $("i-rho").textContent = `reactivity ${disp.rho.toFixed(2)} β`;
-    // ORM comes from PRIZMA printouts only (pre-1986 realism): the value is
-    // a crude insertion sum, not true equivalent-rod ORM (P1.1). Age says
-    // how stale the last printout is.
+    // ORM comes from PRIZMA printouts only (pre-1986 realism): equivalent
+    // rods remaining in the core Σ(insertion) over RR+AR+LAR.
     const prizma = reactor.prizma();
     $("i-orm").textContent = prizma.orm.toFixed(1);
     const age = Math.max(0, t - prizma.t);
-    $("i-orm-age").textContent = `raw sum · PRIZMA report ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} old`;
+    $("i-orm-age").textContent = `equivalent rods in core · PRIZMA report ${Math.floor(age / 60)}:${String(Math.floor(age % 60)).padStart(2, "0")} old`;
     $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
     $("i-xe-status").textContent =
       disp.xe > 1.15 ? "elevated · suppressing power" : disp.xe < 0.85 ? "below full-power equilibrium" : "normal near 1.00×";
@@ -758,8 +795,7 @@ function frame(now: number): void {
       "an-lar",
       t >= lampT.lar && t - lampT.lar < 15 ? "alarm" : "",
     );
-    // Advisory only: threshold still uses sim-core's raw insertion sum vs 15
-    // (not true equivalent-rod ORM — see P1.1 UI honesty).
+    // Advisory only: PRIZMA ORM below 15 equivalent rods during power operation.
     setLamp("an-orm", reactor.prizma().orm < 15 && disp.power > 0.1 ? "warn" : "");
 
     // AR imbalance galvanometer ("zaichik"): power minus active setpoint.

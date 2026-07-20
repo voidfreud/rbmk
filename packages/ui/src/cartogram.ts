@@ -1,5 +1,5 @@
 import type { RodState } from "@rbmk/sim-core";
-import { CORE_HEIGHT } from "@rbmk/sim-core";
+import { CORE_HEIGHT, USP_ABS_LENGTH } from "@rbmk/sim-core";
 
 /** Absorber fill: one constant hue - the LEVEL carries the signal. */
 const FILL = "#5598e7";
@@ -149,11 +149,17 @@ export function rodCoord(rod: RodState): string {
   return `${String(col).padStart(2, "0")}-${String(row).padStart(2, "0")}`;
 }
 
+/** Physical stroke length [m] for depth readouts (USP absorber vs full core). */
+export function rodStrokeM(rod: RodState): number {
+  return rod.group === "USP" ? USP_ABS_LENGTH : CORE_HEIGHT;
+}
+
 export function depthLabel(rod: RodState): string {
-  const m = (rod.insertion * CORE_HEIGHT).toFixed(2);
+  const stroke = rodStrokeM(rod);
+  const m = (rod.insertion * stroke).toFixed(2);
   const moving =
     Math.abs(rod.target - rod.insertion) > 1e-6
-      ? ` → ${(rod.target * CORE_HEIGHT).toFixed(2)} m`
+      ? ` → ${(rod.target * stroke).toFixed(2)} m`
       : "";
   return `${rodCoord(rod)} ${rod.group} — inserted ${m} m${moving} (${Math.round(rod.insertion * 100)}%)`;
 }
