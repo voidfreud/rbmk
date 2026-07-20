@@ -49,10 +49,6 @@ export class Cartogram {
     this.cell = this.scale * 0.82;
   }
 
-  rodCenter(rod: RodState): [number, number] {
-    return [this.cx + rod.x * this.scale, this.cy + rod.y * this.scale];
-  }
-
   /** Rod under a client-space point, or null. */
   hit(clientX: number, clientY: number): RodState | null {
     const r = this.canvas.getBoundingClientRect();
@@ -61,7 +57,8 @@ export class Cartogram {
     let best: RodState | null = null;
     let bestD = this.cell; // generous hit target
     for (const rod of this.rods) {
-      const [x, y] = this.rodCenter(rod);
+      const x = this.cx + rod.x * this.scale;
+      const y = this.cy + rod.y * this.scale;
       const d = Math.hypot(px - x, py - y);
       if (d < bestD) {
         bestD = d;
@@ -87,7 +84,8 @@ export class Cartogram {
     g.stroke();
 
     for (const rod of this.rods) {
-      const [x, y] = this.rodCenter(rod);
+      const x = this.cx + rod.x * this.scale;
+      const y = this.cy + rod.y * this.scale;
       const c = this.cell;
 
       // One signal, one color: the cell is the 7 m channel; the constant-

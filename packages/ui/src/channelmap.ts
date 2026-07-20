@@ -10,6 +10,10 @@ export class ChannelMap {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly w: number;
   private readonly field: RadialField;
+  private readonly chPxX: Float32Array;
+  private readonly chPxY: Float32Array;
+  private readonly rodPxX: Float32Array;
+  private readonly rodPxY: Float32Array;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -24,6 +28,19 @@ export class ChannelMap {
     this.ctx = canvas.getContext("2d")!;
     this.ctx.scale(dpr, dpr);
     this.field = new RadialField(rods);
+    const chs = this.field.channels;
+    this.chPxX = new Float32Array(chs.length);
+    this.chPxY = new Float32Array(chs.length);
+    for (let c = 0; c < chs.length; c++) {
+      this.chPxX[c] = this.px(chs[c]!.x);
+      this.chPxY[c] = this.px(chs[c]!.y);
+    }
+    this.rodPxX = new Float32Array(this.rods.length);
+    this.rodPxY = new Float32Array(this.rods.length);
+    for (let i = 0; i < this.rods.length; i++) {
+      this.rodPxX[i] = this.px(this.rods[i]!.x * ROD_PITCH);
+      this.rodPxY[i] = this.px(this.rods[i]!.y * ROD_PITCH);
+    }
   }
 
   /** Meters -> canvas px. */
@@ -111,8 +128,7 @@ export class ChannelMap {
     let best = -1;
     let bestD = 6;
     for (let c = 0; c < this.field.channels.length; c++) {
-      const ch = this.field.channels[c]!;
-      const d = Math.hypot(this.px(ch.x) - sx, this.px(ch.y) - sy);
+      const d = Math.hypot(this.chPxX[c]! - sx, this.chPxY[c]! - sy);
       if (d < bestD) {
         bestD = d;
         best = c;
@@ -167,10 +183,9 @@ export class ChannelMap {
     const glow = 0.3 + 0.7 * Math.min(1, Math.max(0, powerFraction));
 
     for (let c = 0; c < this.field.channels.length; c++) {
-      const ch = this.field.channels[c]!;
       const rel = this.field.rel[c]!;
-      const x = this.px(ch.x);
-      const y = this.px(ch.y);
+      const x = this.chPxX[c]!;
+      const y = this.chPxY[c]!;
       const phase = c * 2.399963; // golden angle: uncorrelated neighbors
       const flicker =
         1 +
@@ -182,9 +197,10 @@ export class ChannelMap {
     }
 
     // CPS channels on top: dark cells, brighter as the rod is inserted.
-    for (const rod of this.rods) {
-      const x = this.px(rod.x * ROD_PITCH);
-      const y = this.px(rod.y * ROD_PITCH);
+    for (let i = 0; i < this.rods.length; i++) {
+      const rod = this.rods[i]!;
+      const x = this.rodPxX[i]!;
+      const y = this.rodPxY[i]!;
       g.fillStyle = "#0d0d0d";
       g.fillRect(x - cell * 0.8, y - cell * 0.8, cell * 1.6, cell * 1.6);
       g.strokeStyle = `rgba(158, 197, 244, ${0.25 + 0.6 * rod.insertion})`;
