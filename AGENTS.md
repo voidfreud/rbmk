@@ -82,11 +82,14 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 ## Working agreements
 
 - Update this file as the architecture evolves (owner request).
-- Private repo; pushing and merging to GitHub allowed without asking.
+- Public repo; direct pushes to `main` are blocked — all changes land via
+  pull request with CI green (enforced for admins too).
 - Commit AND push after every completed change/iteration (owner request) -
-  small checkpoints, not batched mega-commits.
+  small checkpoints, not batched mega-commits. Push to a feature branch
+  and open a PR; merge after the "Physics, types, and UI smoke" check
+  passes (auto-delete on merge is enabled).
 - Use short-lived feature branches or isolated worktrees for parallel work;
-  protect `main`, keep commits focused, and merge only validated changes.
+  keep commits focused, and merge only validated changes.
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.
