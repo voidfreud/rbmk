@@ -21,19 +21,30 @@ function attachTooltip(
   labelFn: (e: MouseEvent) => string | null | undefined,
 ): void {
   const tip = $("tooltip");
+  let pending = false;
+  let lastE: MouseEvent | null = null;
   canvas.addEventListener("mousemove", (e) => {
-    const label = labelFn(e);
-    if (label) {
-      tip.style.display = "block";
-      tip.style.left = `${e.clientX + 14}px`;
-      tip.style.top = `${e.clientY + 14}px`;
-      tip.textContent = label;
-    } else {
-      tip.style.display = "none";
-    }
+    lastE = e;
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      const ev = lastE;
+      if (!ev) return;
+      const label = labelFn(ev);
+      if (label) {
+        tip.style.display = "block";
+        tip.style.left = `${ev.clientX + 14}px`;
+        tip.style.top = `${ev.clientY + 14}px`;
+        tip.textContent = label;
+      } else {
+        tip.style.display = "none";
+      }
+    });
   });
   canvas.addEventListener("mouseleave", () => {
     tip.style.display = "none";
+    lastE = null;
   });
 }
 
@@ -254,18 +265,12 @@ function refreshSelRows(): void {
   }
 }
 
-function regulatorOwns(rod: RodState): boolean {
-  if (!rod.autoControlled) return false;
-  if (reactor.arMode === "LAR") return rod.group === "LAR";
-  return rod.group === "AR" && rod.arSubgroup === reactor.arActiveGroup;
-}
-
 function updateSelInfo(): void {
   const info = $("sel-info");
   const selectedRods = [...selected].map((id) => reactor.state.rods[id]!);
   const nonAz = selectedRods.filter((rod) => rod.group !== "AZ").length;
   const regBlock =
-    reactor.arEnabled && selectedRods.some((rod) => regulatorOwns(rod));
+    reactor.arEnabled && selectedRods.some((rod) => reactor.regulatorOwns(rod));
   for (let n = 1; n <= 5; n++) {
     const lamp = $(`sel-count-${n}`);
     const on = n < 5 ? selected.size === n : selected.size >= 5;

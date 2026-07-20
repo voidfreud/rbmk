@@ -499,7 +499,7 @@ export class Reactor {
   }
 
   /** True if the engaged regulator currently drives this rod. */
-  private regulatorOwns(rod: RodState): boolean {
+  regulatorOwns(rod: RodState): boolean {
     if (!rod.autoControlled) return false;
     if (this.arMode === "LAR") return rod.group === "LAR";
     // ARM and AR both drive the active AR subgroup.
