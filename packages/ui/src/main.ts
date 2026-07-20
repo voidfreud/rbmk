@@ -469,6 +469,8 @@ function snapDisplays(): void {
 function resetSessionUi(): void {
   trends.reset();
   nextSample = 0;
+  nextDomUpdate = 0;
+  drivingIds = null;
   lampT.sil = -Infinity;
   lampT.chg = -Infinity;
   lampT.lar = -Infinity;
