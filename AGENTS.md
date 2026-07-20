@@ -24,6 +24,11 @@ packages/sim-core/   pure physics, zero deps, never touches a browser API
   src/reactor.ts     assembly: tick loop, AR controller, alarms, calibration
 scripts/smoke-ui.ts  UI server smoke validation used locally and in CI
 packages/ui/         canvas control room, subscribes to sim-core
+  src/main.ts        frame loop, rod selection, AR/AZ/speed controls, tooltips
+  src/cartogram.ts   top-down 211-rod map (cells, hit-test, glyphs)
+  src/channelmap.ts  radial power field + CPS overlays; positions precomputed
+  src/slice.ts       axial core profile (power, rod tracks, coolant direction)
+  src/strips.ts      shared-time MultiTrendChart recorder (ring buffer)
 packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 ```
 
@@ -65,6 +70,18 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   you touch them.
 - Keep sim-core framework-free and deterministic: no Date.now(), no
   randomness without an injected seed, no I/O (logger sinks are injected).
+- The render loop runs at requestAnimationFrame cadence (~60 Hz) and must
+  stay zero-allocation in the hot paths: no `.map`/`.filter`/spread or
+  per-frame object/tuple construction inside `draw` or hit-test.
+  Sliding-window recorders use a ring buffer (head/count into a
+  preallocated array), not `Array.shift()`. Static geometry (channel/rod
+  lattice pixel positions) is precomputed once into typed arrays at
+  construction and indexed in the loop instead of recomputing. Pointer
+  hit-testing is coalesced to one `requestAnimationFrame` per frame —
+  store the latest mouse event, run the label function once.
+- Cross-package business rules have ONE source of truth in sim-core,
+  exposed as a public method (e.g. `Reactor.regulatorOwns`); the UI calls
+  it — never duplicate the logic (a second copy drifts silently).
 
 ## Roadmap
 
@@ -74,7 +91,11 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
    channel field, axial slice, shared trend monitor, hold-to-drive KUS,
    individual rod selection, AR panel with
    subgroups/gradient/override, protection panel, cold start + start at
-   power, plant-state annunciator; `bun run start`, port 3141)
+   power, plant-state annunciator; `bun run start`, port 3141. Perf pass
+   DONE: rAF-coalesced hit-testing, precomputed lattice positions,
+   ring-buffer recorder, zero-alloc draw, deduped `regulatorOwns`, dead
+   code removed. Per-frame redraw of all canvases is intentionally kept
+   — see Conventions.)
 4. Radial dimension (2D nodal mesh) for spatial xenon oscillations
 5. packages/sim-plant: hydraulic loops, pumps, drum separators, turbine
 6. Grid/electrical side
@@ -95,3 +116,9 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   reports for the plant live in docs/research/ for when we get there.
 - CI on `main` and pull requests must pass type-checking, physics tests,
   and the UI smoke test.
+- Keep docs in sync with the code. When a change alters behavior, a public
+  API, or the architecture, update this file, README.md, and docs/ in the
+  SAME change (same commit). A doc that describes behavior that no longer
+  exists is a bug, not a nice-to-have. If you add a convention worth
+  enforcing, put it under Conventions above; if you move or delete a file,
+  fix every doc that names it.
