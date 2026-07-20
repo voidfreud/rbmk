@@ -76,6 +76,11 @@ sources). Summary of what is cited vs estimated.
   INSAG-1 notes RBMK behaves "almost as if several independent reactors").
 - Xenon reactivity uses the large-reactor poisoning estimate
   rho = -sigma_Xe N_Xe / (nu Sigma_f), node-locally.
-- ORM (operating reactivity margin) is not yet computed as
-  "equivalent rods" - needed for accident-scenario fidelity (8 vs required
-  15 rods at the accident; INSAG-7 Annex I).
+- ORM is a geometric equivalent-rod estimate Σ(insertion) over RR+AR+LAR
+  (AZ/USP excluded) — “rods remaining in the core,” matching the plant sense
+  (WNA / INSAG-7). Low ORM ⇒ bank withdrawn. Real PRIZMA used flux-weighted
+  reactivity reconstruction; this is enough for the administrative 15-rod
+  floor and accident-night low-ORM drills without claiming SKALA fidelity.
+- Thermal flow is floored at 5% of rated inside `stepThermal` so a zero
+  flowFraction cannot divide-by-zero the enthalpy march. Full pump coastdown /
+  LOCA voiding waits on packages/sim-plant.

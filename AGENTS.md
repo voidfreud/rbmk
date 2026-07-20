@@ -48,11 +48,11 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   Tests that probe raw feedback set `reactor.arEnabled = false`.
 - Rod worth rates matter: moving the whole RR bank at once is ~0.5–0.7 beta/s
   and WILL trip the plant - move small squads (the real limit was ~4
-  rods at once; sim-core refuses a 5th non-AZ withdrawal while four are
-  already driving out).
+  rods at once; the UI enforces TEZ L.24 max-4 withdrawal selection, and
+  sim-core hard-stops ≥8 non-AZ withdrawals via SIL_BLOK).
 - Reactivity displayed in dollars of BETA_EFF = 0.005.
-- ORM is remaining insertable stroke among RR+AR+LAR, in equivalent rods
-  (Σ(1 − insertion)); PRIZMA warns when that falls below 15 at power.
+- ORM is equivalent rods remaining in the core among RR+AR+LAR
+  (Σ(insertion)); PRIZMA warns when that falls below 15 at power.
 
 ## Conventions
 

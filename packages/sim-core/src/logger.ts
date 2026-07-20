@@ -3,8 +3,8 @@ import type { SimEvent } from "./types";
 export type EventSink = (event: SimEvent) => void;
 
 /**
- * Format sim-time seconds as HH:MM:SS (shared by demo JSONL stamps and UI
- * strip-chart axes). Pure; no Date.now().
+ * Format sim-time seconds as HH:MM:SS (shared by UI strip-chart axes).
+ * Pure; no Date.now().
  */
 export function hms(t: number): string {
   const h = Math.floor(t / 3600);

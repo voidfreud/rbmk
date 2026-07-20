@@ -182,6 +182,81 @@ describe("control and protection system", () => {
     expect(r.arEnabled).toBe(true);
   });
 
+  test("initAtPower restores AR ownership and mode after override/ARM", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const ar = r.state.rods.filter((rod) => rod.group === "AR");
+    r.setAutoControl(
+      ar.map((rod) => rod.id),
+      false,
+    );
+    r.setArMode("ARM");
+    r.protection.overpower = false;
+    r.setFlowFraction(0.5);
+    expect(ar.every((rod) => !rod.autoControlled)).toBe(true);
+    expect(r.arMode).toBe("ARM");
+
+    r.initAtPower(1.0);
+    expect(r.arMode).toBe("AR");
+    expect(r.arEnabled).toBe(true);
+    expect(r.state.flowFraction).toBe(1);
+    expect(r.protection.overpower).toBe(true);
+    expect(r.protection.period).toBe(true);
+    for (const rod of r.state.rods) {
+      if (rod.group === "AR" || rod.group === "LAR") {
+        expect(rod.autoControlled).toBe(true);
+      }
+    }
+    // Regulator must own the active AR subgroup again.
+    const owned = r.state.rods.filter(
+      (rod) =>
+        rod.group === "AR" &&
+        rod.arSubgroup === r.arActiveGroup &&
+        rod.autoControlled,
+    );
+    expect(owned.length).toBe(4);
+  });
+
+  test("ORM is equivalent rods in core; low when RR bank withdrawn", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0, { manualInsertion: 0.55 });
+    const atPower = r.ormRods();
+    // ~131*0.55 + AR/LAR mid-bank ≫ 15 administrative floor.
+    expect(atPower).toBeGreaterThan(40);
+
+    for (const rod of r.state.rods) {
+      if (rod.group === "RR") {
+        rod.insertion = 0.05;
+        rod.target = 0.05;
+      }
+    }
+    const low = r.ormRods();
+    expect(low).toBeLessThan(15);
+    expect(low).toBeLessThan(atPower);
+
+    // Deep insertion raises ORM (more equivalent rods in core).
+    for (const rod of r.state.rods) {
+      if (rod.group === "RR") {
+        rod.insertion = 0.9;
+        rod.target = 0.9;
+      }
+    }
+    expect(r.ormRods()).toBeGreaterThan(atPower);
+
+    // PRIZMA warns for low-ORM while at power.
+    for (const rod of r.state.rods) {
+      if (rod.group === "RR") {
+        rod.insertion = 0.05;
+        rod.target = 0.05;
+      }
+    }
+    r.tick(301, 0.1);
+    const warn = r.log.all().find(
+      (e) => e.code === "PRIZMA" && e.msg.includes("BELOW"),
+    );
+    expect(warn).toBeDefined();
+  });
+
   test("resetScram does not withdraw all AR rods", () => {
     const r = new Reactor();
     r.initAtPower(1.0);

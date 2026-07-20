@@ -60,6 +60,8 @@ export function stepThermal(
   flowFraction: number,
   dt: number,
 ): void {
+  // Floor at 5% rated: zero flow would divide-by-zero the enthalpy march.
+  // Full pump coastdown / LOCA waits on packages/sim-plant.
   const flow = Math.max(0.05, flowFraction) * FLOW_RATED;
 
   let h = H_INLET;

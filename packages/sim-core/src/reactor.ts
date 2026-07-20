@@ -187,6 +187,11 @@ export class Reactor {
               : manual;
       rod.insertion = ins;
       rod.target = ins;
+      // Reclaim AR/LAR ownership so a prior manual override cannot leave
+      // "engaged" regulation with an empty bank after re-init.
+      if (rod.group === "AR" || rod.group === "LAR") {
+        rod.autoControlled = true;
+      }
     }
 
     // Chopped cosine with extrapolation length, normalized to `fraction`.
@@ -209,11 +214,17 @@ export class Reactor {
     equilibriumPrecursors(s.nodes);
     s.decayHeat.groups = equilibriumDecayHeat(fraction * P_RATED);
     this.refreshDecayShape(1);
+    // Clean plant defaults: full flow, protections armed (UI may have blocked).
+    s.flowFraction = 1;
+    this.protection.overpower = true;
+    this.protection.period = true;
     equilibriumThermal(s.nodes, this.nodePowers(), s.flowFraction);
     s.scrammed = false;
     // Re-enable AR before the settle loop so cold-start → start-at-power is
-    // regulated (initShutdown leaves arEnabled = false).
+    // regulated (initShutdown leaves arEnabled = false). Reset mode so a
+    // prior ARM session cannot leave full-power outside the ARM band.
     this.arEnabled = true;
+    this.arMode = "AR";
     this.arSetpoint = fraction;
     this.arSetpointActive = fraction;
     this.arTarget = auto;
@@ -579,9 +590,18 @@ export class Reactor {
     this.log.info(this.state.time, "AZ5_RESET", "scram latch reset");
   }
 
-  /** Operating reactivity margin, crudely, in equivalent inserted rods. */
+  /**
+   * Operating reactivity margin in equivalent rods: RR+AR+LAR insertion
+   * Σ(insertion). Matches the plant sense of “equivalent rods remaining in
+   * the core” (WNA / INSAG-7): low when the bank is withdrawn (accident-night
+   * regime), high when deep in. AZ/USP excluded — AZ is normally cocked out;
+   * USP is a short bottom bank. Not a flux-weighted PRIZMA reconstruction.
+   */
   ormRods(): number {
-    return this.state.rods.reduce((a, r) => a + r.insertion, 0);
+    return this.state.rods.reduce((a, r) => {
+      if (r.group !== "RR" && r.group !== "AR" && r.group !== "LAR") return a;
+      return a + r.insertion;
+    }, 0);
   }
 
   setFlowFraction(fraction: number): void {
