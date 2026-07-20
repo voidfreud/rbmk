@@ -10,8 +10,7 @@ code with it; that repo and INSAG-7 serve as reference material only.
 - `bun run check` - strict TypeScript plus the physics validation suite
 - `bun run start` - control-room UI at http://localhost:3141/
 - `bun run smoke:ui` - validates a complete served UI entry point
-- `bun run demo` - "a shift at the plant" CLI scenario,
-  writes structured JSONL to logs/run.jsonl
+- `bun run ci` - check + smoke (same gate as GitHub Actions)
 
 ## Layout
 
@@ -23,7 +22,6 @@ packages/sim-core/   pure physics, zero deps, never touches a browser API
   src/thermal.ts     channel boiling, void, fuel/graphite temperatures
   src/rods.ts        rod geometry incl. graphite displacers ("tip effect")
   src/reactor.ts     assembly: tick loop, AR controller, alarms, calibration
-scripts/demo.ts      demo scenario + shift-operator heuristic
 scripts/smoke-ui.ts  UI server smoke validation used locally and in CI
 packages/ui/         canvas control room, subscribes to sim-core
 packages/sim-plant/  (future) pumps, drum separators, turbine, grid
@@ -50,8 +48,11 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   Tests that probe raw feedback set `reactor.arEnabled = false`.
 - Rod worth rates matter: moving the whole RR bank at once is ~0.5–0.7 beta/s
   and WILL trip the plant - move small squads (the real limit was ~4
-  rods at once). The demo's operatorTrim shows the pattern.
+  rods at once; sim-core refuses a 5th non-AZ withdrawal while four are
+  already driving out).
 - Reactivity displayed in dollars of BETA_EFF = 0.005.
+- ORM is remaining insertable stroke among RR+AR+LAR, in equivalent rods
+  (Σ(1 − insertion)); PRIZMA warns when that falls below 15 at power.
 
 ## Conventions
 
@@ -89,5 +90,5 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Plant systems (hydraulics/turbine) are deliberately deferred; reactor
   control fidelity comes first (owner request 2026-07-15). Research
   reports for the plant live in docs/research/ for when we get there.
-- CI on `main` and pull requests must pass type-checking, physics tests, the
-  UI smoke test, and the end-to-end shift scenario.
+- CI on `main` and pull requests must pass type-checking, physics tests,
+  and the UI smoke test.

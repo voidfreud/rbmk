@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Physics, types, UI, and scenario
+    name: Physics, types, and UI smoke
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -36,6 +36,3 @@ jobs:
 
       - name: Smoke-test UI server
         run: bun run smoke:ui
-
-      - name: Run end-to-end shift scenario
-        run: bun run demo

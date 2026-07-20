@@ -31,8 +31,8 @@ when you want to work through startup from a shutdown state.
 | Start here | What it does |
 | --- | --- |
 | `bun run start` | Opens the interactive control room. |
-| `bun run demo` | Runs a multi-hour operator scenario and writes `logs/run.jsonl`. |
 | `bun run check` | Type-checks the project and runs the physics suite. |
+| `bun run smoke:ui` | Serves and validates the browser entry point. |
 
 ## A look inside the model
 
@@ -51,12 +51,6 @@ The UI is built for experiments you can see and explain:
    return to full power.
 3. **Scram:** trigger AZ-5 and inspect the rod geometry, period, power, and
    chronological event log as the plant responds.
-
-The scripted demo follows the same arc:
-
-```text
-steady full power  ──▶  50% power  ──▶  xenon transient  ──▶  full power  ──▶  AZ-5
-```
 
 ## What is on the screen?
 
@@ -111,7 +105,7 @@ the automatic regulator is what holds it.
 
 ```text
                     ┌──────────────────────────────┐
-                    │ Control-room UI + shift demo  │
+                    │ Control-room UI               │
                     └──────────────┬───────────────┘
                                    │ commands + state
                                    ▼
@@ -134,7 +128,6 @@ the automatic regulator is what holds it.
 | --- | --- |
 | `packages/sim-core/` | Pure deterministic physics and protection logic. |
 | `packages/ui/` | Browser control room subscribing to `sim-core`. |
-| `scripts/demo.ts` | Multi-hour operator scenario with JSONL output. |
 | `scripts/serve.ts` | Bun development server. |
 | `docs/` | Physics reconciliation and future plant research. |
 
@@ -143,14 +136,13 @@ the automatic regulator is what holds it.
 ```bash
 bun run check       # strict TypeScript + complete physics test suite
 bun run smoke:ui    # serve and validate the browser entry point
-bun run demo        # end-to-end multi-hour plant scenario
 ```
 
 The tests cover steady operation, startup, inhour behavior, xenon, void
 feedback, thermal response, graphite-tip reactivity, scram geometry, rod worth,
 period blocks, regulator changeover, PRIZMA cadence, and fast-forward stability.
-CI runs all three verification commands on every pull request and every push
-to `main`.
+CI runs both verification commands on every pull request and every push to
+`main`.
 
 ## Scope and limitations
 

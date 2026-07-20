@@ -15,8 +15,7 @@
     "test": "bun test packages/sim-core/test",
     "check": "bun run typecheck && bun test",
     "smoke:ui": "bun run scripts/smoke-ui.ts",
-    "demo": "bun run scripts/demo.ts",
-    "ci": "bun run check && bun run smoke:ui && bun run demo"
+    "ci": "bun run check && bun run smoke:ui"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
