@@ -1,6 +1,7 @@
 import {
   N_AXIAL,
   Reactor,
+  SimEvent,
   equilibriumIodineXenon,
   type RodState,
 } from "@rbmk/sim-core";
@@ -160,6 +161,31 @@ reactor.log.addSink((e) => {
   li.textContent = `${icon}${hms(e.t)} ${e.code}: ${e.msg}`;
   alarmList.prepend(li);
   while (alarmList.children.length > 200) alarmList.lastChild?.remove();
+});
+
+// Batched POST sink: forwards events to the server's JSONL endpoint so they
+// are persisted to disk. Flushes every ~3 s or every 100 events, whichever
+// comes first + sendBeacon on pagehide for lossless session tails.
+const logPending: SimEvent[] = [];
+let logFlushTimer: ReturnType<typeof setInterval> | null = null;
+function flushLog(): void {
+  if (logPending.length === 0) return;
+  const batch = logPending.splice(0, logPending.length);
+  const body = JSON.stringify(batch);
+  fetch("/api/log/events", { method: "POST", body, headers: { "Content-Type": "application/json" } }).catch(() => {});
+}
+reactor.log.addSink((e) => {
+  logPending.push(e);
+  if (logPending.length >= 100) flushLog();
+  else if (!logFlushTimer) {
+    logFlushTimer = setInterval(() => { flushLog(); if (logPending.length === 0 && logFlushTimer) { clearInterval(logFlushTimer); logFlushTimer = null; } }, 3000);
+  }
+});
+addEventListener("pagehide", () => {
+  if (logPending.length > 0) {
+    navigator.sendBeacon("/api/log/events", new Blob([JSON.stringify(logPending)], { type: "application/json" }));
+    logPending.length = 0;
+  }
 });
 
 // Annunciator memory: transient events light their lamp for a hold time.
@@ -341,10 +367,17 @@ function driveSelected(cmd: "out" | "in" | "stop"): void {
   if (isWithdrawal && nonAz >= 5) {
     if (reactor.state.time - lastSelLimitT > 5) {
       lastSelLimitT = reactor.state.time;
+      const pSel = reactor.powerFraction();
       reactor.log.warn(
         reactor.state.time,
         "SEL_LIMIT",
         `withdrawal restricted: ${nonAz} non-AZ rods selected (max 4 for withdrawal)`,
+        {
+          nonAz,
+          power: Number(pSel.toExponential(4)),
+          period: Number(reactor.period().toFixed(1)),
+          orm: Number(reactor.ormRods().toFixed(1)),
+        },
       );
     }
     return;
@@ -395,14 +428,14 @@ $("rod-return").onclick = () => reactor.setAutoControl([...selected], true);
 // ---------------------------------------------------------------------------
 const arToggle = $("ar-toggle");
 arToggle.onclick = () => {
-  reactor.arEnabled = !reactor.arEnabled;
+  reactor.setArEnabled(!reactor.arEnabled);
   arToggle.classList.toggle("active", reactor.arEnabled);
   arToggle.textContent = reactor.arEnabled ? "engaged" : "off";
 };
 
+// Prefer reactor API: re-seeds arTarget from the newly owned bank so rods
+// do not jump to a stale regulator target (P0.19).
 function setArMode(mode: "ARM" | "AR" | "LAR"): void {
-  // Prefer reactor API: re-seeds arTarget from the newly owned bank so rods
-  // do not jump to a stale regulator target (P0.19).
   reactor.setArMode(mode);
   for (const m of ["arm", "ar", "lar"]) {
     $(`ar-mode-${m}`).classList.toggle("active", m === mode.toLowerCase());
@@ -440,7 +473,7 @@ $("rps-azs").onclick = () => {
 };
 const setpoint = $<HTMLInputElement>("setpoint");
 setpoint.oninput = () => {
-  reactor.arSetpoint = Number(setpoint.value) / 100;
+  reactor.setArSetpoint(Number(setpoint.value) / 100);
   $("setpoint-val").textContent = `${setpoint.value}%`;
 };
 // P0.7: AZ-1 drops the AR setpoint — keep the slider in sync.
@@ -451,9 +484,9 @@ $("az1").onclick = () => {
 };
 
 const gradient = $<HTMLInputElement>("gradient");
+// Slider is in hundredths of %/s: 1..35 -> 0.01..0.35 %/s.
 gradient.oninput = () => {
-  // Slider is in hundredths of %/s: 1..35 -> 0.01..0.35 %/s.
-  reactor.arGradient = Number(gradient.value) / 10000;
+  reactor.setArGradient(Number(gradient.value) / 10000);
   $("gradient-val").textContent = `${(Number(gradient.value) / 100).toFixed(2)}%/s`;
 };
 
@@ -561,7 +594,17 @@ flow.oninput = () => {
 let speed = 1;
 for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-speed]")) {
   btn.onclick = () => {
-    speed = Number(btn.dataset.speed);
+    const newSpeed = Number(btn.dataset.speed);
+    if (newSpeed !== speed) {
+      speed = newSpeed;
+      const pSpd = reactor.powerFraction();
+      reactor.log.info(reactor.state.time, "SPEED", `simulation speed set to ${speed}×`, {
+        speed,
+        power: Number(pSpd.toExponential(4)),
+        period: Number(reactor.period().toFixed(1)),
+        orm: Number(reactor.ormRods().toFixed(1)),
+      });
+    }
     for (const b of document.querySelectorAll("[data-speed]")) b.classList.remove("active");
     btn.classList.add("active");
   };

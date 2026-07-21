@@ -143,17 +143,23 @@ live in `sim-core` as one public method the UI calls, so the UI never
 duplicates physics logic.
   
 ## Event log
-  
+
 Every reactor event — rod commands, protection trips, regulator changeovers,
-power milestones — logs a structured `SimEvent` with sim-time, severity level,
-event code, human-readable message, and a `data` snapshot of the operating
-state at that instant (power, period, ORM, rod positions, etc.). Events are
-stored in an in-memory ring buffer (10 000 capacity) and forwarded to
-registered sinks: the UI's chronological event feed and annunciator lamps.
-  
-When the dev server is running (`bun run start`), events can be streamed to
-disk via `POST /api/log/events` and downloaded as JSONL from
-`GET /api/log/download` for offline analysis.
+power milestones, AR configuration changes, and operator actions — logs a
+structured `SimEvent` with sim-time, severity level, event code, human-readable
+message, and a `data` snapshot of the operating state at that instant (power,
+period, ORM, rod positions, AR state, etc.). A low-frequency `STATE` snapshot
+(every 5 sim-s) captures the full plant condition including void fraction,
+xenon, fuel/coolant temperatures, rod bank insertions, reactivity margin,
+protection state, and decay heat for continuous diagnostic narrative.
+
+Events are stored in an in-memory ring buffer (10 000 capacity) and forwarded
+to registered sinks: the UI's chronological event feed, annunciator lamps, and
+(when `bun run start` is running) a JSONL file at `data/log.jsonl`. The UI
+batches events (every 3 s or 100 events, whichever comes first) and POSTs them
+to `POST /api/log/events`; on page unload a `navigator.sendBeacon` flush
+ensures no events are lost. The full log is downloadable from
+`GET /api/log/download`.
 
 ## Verification
 
