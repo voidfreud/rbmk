@@ -299,10 +299,16 @@ const mapCanvas = $<HTMLCanvasElement>("cartogram");
 mapCanvas.addEventListener("click", (e) => {
   const rod = cartogram.hit(e.clientX, e.clientY);
   if (!rod) return;
-  if (selected.has(rod.id)) selected.delete(rod.id);
-  else selected.add(rod.id);
+  const added = !selected.has(rod.id);
+  if (added) selected.add(rod.id); else selected.delete(rod.id);
   rebuildSelRows();
   updateSelInfo();
+  reactor.log.info(reactor.state.time, "SELECT", `rod ${rod.id} (${rod.group}) ${added ? "selected" : "deselected"}`, {
+    rodId: rod.id,
+    group: rod.group,
+    selected: added,
+    selectedCount: selected.size,
+  });
 });
 
 mapCanvas.addEventListener("contextmenu", (e) => {
@@ -322,9 +328,15 @@ attachTooltip(mapCanvas, (e) => {
 });
 
 $("sel-none").onclick = () => {
+  const prev = selected.size;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
+  reactor.log.info(reactor.state.time, "SELECT", `rod selection cleared (${prev} rod${prev === 1 ? "" : "s"})`, {
+    action: "clear",
+    prevCount: prev,
+    selectedCount: 0,
+  });
 };
 $("sel-az-bank").onclick = () => {
   selected.clear();
@@ -333,6 +345,10 @@ $("sel-az-bank").onclick = () => {
   }
   rebuildSelRows();
   updateSelInfo();
+  reactor.log.info(reactor.state.time, "SELECT", `AZ bank selected (${selected.size} rods)`, {
+    action: "azBank",
+    selectedCount: selected.size,
+  });
 };
 
 /** Per-rod servo rows (selsyn-style) for up to 30 selected rods. */
@@ -504,6 +520,12 @@ lever($("rod-out-reserve"), () => driveSelected("out"), () => driveSelected("sto
 lever($("rod-in-reserve"), () => driveSelected("in"), () => driveSelected("stop"));
 $("rod-stop-all").onclick = () => {
   for (const rod of reactor.state.rods) reactor.setRodTarget(rod.id, rod.insertion);
+  reactor.log.info(reactor.state.time, "ROD_STOP", "all rod drives released", {
+    rodCount: reactor.state.rods.length,
+    power: Number(reactor.powerFraction().toExponential(4)),
+    period: Number(reactor.period().toFixed(1)),
+    orm: Number(reactor.ormRods().toFixed(1)),
+  });
 };
 $("rod-override").onclick = () => reactor.setAutoControl([...selected], false);
 $("rod-return").onclick = () => reactor.setAutoControl([...selected], true);
@@ -693,15 +715,18 @@ for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-speed]")) 
       });
     }
     for (const b of document.querySelectorAll("[data-speed]")) b.classList.remove("active");
-    btn.classList.add("active");
   };
 }
-
 const az5 = $<HTMLButtonElement>("az5");
 const cover = $("az5-cover");
 cover.onclick = () => {
   cover.classList.toggle("open");
   az5.disabled = !cover.classList.contains("open");
+  reactor.log.info(reactor.state.time, "AZ5_COVER", `AZ-5 cover ${cover.classList.contains("open") ? "opened" : "closed"}`, {
+    open: cover.classList.contains("open"),
+    scrammed: reactor.state.scrammed,
+    power: Number(reactor.powerFraction().toExponential(4)),
+  });
 };
 az5.onclick = () => reactor.scram("AZ-5 button (control room)");
 $("scram-reset").onclick = () => reactor.resetScram();
