@@ -365,7 +365,7 @@ function formatDataLines(data: EventPayload, limit = 20, exclude: ReadonlySet<st
   };
   for (const key of primary) add(key);
   for (const key of Object.keys(data)) {
-    if (seen.has(key)) continue;
+    if (seen.has(key) || exclude.has(key)) continue;
     if (lines.length >= limit) break;
     const value = data[key];
     lines.push(`  ${key}: ${formatMetric(key, value)}`);
@@ -795,6 +795,7 @@ function snapDisplays(): void {
 function resetSessionUi(): void {
   trends.reset();
   alarmList.innerHTML = "";
+  logPending.length = 0;
   lastState = null;
   nextSample = 0;
   nextDomUpdate = 0;
