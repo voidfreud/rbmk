@@ -11,6 +11,7 @@ import {
   PHOTO_BETA,
   PHOTO_LAMBDA,
   PRIZMA_PERIOD,
+  ROD_SPEED,
   STATE_INTERVAL,
   GRAPHITE_TEMP_COEFF,
   N_AXIAL,
@@ -729,6 +730,7 @@ export class Reactor {
     const prePower = this.powerFraction();
     const prePeriod = this.period();
     const preOrm = this.ormRods();
+    const tipDelta = this.scramTipDelta();
     this.state.scrammed = true;
     for (const rod of this.state.rods) {
       if (rod.group !== "USP") rod.target = 1;
@@ -754,10 +756,38 @@ export class Reactor {
         uspMeanInsertion: Number(uspMean.toFixed(4)),
         arSetpoint: this.arSetpoint,
         arMode: this.arMode,
+        tipDeltaBeta: Number((tipDelta / BETA_EFF).toFixed(4)),
+        tipEffect: tipDelta > 0 ? "positive" : tipDelta < 0 ? "negative" : "none",
         flowFraction: this.state.flowFraction,
       },
     );
   }
+  /**
+   * Reactivity from the first internal AZ-5 drive increment. This is a
+   * diagnostic snapshot only: the actual transient still comes from normal
+   * rod geometry and kinetics on the following substep.
+   */
+  private scramTipDelta(): number {
+    const before = rodReactivityByNode(this.state.rods, this.rodRhoScratch);
+    const oldInsertion = new Array<number>(this.state.rods.length);
+    const step = (ROD_SPEED * DT_INTERNAL) / CORE_HEIGHT;
+    for (const rod of this.state.rods) {
+      oldInsertion[rod.id] = rod.insertion;
+      if (rod.group !== "USP" && rod.insertion < 1) {
+        rod.insertion = Math.min(1, rod.insertion + step);
+      }
+    }
+    const after = rodReactivityByNode(this.state.rods, this.feedbackScratch);
+    for (let k = 0; k < N_AXIAL; k++) {
+      this.feedbackScratch[k] = after[k]! - before[k]!;
+    }
+    const delta = globalReactivity(this.state.nodes, this.feedbackScratch);
+    for (const rod of this.state.rods) {
+      rod.insertion = oldInsertion[rod.id]!;
+    }
+    return delta;
+  }
+
   /**
    * AZ-1 power setback: drive the AZ emergency bank in (non-latching) to
    * knock power down without a full shutdown. Naming of the graduated
@@ -1014,11 +1044,61 @@ export class Reactor {
       for (const rod of s.rods) {
         if (this.regulatorOwns(rod)) rod.target = this.arTarget;
       }
-      // Automatic changeover: if the active AR subgroup sits saturated at
-      // either end of its range, hand regulation to a standby subgroup that
-      // still has travel authority in the needed direction. If none do,
-      // stop cycling and tell the operator to release with manual rods.
-      if (this.arMode !== "LAR") {
+      // Automatic changeover: a regulating bank that has held an end stop
+      // for five seconds hands off to a standby bank. LAR is the primary
+      // in-core bank at power; when its absorber is fully in (or fully out)
+      // the side-chamber AR bank must take over instead of leaving the
+      // regulator inert. AR/ARM retain the three-subgroup changeover ladder.
+      if (this.arMode === "LAR") {
+        const larInsertion = this.arInsertion();
+        // The reported failure is the high-power case: LAR is fully in but
+        // power is still above setpoint. Low-power dropout remains governed by
+        // the detector-band handoff above.
+        const atEndStop =
+          this.arTarget >= 1 &&
+          larInsertion >= 0.995 &&
+          // Do not confuse a falling low-power run with the requested
+          // high-power handoff: the LAR detector-band dropout above owns
+          // that direction.
+          this.smoothedRate > 0;
+        if (atEndStop) {
+          this.arSaturatedFor += dt;
+          if (this.arSaturatedFor > 5) {
+            const pLar = powerFraction(s.nodes);
+            const larTarget = this.arTarget;
+            this.arMode = "AR";
+            let arBankSum = 0;
+            let arBankCount = 0;
+            for (const rod of s.rods) {
+              if (rod.group === "AR" && rod.arSubgroup === this.arActiveGroup) {
+                arBankSum += rod.insertion;
+                arBankCount += 1;
+              }
+            }
+            this.arTarget = arBankCount > 0 ? arBankSum / arBankCount : 0;
+            this.arErrPrev = 0;
+            this.log.warn(
+              s.time,
+              "AR_CHANGEOVER",
+              `LAR out of authority - changeover to AR-${this.arActiveGroup}`,
+              {
+                fromMode: "LAR",
+                toMode: "AR",
+                toGroup: this.arActiveGroup,
+                power: Number(pLar.toExponential(4)),
+                period: Number(this.period().toFixed(1)),
+                orm: Number(this.ormRods().toFixed(1)),
+                larTarget: Number(larTarget.toFixed(4)),
+                arTarget: Number(this.arTarget.toFixed(4)),
+                arSetpoint: this.arSetpoint,
+              },
+            );
+            this.arSaturatedFor = 0;
+          }
+        } else {
+          this.arSaturatedFor = 0;
+        }
+      } else {
         if (this.arTarget <= 0 || this.arTarget >= 1) {
           this.arSaturatedFor += dt;
           if (this.arSaturatedFor > 5) {

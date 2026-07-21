@@ -76,6 +76,19 @@ describe("control and protection system", () => {
       }
     }
   });
+  test("USP bank is manually driveable but excluded from AZ-5", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0, { uspInsertion: 0.2 });
+    r.setRodTarget("USP", 0.8);
+    r.tick(4);
+    const usp = r.state.rods.filter((rod) => rod.group === "USP");
+    for (const rod of usp) r.setRodTarget(rod.id, rod.insertion);
+    r.scram("test");
+    const before = usp[0]!.insertion;
+    r.tick(20);
+    for (const rod of usp) expect(rod.insertion).toBeCloseTo(before, 5);
+  });
+
 
   test("manual command to a regulator-owned rod is refused", () => {
     const r = new Reactor();
@@ -155,6 +168,35 @@ describe("control and protection system", () => {
     expect(r.arMode as string).toBe("AR");
     expect(r.arEnabled).toBe(true);
   });
+  test("LAR end-stop hands regulation to AR while power is high", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    r.setArMode("LAR");
+    r.setArGradient(0.01);
+    r.setArSetpoint(0.5);
+    r.setRhoExtra(0.005);
+    r.protection.overpower = false;
+    r.protection.period = false;
+    // Force the documented failure boundary: LAR is fully inserted while
+    // the measured power remains above setpoint and continues rising.
+    for (const rod of r.state.rods) {
+      if (rod.group === "LAR") {
+        rod.insertion = 1;
+        rod.target = 1;
+      }
+    }
+    const internals = r as unknown as {
+      arSetpointActive: number;
+      arTarget: number;
+    };
+    internals.arSetpointActive = 0.5;
+    internals.arTarget = 1;
+    r.tick(6, 0.1);
+    expect(r.arMode).toBe("AR");
+    expect(r.log.all().some((e) => e.code === "AR_CHANGEOVER" && e.msg.includes("LAR out of authority"))).toBe(true);
+    expect(r.state.rods.some((rod) => rod.group === "AR" && rod.target !== 0.5)).toBe(true);
+  });
+
 
   test("blocked protections warn instead of scramming", () => {
     const r = new Reactor();

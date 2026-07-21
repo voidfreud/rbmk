@@ -43,11 +43,13 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   displacer, 1.25 m water columns - so the positive scram ("tip effect")
   emerges from geometry, not scripting. See rods.test.ts.
 - Real CPS structure (docs/physics.md "CPS" section): 131 RR + 12 AR
-  (3 subgroups, auto changeover) + 12 LAR + 24 AZ + 32 USP. USP enter
-  from BELOW and are NOT driven by AZ-5 (pre-1986). Protections: AZS
-  (period), AZM (overpower), both operator-blockable; AZ-1 setback;
-  delayed PRIZMA ORM advisory below 15 rods. Regulator setpoint ramps at
-  arGradient.
+  (3 subgroups, auto changeover) + 12 LAR + 24 AZ + 32 USP. LAR hands
+  regulation to AR when its fully-inserted bank saturates during a rising
+  high-power transient; low-power detector dropout remains separate. USP enter
+  from BELOW, are manually driven for axial shaping, and are NOT driven by
+  AZ-5 (pre-1986). Protections: AZS (period), AZM (overpower), both
+  operator-blockable; AZ-1 setback; delayed PRIZMA ORM advisory below 15 rods.
+  Regulator setpoint ramps at arGradient.
 - The plant is genuinely unstable open-loop (positive void coefficient);
   the AR (automatic regulator) PI controller holds it, like the real one.
   Tests that probe raw feedback set `reactor.arEnabled = false`.
