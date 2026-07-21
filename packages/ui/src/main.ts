@@ -324,7 +324,13 @@ attachTooltip(mapCanvas, (e) => {
   const worth = w
     ? ` · worth ↑${w.toOut >= 0 ? "+" : ""}${w.toOut.toFixed(2)}β ↓${w.toIn >= 0 ? "+" : ""}${w.toIn.toFixed(2)}β`
     : "";
-  return depthLabel(rod) + worth;
+  const role = rod.group === "RR" ? "manual regulator"
+    : rod.group === "AR" ? "automatic regulator"
+      : rod.group === "LAR" ? "local automatic regulator"
+        : rod.group === "AZ" ? "emergency protection"
+          : "short absorber · enters from bottom";
+  const direction = rod.group === "USP" ? "↑ from bottom" : "↓ from top";
+  return `${depthLabel(rod)} · ${role} · ${direction}${worth}`;
 });
 
 $("sel-none").onclick = () => {
@@ -881,7 +887,7 @@ function frame(now: number): void {
     $("i-mw").textContent =
       disp.power < 0.0025
         ? `ISS ${Math.max(0, disp.power * 1e7).toFixed(0)} cps`
-        : `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW thermal`;
+        : `${(reactor.thermalPowerW() / 1e6).toFixed(0)} MW`;
     // Plant state annunciator. Period for state/lamp uses the same damped
     // rate as the period meter so 60× does not light the lamp while the
     // readout still lags (P1.3).
@@ -897,7 +903,7 @@ function frame(now: number): void {
     $("i-trend").textContent =
       Math.abs(rate) < 1 / 200 ? "STEADY" : rate > 0 ? "RISING" : "FALLING";
     $("i-period").textContent = `period ${periodText()}`;
-    $("i-rho").textContent = `reactivity ${disp.rho.toFixed(2)} β`;
+    $("i-rho").textContent = `${disp.rho.toFixed(2)} β`;
     // ORM comes from PRIZMA printouts only (pre-1986 realism): equivalent
     // rods remaining in the core Σ(insertion) over RR+AR+LAR.
     const prizma = reactor.prizma();
@@ -907,8 +913,8 @@ function frame(now: number): void {
     $("i-xe").textContent = `${disp.xe.toFixed(2)}×`;
     $("i-xe-status").textContent =
       disp.xe > 1.15 ? "elevated · suppressing power" : disp.xe < 0.85 ? "below full-power equilibrium" : "normal near 1.00×";
-    $("i-void").textContent = `steam void ${(disp.voidAvg * 100).toFixed(0)}%`;
-    $("i-flow").textContent = `Flow ${Math.round(reactor.state.flowFraction * 100)}%`;
+    $("i-void").textContent = `${(disp.voidAvg * 100).toFixed(0)}%`;
+    $("i-flow").textContent = `${Math.round(reactor.state.flowFraction * 100)}%`;
     $("ar-pos").textContent = `${(reactor.arInsertion() * 7).toFixed(2)} m`;
     $("ar-active").textContent =
       reactor.arMode === "LAR" ? "LAR" : `AR-${reactor.arActiveGroup}`;
@@ -1002,11 +1008,11 @@ function frame(now: number): void {
     // happens every frame so the detector shimmer stays smooth).
     channelMap.update(reactor.state.nodes);
     const field = channelMap.summary();
-    $("field-hot").textContent = `${field.hottest.toFixed(2)}× average`;
     $<HTMLElement>("field-scale").style.setProperty(
       "--average-pos",
       `${Math.min(100, 100 / field.hottest).toFixed(1)}%`,
     );
+    $("field-hot").textContent = `${field.hottest.toFixed(2)}× average`;
     $("field-side").textContent =
       `${field.highQuadrant} · +${Math.max(0, field.highOffsetPct).toFixed(0)}%`;
     $("field-spread").textContent = field.spreadPct < 5
