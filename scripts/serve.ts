@@ -4,8 +4,11 @@ import index from "../packages/ui/index.html";
 
 const LOG_PATH = "data/log.jsonl";
 
+// Ensure the data directory exists and start a fresh log for this run so
+// `data/log.jsonl` only contains events from the current server session.
 const logDir = LOG_PATH.substring(0, LOG_PATH.lastIndexOf("/"));
 await mkdir(logDir, { recursive: true });
+await Bun.write(LOG_PATH, "");
 
 async function appendLogLine(line: string): Promise<void> {
   await appendFile(LOG_PATH, line, "utf-8");
