@@ -17,8 +17,10 @@ NRC ML20202G309.
   auto-switchover. Operator-selected, not co-run. LAR-LAZ INOPERABLE below
   ~10-20% (in-core chambers blind) - central to the accident.
   **Sim choice (P1.11):** code uses LAR band [0.1, 1.0] with dropout below
-  ~10% (matches physics.md). Research primary band is often quoted 20-100%
-  with blind 10-20%; we keep 10% so regulation remains valid at 10-20% power.
+  ~10% (matches physics.md). Research primary band is often quoted 20-100%;
+  the simulator also hands a fully-inserted LAR bank to the active AR group
+  after 5 s when power is rising, rather than leaving regulation inert. We
+  keep 10% so regulation remains valid at 10-20% power.
 - 00:28 Apr 26: at ~520 MWt Toptunov switched LAR off, engaged AR-1 (side
   chambers); AR-1 dropped on unbalance, AR-2 failed to pick up (fault logged
   00:30:50); with no regulator, power fell to ~30 MWt; xenon built. Root:
@@ -45,6 +47,9 @@ NRC ML20202G309.
 - Speeds FIXED: 0.4+-0.1 m/s insert/withdraw (RR/AR/LAZ/ARM); LAR WITHDRAWS
   at 0.2 m/s. Stroke 6550 mm; insert-on-key ~17-18 s; AZ-5 <=12 s (source
   spread vs INSAG-7 18 s - flag); BAZ <=2.5 s. USP from bottom, stroke 3500 mm.
+- USP is a separate manually selected axial-shaping bank in this model; its
+  bottom-entry drives are not regulator-owned and AZ-5 leaves their position
+  unchanged in the pre-1986 configuration.
 - Indicators: selsyn +-50 mm with upper (VK) / lower (NK) limit-switch LEDs.
 - 6 sectors x 3 groups of 12; PK-AZ group buttons white 1-4, red A, black R.
 

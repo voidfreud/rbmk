@@ -48,8 +48,7 @@ export interface RodState {
   group: RodGroup;
   /** AR subgroup 1..3 (AR rods only, 4 rods each). */
   arSubgroup?: 1 | 2 | 3;
-  /** When true (AR/LAR rods), the automatic regulator owns this rod and
-   * manual drive commands are refused. */
+  /** AR/LAR ownership flag; USP is manually driven and never regulator-owned. */
   autoControlled: boolean;
   /** Insertion 0 (fully withdrawn) .. 1 (fully inserted). */
   insertion: number;

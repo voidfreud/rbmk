@@ -113,8 +113,14 @@
       white-space: nowrap;
     }
 
-    .tile.brand #i-time { font-size: 11px; color: var(--ink-2); }
-    .tile.brand #i-state { display: none; }
+    .tile.brand #i-time {
+      font-size: 11px;
+      color: var(--ink-2);
+    }
+
+    .tile.brand #i-state {
+      display: none;
+    }
 
     main {
       display: flex;
@@ -463,7 +469,7 @@
       box-sizing: border-box;
     }
 
-    #col-map > canvas {
+    #col-map>canvas {
       width: 530px !important;
       height: 530px !important;
     }
@@ -481,7 +487,9 @@
       order: 2;
     }
 
-    #col-field { order: 3; }
+    #col-field {
+      order: 3;
+    }
 
     #col-field .panel-help,
     #col-field .field-key,
@@ -493,14 +501,33 @@
     }
 
     #col-field canvas,
-    #col-slice canvas { order: 1; }
-    #col-field .field-key { order: 2; margin-top: 0; }
-    #col-field .field-stats { order: 3; }
-    #col-field .panel-help { order: 4; }
+    #col-slice canvas {
+      order: 1;
+    }
+
+    #col-field .field-key {
+      order: 2;
+      margin-top: 0;
+    }
+
+    #col-field .field-stats {
+      order: 3;
+    }
+
+    #col-field .panel-help {
+      order: 4;
+    }
+
     #col-slice .panel-help,
     #col-slice .profile-key,
-    #col-slice .rod-note { order: 2; }
-    #col-slice .slice-guide { order: 3; margin-top: auto; }
+    #col-slice .rod-note {
+      order: 2;
+    }
+
+    #col-slice .slice-guide {
+      order: 3;
+      margin-top: auto;
+    }
 
     #col-field .field-key {
       width: calc(100% - 12px);
@@ -538,7 +565,9 @@
       font-size: 11px;
     }
 
-    #col-field { padding-bottom: 14px; }
+    #col-field {
+      padding-bottom: 14px;
+    }
 
     #col-field,
     #col-slice {
@@ -558,25 +587,25 @@
       align-items: center;
     }
 
-    #col-map > h2,
-    #col-slice > h2,
-    #col-field > h2 {
+    #col-map>h2,
+    #col-slice>h2,
+    #col-field>h2 {
       display: none;
     }
 
-    #col-field > canvas {
+    #col-field>canvas {
       width: 450px !important;
       height: 450px !important;
       align-self: center;
     }
 
-    #col-slice > canvas {
+    #col-slice>canvas {
       width: 440px !important;
       height: 520px !important;
       align-self: center;
     }
 
-    main > #trends {
+    main>#trends {
       order: 4;
       flex: 1 1 auto;
       width: auto;
@@ -615,10 +644,18 @@
       flex-direction: column;
     }
 
-    #desk-protection > h2 { order: 0; }
-    #desk-protection > #annunciators { order: 1; }
-    #desk-protection > .row,
-    #desk-protection > #az5-wrap { order: 2; }
+    #desk-protection>h2 {
+      order: 0;
+    }
+
+    #desk-protection>#annunciators {
+      order: 1;
+    }
+
+    #desk-protection>.row,
+    #desk-protection>#az5-wrap {
+      order: 2;
+    }
 
     /* Protection annunciators stay visible at the top; full explanations
        remain available through each tile's native hover tooltip. */
@@ -653,7 +690,7 @@
       transform: translateX(-50%);
     }
 
-    #annunciators .lamp > span {
+    #annunciators .lamp>span {
       position: absolute;
       top: calc(33.333% + 7px);
       right: 3px;
@@ -672,7 +709,9 @@
       white-space: normal;
     }
 
-    #annunciators .lamp small { display: none; }
+    #annunciators .lamp small {
+      display: none;
+    }
 
     .lamp {
       border: 1px solid var(--hairline);
@@ -1221,7 +1260,8 @@
       <div class="label">ORM</div>
       <div class="value num" id="i-orm">—</div>
     </div>
-    <div class="tile" title="Thermal power in megawatts. This is the absolute equivalent of the percentage power reading.">
+    <div class="tile"
+      title="Thermal power in megawatts. This is the absolute equivalent of the percentage power reading.">
       <div class="label">Power MW</div>
       <div class="value num" id="i-mw">—</div>
     </div>
@@ -1229,7 +1269,8 @@
       <div class="label">Steam void</div>
       <div class="value num" id="i-void">—</div>
     </div>
-    <div class="tile" title="Net core reactivity in beta units. Positive values tend to increase power; negative values tend to decrease it.">
+    <div class="tile"
+      title="Net core reactivity in beta units. Positive values tend to increase power; negative values tend to decrease it.">
       <div class="label">Reactivity</div>
       <div class="value num" id="i-rho">—</div>
     </div>
@@ -1237,21 +1278,33 @@
     <span hidden id="i-xe-status"></span>
     <span hidden id="i-orm-age"></span>
     <div id="annunciators">
-      <div class="lamp" id="an-scram" title="AZ-5 full scram: latched → RR/AR/LAR/AZ insert; USP stays put."><i></i><span><b>AZ-5</b><small>Latched → RR/AR/LAR/AZ insert; USP
+      <div class="lamp" id="an-scram" title="AZ-5 full scram: latched → RR/AR/LAR/AZ insert; USP stays put.">
+        <i></i><span><b>AZ-5</b><small>Latched → RR/AR/LAR/AZ insert; USP
             stays put</small></span></div>
-      <div class="lamp" id="an-period" title="Startup period protection: rising period below 60 seconds blocks rod withdrawal."><i></i><span><b>START<br>PERIOD</b><small>Rising period &lt;60 s → rod
+      <div class="lamp" id="an-period"
+        title="Startup period protection: rising period below 60 seconds blocks rod withdrawal.">
+        <i></i><span><b>START<br>PERIOD</b><small>Rising period &lt;60 s → rod
             withdrawal blocked</small></span></div>
-      <div class="lamp" id="an-azm" title="AZM overpower protection: power above 110 percent commands AZ-5."><i></i><span><b>AZM</b><small id="an-azm-detail">Power &gt;110% →
+      <div class="lamp" id="an-azm" title="AZM overpower protection: power above 110 percent commands AZ-5.">
+        <i></i><span><b>AZM</b><small id="an-azm-detail">Power &gt;110% →
             AZ-5</small></span></div>
-      <div class="lamp" id="an-azs" title="AZS period protection: rising period below 10 seconds commands AZ-5."><i></i><span><b>AZS<br>PERIOD</b><small id="an-azs-detail">Rising period &lt;10
+      <div class="lamp" id="an-azs" title="AZS period protection: rising period below 10 seconds commands AZ-5.">
+        <i></i><span><b>AZS<br>PERIOD</b><small id="an-azs-detail">Rising period &lt;10
             s → AZ-5</small></span></div>
-      <div class="lamp" id="an-silblok" title="Power interlock: eight or more rods withdrawing stops all drives."><i></i><span><b>SIL<br>BLOK</b><small>8+ rods withdrawing → stop all
+      <div class="lamp" id="an-silblok" title="Power interlock: eight or more rods withdrawing stops all drives.">
+        <i></i><span><b>SIL<br>BLOK</b><small>8+ rods withdrawing → stop all
             drives</small></span></div>
-      <div class="lamp" id="an-chg" title="AR changeover: active bank at an end stop for five seconds hands off to standby."><i></i><span><b>AR<br>CHANGE</b><small>Active bank at end stop 5 s → standby
+      <div class="lamp" id="an-chg"
+        title="AR changeover: active bank at an end stop for five seconds hands off to standby.">
+        <i></i><span><b>AR<br>CHANGE</b><small>Active bank at end stop 5 s → standby
             bank</small></span></div>
-      <div class="lamp" id="an-lar" title="LAR dropout: local detectors are blind below 10 percent, so control changes to AR."><i></i><span><b>LAR<br>DROP</b><small>Local detectors blind &lt;10% → change to
+      <div class="lamp" id="an-lar"
+        title="LAR dropout: local detectors are blind below 10 percent, so control changes to AR.">
+        <i></i><span><b>LAR<br>DROP</b><small>Local detectors blind &lt;10% → change to
             AR</small></span></div>
-      <div class="lamp" id="an-orm" title="ORM advisory: PRIZMA estimates fewer than 15 equivalent rods; no automatic trip."><i></i><span><b>ORM<br>LOW</b><small>PRIZMA estimate &lt;15 rods · no
+      <div class="lamp" id="an-orm"
+        title="ORM advisory: PRIZMA estimates fewer than 15 equivalent rods; no automatic trip.">
+        <i></i><span><b>ORM<br>LOW</b><small>PRIZMA estimate &lt;15 rods · no
             automatic trip</small></span></div>
     </div>
   </header>
@@ -1342,10 +1395,12 @@
           title="Add/remove reactor power on the shared time axis.">− power</button>
         <button class="active" data-overlay="period" aria-pressed="true"
           title="Add/remove reactor period on the shared time axis.">− period</button>
-        <button data-overlay="xe" aria-pressed="false"
-          title="Add/remove the slower Xe-135 poison trend on the shared time axis.">+ xenon</button>
+        <button class="active" data-overlay="xe" aria-pressed="true"
+          title="Xe-135 changes over hours: it rises after a power reduction, then decays once iodine is depleted.">−
+          xenon</button>
         <span id="pw-scale" class="scale-label">power scale
-          <button id="pw-auto" class="active" title="Auto scale: logarithmic below 0.5% power, linear above.">auto</button>
+          <button id="pw-auto" class="active"
+            title="Auto scale: logarithmic below 0.5% power, linear above.">auto</button>
           <button id="pw-lin" title="Linear vertical power scale.">lin</button>
           <button id="pw-log" title="Log power scale: exponential power rise appears as a straight line.">log</button>
         </span>

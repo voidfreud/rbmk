@@ -100,9 +100,9 @@ and forwarded to three registered sinks:
 | `AR_GRADIENT` | info | Setpoint gradient changed |
 | `AR_MODE` | info | Regulator mode switch (AR/ARM/LAR) |
 | `AZ1` | alarm | AZ-1 setback actuated |
-| `AZ5` | alarm | AZ-5 scram actuated |
+| `AZ5` | alarm | AZ-5 scram actuated; payload includes USP mean insertion and computed first-step graphite-tip reactivity |
 | `AZ5_RESET` | info | Scram latch reset |
-| `LAR_DROPOUT` | alarm | LAR dropped out, changeover to AR |
+| `LAR_DROPOUT` | alarm | LAR dropped out below its detector band, changeover to AR |
 | `AR_BAND` | warn | Power outside regulator band |
 | `AR_CHANGEOVER` | warn | AR subgroup changeover |
 | `AR_NO_AUTH` | warn | AR out of authority (saturated) |

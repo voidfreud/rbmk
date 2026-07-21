@@ -122,7 +122,7 @@ const trends = new MultiTrendChart(
       refLines: [{ v: 1, color: "#898781", label: "full-power equilibrium" }],
     },
   ],
-  ["rho", "power", "period"],
+  ["rho", "power", "period", "xe"],
 );
 
 // Power channel scale: auto follows the plant (log below 0.5%, like having
@@ -328,7 +328,7 @@ attachTooltip(mapCanvas, (e) => {
     : rod.group === "AR" ? "automatic regulator"
       : rod.group === "LAR" ? "local automatic regulator"
         : rod.group === "AZ" ? "emergency protection"
-          : "short absorber · enters from bottom";
+          : "manual axial-shaping absorber · enters from bottom";
   const direction = rod.group === "USP" ? "↑ from bottom" : "↓ from top";
   return `${depthLabel(rod)} · ${role} · ${direction}${worth}`;
 });

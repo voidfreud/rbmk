@@ -77,7 +77,9 @@ Stiff kinetics and feedback paths use implicit or semi-implicit integration.
 Axial coupling is solved with an implicit tridiagonal diffusion sweep. Rod
 geometry models a top-entering absorber, 4.5 m graphite displacer, and the
 historical water gaps, allowing the initial positive scram effect to appear
-under the appropriate low-ORM, bottom-peaked conditions.
+under the appropriate low-ORM, bottom-peaked conditions. The AZ-5 event log
+records the computed first-step tip reactivity; ordinary centered full-power
+operation can correctly show a negative first step instead of a visible spike.
 
 Constants, units, source notes, confidence, and deliberately estimated values
 are documented in [`docs/physics.md`](docs/physics.md).
@@ -87,19 +89,18 @@ are documented in [`docs/physics.md`](docs/physics.md).
 The simulator models the pre-1986 control and protection system rather than a
 generic “insert all rods” switch:
 
-| Group | Count | Behavior |
-| --- | ---: | --- |
 | RR | 131 | Manual regulating rods, driven in small squads. |
 | AR | 12 | Automatic regulation, three subgroups with changeover. |
-| LAR | 12 | Local automatic regulation. |
+| LAR | 12 | Primary local automatic regulation; high-power end-stop handoff goes to AR and low-power detector dropout also goes to AR. |
 | AZ | 24 | Protection rods driven from above for AZ-5. |
-| USP | 32 | Bottom-entry short-period protection; not driven by AZ-5. |
+| USP | 32 | Manually driven bottom-entry axial-shaping absorbers; excluded from pre-1986 AZ-5. |
 
 The model includes rod-drive interlocks, AZS short-period protection, AZM
 overpower protection, AZ-1 setback, operator-blockable protections, and the
 delayed PRIZMA-style ORM advisory below 15 rods. The reactor is genuinely
 unstable open-loop because its positive void coefficient is part of the model;
-the automatic regulator is what holds it.
+the automatic regulator is what holds it. Xe-135 is shown by default in the
+trend monitor because its production and decay unfold over hours, not seconds.
 
 ## How the pieces fit
 
