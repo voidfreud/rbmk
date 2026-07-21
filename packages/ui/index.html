@@ -988,6 +988,35 @@
       border-top: 1px solid var(--hairline);
       margin: 2px 0;
     }
+
+    #busy-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--page);
+      color: var(--ink-2);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 99999;
+      font-family: "SFMono-Regular", Menlo, monospace;
+    }
+
+    #busy-overlay.visible {
+      display: flex;
+    }
+
+    #busy-overlay .busy-title {
+      font-size: 18px;
+      color: var(--warning);
+      letter-spacing: 1px;
+    }
+
+    #busy-overlay .busy-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
   </style>
 </head>
 
@@ -1410,8 +1439,54 @@
     </section>
   </footer>
 
+  <div id="busy-overlay">
+    <div class="busy-title">CONTROL ROOM BUSY</div>
+    <div class="busy-sub">Another tab is already running RBMK-1000 Unit 4.</div>
+    <div class="busy-sub">Close that tab to take control here.</div>
+  </div>
   <div id="tooltip"></div>
-  <script type="module" src="./src/main.ts"></script>
+  <script type="module">
+    const LOCK_NAME = "rbmk-instance";
+    const overlay = document.getElementById("busy-overlay");
+    let released = false;
+    let stopResolver = null;
+
+    async function attemptPrimary() {
+      if (released) return;
+      try {
+        await navigator.locks.request(
+          LOCK_NAME,
+          {ifAvailable: true},
+          async (lock) => {
+            if (!lock) {
+              overlay.classList.add("visible");
+              setTimeout(attemptPrimary, 2000);
+              return;
+            }
+            overlay.classList.remove("visible");
+            const stopped = new Promise((r) => {stopResolver = r;});
+            await import("./src/main.ts");
+            await stopped;
+          },
+        );
+      } catch {
+        setTimeout(attemptPrimary, 2000);
+      }
+    }
+
+    addEventListener("beforeunload", () => {
+      released = true;
+      stopResolver?.();
+    });
+
+    if ("locks" in navigator) {
+      attemptPrimary();
+    } else {
+      overlay.querySelector(".busy-sub").textContent = "Web Locks API unavailable — starting unprotected.";
+      overlay.classList.add("visible");
+      import("./src/main.ts").then(() => overlay.classList.remove("visible"));
+    }
+  </script>
 </body>
 
 </html>
