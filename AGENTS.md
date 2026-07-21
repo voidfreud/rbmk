@@ -82,6 +82,8 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Cross-package business rules have ONE source of truth in sim-core,
   exposed as a public method (e.g. `Reactor.regulatorOwns`); the UI calls
   it — never duplicate the logic (a second copy drifts silently).
+  
+- Every reactor event logs a structured `SimEvent` with sim-time, level (`info`/`warn`/`alarm`), event code, human-readable message, and optional data snapshot. The in-memory ring (10 000 events) feeds UI sinks and, when the dev server is running, a JSONL file via `POST /api/log/events` (downloadable at `GET /api/log/download`). Event codes: `INIT`, `SCRAM_HOLD`, `ROD_AUTO`, `PERIOD_BLOCK`, `AZ_COCK`, `ROD_CMD`, `AR_OVERRIDE`, `AR_MODE`, `FLOW`, `RHO_EXTRA`, `AZ5`, `AZ5_RESET`, `AZ1`, `PROTECTION`, `AR_BAND`, `AR_CHANGEOVER`, `AR_NO_AUTH`, `LAR_DROPOUT`, `SIL_BLOK`, `PERIOD`, `PRIZMA`, `RPS_BLOCKED`, `POWER`.
 
 ## Roadmap
 

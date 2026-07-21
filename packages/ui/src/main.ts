@@ -431,11 +431,11 @@ for (const sub of [1, 2, 3] as const) {
 }
 
 $("rps-azm").onclick = () => {
-  reactor.protection.overpower = !reactor.protection.overpower;
+  reactor.setProtection("overpower", !reactor.protection.overpower);
   $("rps-azm").classList.toggle("active", reactor.protection.overpower);
 };
 $("rps-azs").onclick = () => {
-  reactor.protection.period = !reactor.protection.period;
+  reactor.setProtection("period", !reactor.protection.period);
   $("rps-azs").classList.toggle("active", reactor.protection.period);
 };
 const setpoint = $<HTMLInputElement>("setpoint");

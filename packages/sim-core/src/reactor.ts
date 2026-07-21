@@ -126,6 +126,30 @@ export class Reactor {
    * blocked trips log a warning instead of acting.
    */
   protection = { overpower: true, period: true };
+  /**
+   * Arm or disarm a protection channel. The real panel allowed operators to
+   * block AZS (period) and AZM (overpower) trips; blocked trips log a warning
+   * instead of acting (see {@link warnBlocked}). Direct field assignment is
+   * still available for tests.
+   */
+  setProtection(channel: "overpower" | "period", armed: boolean): void {
+    const prev = this.protection[channel];
+    this.protection[channel] = armed;
+    if (armed !== prev) {
+      const pProt = powerFraction(this.state.nodes);
+      this.log.info(
+        this.state.time,
+        "PROTECTION",
+        `${channel === "overpower" ? "AZM (overpower)" : "AZS (period)"} protection ${armed ? "armed" : "blocked"}`,
+        {
+          channel,
+          armed,
+          power: Number(pProt.toExponential(4)),
+          orm: Number(this.ormRods().toFixed(1)),
+        },
+      );
+    }
+  }
   private lastBlockedWarnT = -Infinity;
   private lastPeriodBlockWarnT = -Infinity;
   private lastRodAutoWarnT = -Infinity;
@@ -136,6 +160,15 @@ export class Reactor {
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
   private lastPrizma = { t: 0, orm: 0 };
   private nextPrizmaT = 0;
+  /** Last flow fraction for FLOW delta logging. */
+  private lastFlowFraction = 1;
+  /** Power thresholds for milestone logging (fraction of rated). */
+  private static readonly POWER_MILESTONES = [
+    1e-4, 3e-4, 1e-3, 3e-3, 0.01, 0.03, 0.05, 0.10, 0.25, 0.50, 0.75,
+    1.0, 1.10, 1.20,
+  ] as const;
+  /** Index into POWER_MILESTONES of the highest threshold already logged. */
+  private lastPowerBin = 0;
 
   constructor(options: ReactorOptions = {}) {
     this.log = options.log ?? new EventLog();
@@ -216,6 +249,8 @@ export class Reactor {
     this.refreshDecayShape(1);
     // Clean plant defaults: full flow, protections armed (UI may have blocked).
     s.flowFraction = 1;
+    this.lastFlowFraction = 1;
+    this.lastPowerBin = 0;
     this.protection.overpower = true;
     this.protection.period = true;
     equilibriumThermal(s.nodes, this.nodePowers(), s.flowFraction);
@@ -263,8 +298,16 @@ export class Reactor {
     this.resetAlarmState();
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
+    const pInit = powerFraction(s.nodes);
     this.log.info(s.time, "INIT", `initialized at ${Math.round(fraction * 100)}% power`, {
       rhoBase: s.rhoBase,
+      power: Number(pInit.toExponential(4)),
+      orm: Number(this.ormRods().toFixed(1)),
+      arMode: this.arMode,
+      arSetpoint: this.arSetpoint,
+      autoInsertion: auto,
+      manualInsertion: manual,
+      rodCount: s.rods.length,
     });
   }
 
@@ -311,15 +354,22 @@ export class Reactor {
     this.resetAlarmState();
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
+    const pShutdown = powerFraction(s.nodes);
     this.log.info(
       s.time,
       "INIT",
-      "shutdown hot standby: all rods in, fresh core, source-level flux",
-      { fluxRel: Number(powerFraction(s.nodes).toExponential(2)) },
+      "shutdown hot standby: all rods in (211/211), fresh core, source-level flux",
+      {
+        fluxRel: Number(pShutdown.toExponential(2)),
+        power: Number(pShutdown.toExponential(4)),
+        orm: Number(this.ormRods().toFixed(1)),
+        flowFraction: s.flowFraction,
+        arEnabled: this.arEnabled,
+      },
     );
   }
 
-  /** Clear latched period alarm and re-arm all alarm cooldowns after re-init. */
+  /** Clear latched period alarm, re-arm all alarm cooldowns, reset power milestone tracker. */
   private resetAlarmState(): void {
     this.lastSilBlokT = -Infinity;
     this.lastBandWarnT = -Infinity;
@@ -331,8 +381,9 @@ export class Reactor {
     this.lastPeriodAlarmT = -Infinity;
     this.lastArNoAuthT = -Infinity;
     this.periodAlarmLatched = false;
+    this.lastFlowFraction = 1;
+    this.lastPowerBin = 0;
   }
-
   /**
    * Find rhoBase so the current configuration is exactly critical:
    * bisection on the growth rate of a kinetics-only trial integration with
@@ -400,10 +451,19 @@ export class Reactor {
       if (this.state.scrammed && t < rod.insertion) {
         if (this.state.time - this.lastScramHoldT > 5) {
           this.lastScramHoldT = this.state.time;
+          const pBlock = powerFraction(this.state.nodes);
           this.log.warn(
             this.state.time,
             "SCRAM_HOLD",
-            "withdrawal refused while scrammed",
+            `rod ${rod.id} withdrawal refused while scrammed (target ${t.toFixed(3)} vs insertion ${rod.insertion.toFixed(3)})`,
+            {
+              selector: String(selector),
+              rodId: rod.id,
+              target: Number(t.toFixed(4)),
+              insertion: rod.insertion,
+              power: Number(pBlock.toExponential(4)),
+              scrammed: true,
+            },
           );
         }
         continue;
@@ -417,10 +477,23 @@ export class Reactor {
       ) {
         if (this.state.time - this.lastRodAutoWarnT > 5) {
           this.lastRodAutoWarnT = this.state.time;
+          const pAuto = powerFraction(this.state.nodes);
+          const perAuto = this.period();
           this.log.warn(
             this.state.time,
             "ROD_AUTO",
-            `rod ${rod.id} is under automatic control - switch it to manual first`,
+            `rod ${rod.id} (${rod.group}${rod.arSubgroup ? "-" + rod.arSubgroup : ""}) under automatic control - switch to manual first`,
+            {
+              rodId: rod.id,
+              group: rod.group,
+              subgroup: rod.arSubgroup,
+              power: Number(pAuto.toExponential(4)),
+              period: Number(perAuto.toFixed(1)),
+              orm: Number(this.ormRods().toFixed(1)),
+              arMode: this.arMode,
+              arSetpoint: this.arSetpoint,
+              arEnabled: this.arEnabled,
+            },
           );
         }
         continue;
@@ -436,10 +509,18 @@ export class Reactor {
         if (period > 0 && period < 60) {
           if (this.state.time - this.lastPeriodBlockWarnT > 10) {
             this.lastPeriodBlockWarnT = this.state.time;
+            const pBlock2 = powerFraction(this.state.nodes);
             this.log.warn(
               this.state.time,
               "PERIOD_BLOCK",
-              "withdrawal blocked: period below 60 s - wait for it to recover",
+              `withdrawal of rod ${rod.id} blocked: period ${period.toFixed(1)} s below 60 s (power ${(pBlock2 * 100).toFixed(2)}%)`,
+              {
+                rodId: rod.id,
+                selector: String(selector),
+                period: Number(period.toFixed(1)),
+                power: Number(pBlock2.toExponential(4)),
+                powerPct: Number((pBlock2 * 100).toFixed(2)),
+              },
             );
           }
           continue;
@@ -459,16 +540,50 @@ export class Reactor {
         if (azIn) {
           if (this.state.time - this.lastAzCockT > 5) {
             this.lastAzCockT = this.state.time;
+            const pAz = powerFraction(this.state.nodes);
             this.log.warn(
               this.state.time,
               "AZ_COCK",
-              "withdrawal refused: AZ bank not cocked (Rule 3.1.7)",
+              `withdrawal of rod ${rod.id} refused: AZ bank not cocked (Rule 3.1.7)`,
+              {
+                rodId: rod.id,
+                group: rod.group,
+                selector: String(selector),
+                power: Number(pAz.toExponential(4)),
+                period: Number(this.period().toFixed(1)),
+                orm: Number(this.ormRods().toFixed(1)),
+              },
             );
           }
           continue;
         }
       }
       rod.target = t;
+    }
+    // ROD_CMD: one log per batch command with summary of affected rods.
+    if (!this.initializing) {
+      const affected = this.rodsFor(selector).filter(
+        (r) => Math.abs(r.target - r.insertion) > 1e-9,
+      );
+      if (affected.length > 0) {
+        const cmdPower = powerFraction(this.state.nodes);
+        const cmdPeriod = this.period();
+        const delta = t - affected[0]!.insertion;
+        this.log.info(
+          this.state.time,
+          "ROD_CMD",
+          `${selector}: ${affected.length} rod(s) commanded to ${t.toFixed(3)} (mean delta ${(delta * 100).toFixed(1)}% insertion)`,
+          {
+            selector: String(selector),
+            target: Number(t.toFixed(4)),
+            count: affected.length,
+            meanDelta: Number(delta.toFixed(4)),
+            power: Number(cmdPower.toExponential(4)),
+            period: Number(cmdPeriod.toFixed(1)),
+            orm: Number(this.ormRods().toFixed(1)),
+          },
+        );
+      }
     }
   }
 
@@ -488,16 +603,29 @@ export class Reactor {
       if (!auto) rod.target = rod.insertion;
     }
     if (affected.length > 0) {
+      const pArOv = powerFraction(this.state.nodes);
+      const insertions = affected.map((id) => this.state.rods[id]!.insertion);
+      const meanIns = insertions.reduce((a, b) => a + b, 0) / insertions.length;
       this.log.info(
         this.state.time,
         "AR_OVERRIDE",
         auto
           ? `rods returned to automatic control (${affected.length})`
-          : `manual override of automatic rods (${affected.length})`,
+          : `manual override of ${affected.length} ${this.state.rods[affected[0]!]!.group} rods`,
+        {
+          ids: affected,
+          count: affected.length,
+          auto,
+          insertions: insertions.map((v) => Number(v.toFixed(4))),
+          meanInsertion: Number(meanIns.toFixed(4)),
+          power: Number(pArOv.toExponential(4)),
+          arMode: this.arMode,
+          arSetpoint: this.arSetpoint,
+          orm: Number(this.ormRods().toFixed(1)),
+        },
       );
     }
   }
-
   /** True if the engaged regulator currently drives this rod. */
   regulatorOwns(rod: RodState): boolean {
     if (!rod.autoControlled) return false;
@@ -505,27 +633,38 @@ export class Reactor {
     // ARM and AR both drive the active AR subgroup.
     return rod.group === "AR" && rod.arSubgroup === this.arActiveGroup;
   }
-
-  /**
-   * Switch regulation mode and re-seed the PI from the newly owned bank
-   * (mirrors the LAR-dropout path). Prefer this over assigning `arMode`
-   * directly so a mode change does not step the bank with a stale target.
-   */
+  
   setArMode(mode: "ARM" | "AR" | "LAR"): void {
+    const prevMode = this.arMode;
     this.arMode = mode;
     const bank = this.state.rods.filter((r) => this.regulatorOwns(r));
     this.arTarget =
       bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
     this.arErrPrev = 0;
+    if (mode !== prevMode) {
+      const pMode = powerFraction(this.state.nodes);
+      this.log.info(
+        this.state.time,
+        "AR_MODE",
+        `regulator mode switched from ${prevMode} to ${mode}`,
+        {
+          from: prevMode,
+          to: mode,
+          power: Number(pMode.toExponential(4)),
+          orm: Number(this.ormRods().toFixed(1)),
+          arSetpoint: this.arSetpoint,
+          arTarget: Number(this.arTarget.toFixed(4)),
+        },
+      );
+    }
   }
-
   /** Valid power band [lo, hi] (fraction of rated) for the current mode. */
   private regulatorBand(): [number, number] {
     if (this.arMode === "ARM") return [0.0025, 0.06];
     if (this.arMode === "LAR") return [0.1, 1.0];
     return [0.05, 1.05];
   }
-
+  
   /**
    * AZ-5: latch scram, drive rods to full insertion. Pre-1986 behavior:
    * USP shortened absorbers are NOT driven by AZ-5 - they stay where they
@@ -533,13 +672,31 @@ export class Reactor {
    */
   scram(reason = "AZ-5 button"): void {
     if (this.state.scrammed) return;
+    const prePower = this.powerFraction();
+    const prePeriod = this.period();
+    const preOrm = this.ormRods();
     this.state.scrammed = true;
     for (const rod of this.state.rods) {
       if (rod.group !== "USP") rod.target = 1;
     }
-    this.log.alarm(this.state.time, "AZ5", `SCRAM: ${reason} (USP rods hold position)`);
+    const uspList = this.state.rods.filter((r) => r.group === "USP");
+    const uspMean = uspList.reduce((a, r) => a + r.insertion, 0) / Math.max(1, uspList.length);
+    this.log.alarm(
+      this.state.time,
+      "AZ5",
+      `SCRAM triggered by ${reason} — power ${(prePower * 100).toFixed(1)}%, period ${prePeriod.toFixed(1)} s`,
+      {
+        reason,
+        prePower: Number(prePower.toExponential(4)),
+        prePeriod: Number(prePeriod.toFixed(1)),
+        preOrm: Number(preOrm.toFixed(1)),
+        uspMeanInsertion: Number(uspMean.toFixed(4)),
+        arSetpoint: this.arSetpoint,
+        arMode: this.arMode,
+        flowFraction: this.state.flowFraction,
+      },
+    );
   }
-
   /**
    * AZ-1 power setback: drive the AZ emergency bank in (non-latching) to
    * knock power down without a full shutdown. Naming of the graduated
@@ -550,29 +707,27 @@ export class Reactor {
     for (const rod of this.state.rods) {
       if (rod.group === "AZ") rod.target = 1;
     }
-    // Graduated protection also lowers the regulation setpoint so the AR
-    // does not fight the setback (clamp the ramped active setpoint too, or
-    // AR spends ~28 min walking the gradient back down to 50%).
+    const prevSetpoint = this.arSetpoint;
     this.arSetpoint = Math.min(this.arSetpoint, 0.5);
     this.arSetpointActive = Math.min(this.arSetpointActive, 0.5);
     this.log.alarm(
       this.state.time,
       "AZ1",
-      "AZ-1 setback: emergency bank driving in, setpoint reduced to 50%",
+      `AZ-1 setback: emergency bank driving in, setpoint reduced to 50% (was ${(prevSetpoint * 100).toFixed(1)}%)`,
+      {
+        prevSetpoint: Number(prevSetpoint.toFixed(4)),
+        power: Number(powerFraction(this.state.nodes).toExponential(4)),
+        period: Number(this.period().toFixed(1)),
+        orm: Number(this.ormRods().toFixed(1)),
+        arMode: this.arMode,
+      },
     );
   }
-
   /** Reset the scram latch (rods stay where they are; re-enables AR). */
   resetScram(): void {
     if (!this.state.scrammed) return;
     this.state.scrammed = false;
     for (const rod of this.state.rods) rod.target = rod.insertion;
-    // Re-seed AR so the PI does not yank the bank out toward a stale
-    // pre-scram setpoint (that caused a changeover storm and walked all
-    // AR rods to 0). Hold the post-scram power when it is still inside
-    // the engaged regulator's band; below-band (typical full scram) park
-    // the setpoint at 0 so AR stays idle until the operator re-dials —
-    // chasing a dying source-level power would just walk rods back out.
     const p = Math.min(1, Math.max(0, this.powerFraction()));
     const [lo] = this.regulatorBand();
     if (p < lo) {
@@ -587,7 +742,19 @@ export class Reactor {
       bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
     this.arErrPrev = 0;
     this.arSaturatedFor = 0;
-    this.log.info(this.state.time, "AZ5_RESET", "scram latch reset");
+    this.log.info(
+      this.state.time,
+      "AZ5_RESET",
+      `scram latch reset — power ${(p * 100).toFixed(1)}%, ${bank.length} rods in AR bank`,
+      {
+        power: Number(p.toExponential(4)),
+        orm: Number(this.ormRods().toFixed(1)),
+        arSetpoint: this.arSetpoint,
+        arTarget: Number(this.arTarget.toFixed(4)),
+        arMode: this.arMode,
+        rodsInBank: bank.length,
+      },
+    );
   }
 
   /**
@@ -605,8 +772,25 @@ export class Reactor {
   }
 
   setFlowFraction(fraction: number): void {
+    const prev = this.state.flowFraction;
     this.state.flowFraction = Math.min(1.2, Math.max(0, fraction));
-    this.log.info(this.state.time, "FLOW", `pump flow ${Math.round(fraction * 100)}%`);
+    const pFlow = powerFraction(this.state.nodes);
+    const meanVoid =
+      this.state.nodes.reduce((a, n) => a + n.voidFrac, 0) /
+      this.state.nodes.length;
+    this.log.info(
+      this.state.time,
+      "FLOW",
+      `pump flow set to ${Math.round(fraction * 100)}% (was ${Math.round(prev * 100)}%)`,
+      {
+        flowFraction: this.state.flowFraction,
+        previousFlow: Number(prev.toFixed(4)),
+        power: Number(pFlow.toExponential(4)),
+        meanVoid: Number(meanVoid.toExponential(4)),
+        orm: Number(this.ormRods().toFixed(1)),
+      },
+    );
+    this.lastFlowFraction = this.state.flowFraction;
   }
 
   /**
@@ -616,7 +800,21 @@ export class Reactor {
    * step change if you want the core re-critical at the new value.
    */
   setRhoExtra(rho: number): void {
+    const prev = this.state.rhoExtra;
     this.state.rhoExtra = rho;
+    if (Math.abs(rho - prev) > 1e-12) {
+      this.log.info(
+        this.state.time,
+        "RHO_EXTRA",
+        `extra reactivity set to ${(rho * 1e5).toFixed(1)}e-5 Δk/k (was ${(prev * 1e5).toFixed(1)}e-5)`,
+        {
+          rhoExtra: rho,
+          previousRhoExtra: prev,
+          power: Number(powerFraction(this.state.nodes).toExponential(4)),
+          orm: Number(this.ormRods().toFixed(1)),
+        },
+      );
+    }
   }
 
   private rodsFor(selector: RodSelector): RodState[] {
@@ -684,23 +882,47 @@ export class Reactor {
           this.log.alarm(
             s.time,
             "LAR_DROPOUT",
-            "LAR dropped out (in-core chambers blind below 10%) - automatic changeover to AR on side chambers",
+            `LAR dropped out at ${(pBefore * 100).toFixed(1)}% power — changeover to AR on side chambers`,
+            {
+              power: Number(pBefore.toExponential(4)),
+              orm: Number(this.ormRods().toFixed(1)),
+              arSetpoint: this.arSetpoint,
+              arTarget: Number(this.arTarget.toFixed(4)),
+            },
           );
         } else if (s.time - this.lastBandWarnT > ALARM_COOLDOWN) {
           this.lastBandWarnT = s.time;
+          const [bandLo, bandHi] = this.regulatorBand();
           this.log.warn(
             s.time,
             "AR_BAND",
-            `power below the ${this.arMode} band - switch to a lower-range regulator`,
+            `power ${(pBefore * 100).toFixed(1)}% below ${this.arMode} band [${(bandLo * 100).toFixed(1)}-${(bandHi * 100).toFixed(1)}%] — switch to a lower-range regulator`,
+            {
+              power: Number(pBefore.toExponential(4)),
+              bandLo: bandLo,
+              bandHi: bandHi,
+              arMode: this.arMode,
+              arSetpoint: this.arSetpoint,
+              orm: Number(this.ormRods().toFixed(1)),
+            },
           );
         }
       } else if (pBefore > hi * 1.05) {
         if (s.time - this.lastBandWarnT > ALARM_COOLDOWN) {
           this.lastBandWarnT = s.time;
+          const [bandLo2, bandHi2] = this.regulatorBand();
           this.log.warn(
             s.time,
             "AR_BAND",
-            `power above the ${this.arMode} band - switch to a higher-range regulator`,
+            `power ${(pBefore * 100).toFixed(1)}% above ${this.arMode} band [${(bandLo2 * 100).toFixed(1)}-${(bandHi2 * 100).toFixed(1)}%] — switch to a higher-range regulator`,
+            {
+              power: Number(pBefore.toExponential(4)),
+              bandLo: bandLo2,
+              bandHi: bandHi2,
+              arMode: this.arMode,
+              arSetpoint: this.arSetpoint,
+              orm: Number(this.ormRods().toFixed(1)),
+            },
           );
         }
       }
@@ -763,10 +985,19 @@ export class Reactor {
                 Math.max(1, bank.length);
             } else if (s.time - this.lastArNoAuthT > ALARM_COOLDOWN) {
               this.lastArNoAuthT = s.time;
+              const perNoAuth = this.period();
               this.log.warn(
                 s.time,
                 "AR_NO_AUTH",
-                "AR out of authority — release with manual rods",
+                `AR out of authority — all subgroups saturated. Power ${(pBefore * 100).toFixed(1)}%, release with manual rods`,
+                {
+                  power: Number(pBefore.toExponential(4)),
+                  period: Number(perNoAuth.toFixed(1)),
+                  orm: Number(this.ormRods().toFixed(1)),
+                  arTarget: Number(this.arTarget.toFixed(4)),
+                  arSetpoint: this.arSetpoint,
+                  activeGroup: this.arActiveGroup,
+                },
               );
             }
             this.arSaturatedFor = 0;
@@ -917,6 +1148,33 @@ export class Reactor {
       GEN_TIME * this.smoothedRate -
       (GEN_TIME / n) * (delayed + NEUTRON_SOURCE);
 
+    // Power milestone logging: record when thermal power crosses a new
+    // higher threshold (upward direction only; reset on re-init).
+    if (!this.initializing) {
+      const milestones = Reactor.POWER_MILESTONES;
+      let newBin = this.lastPowerBin;
+      while (newBin < milestones.length - 1 && pAfter >= milestones[newBin + 1]!) {
+        newBin++;
+      }
+      if (newBin > this.lastPowerBin) {
+        const perMil = this.period();
+        const ormMil = this.ormRods();
+        for (let b = this.lastPowerBin + 1; b <= newBin; b++) {
+          this.log.info(
+            s.time,
+            "POWER",
+            `power reached ${(milestones[b]! * 100).toFixed(3)}% of rated`,
+            {
+              milestone: milestones[b],
+              power: Number(pAfter.toExponential(4)),
+              period: Number(perMil.toFixed(1)),
+              orm: Number(ormMil.toFixed(1)),
+            },
+          );
+        }
+        this.lastPowerBin = newBin;
+      }
+    }
     this.checkAlarms(pAfter);
   }
 
@@ -932,9 +1190,17 @@ export class Reactor {
       ) {
         this.periodAlarmLatched = true;
         this.lastPeriodAlarmT = s.time;
-        this.log.alarm(s.time, "PERIOD", "reactor period below 15 s", {
-          period: Number(period.toFixed(1)),
-        });
+        this.log.alarm(
+          s.time,
+          "PERIOD",
+          `reactor period ${period.toFixed(1)} s below 15 s threshold — power ${(power * 100).toFixed(2)}%`,
+          {
+            period: Number(period.toFixed(1)),
+            power: Number(power.toExponential(4)),
+            orm: Number(this.ormRods().toFixed(1)),
+            arMode: this.arMode,
+          },
+        );
       }
     } else if (this.periodAlarmLatched && (period < 0 || period > 25)) {
       this.periodAlarmLatched = false;
@@ -966,12 +1232,22 @@ export class Reactor {
           s.time,
           "PRIZMA",
           `printout: ORM ${orm.toFixed(1)} equivalent rods - BELOW the administrative floor of 15`,
+          {
+            orm: Number(orm.toFixed(1)),
+            power: Number(power.toExponential(4)),
+            period: Number(period.toFixed(1)),
+          },
         );
       } else {
         this.log.info(
           s.time,
           "PRIZMA",
           `printout: ORM ${orm.toFixed(1)} equivalent rods`,
+          {
+            orm: Number(orm.toFixed(1)),
+            power: Number(power.toExponential(4)),
+            period: Number(period.toFixed(1)),
+          },
         );
       }
     }
@@ -985,7 +1261,21 @@ export class Reactor {
   private warnBlocked(what: string): void {
     if (this.state.time - this.lastBlockedWarnT < ALARM_COOLDOWN) return;
     this.lastBlockedWarnT = this.state.time;
-    this.log.warn(this.state.time, "RPS_BLOCKED", `${what} - BLOCKED by operator`);
+    const pBlocked = powerFraction(this.state.nodes);
+    this.log.warn(
+      this.state.time,
+      "RPS_BLOCKED",
+      `${what} - BLOCKED by operator`,
+      {
+        reason: what,
+        power: Number(pBlocked.toExponential(4)),
+        period: Number(this.period().toFixed(1)),
+        orm: Number(this.ormRods().toFixed(1)),
+        protectionPeriod: this.protection.period,
+        protectionOverpower: this.protection.overpower,
+        arMode: this.arMode,
+      },
+    );
   }
 
   // -------------------------------------------------------------------------
