@@ -608,21 +608,21 @@ function resetSessionUi(): void {
 let startupMode = false;
 
 $("init-power").onclick = () => {
+  resetSessionUi();
   reactor.initAtPower(1.0, { manualInsertion: 0.55 });
   startupMode = false;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
-  resetSessionUi();
 };
 $("init-shutdown").onclick = () => {
+  resetSessionUi();
   reactor.initShutdown();
   startupMode = true;
   $<HTMLDetailsElement>("guide").open = true;
   selected.clear();
   rebuildSelRows();
   updateSelInfo();
-  resetSessionUi();
 };
 
 /** Startup checklist: each step checks itself off from the plant's state. */
