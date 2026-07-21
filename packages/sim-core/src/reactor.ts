@@ -445,6 +445,7 @@ export class Reactor {
       const trial = s.nodes.map((n) => ({
         flux: n.flux,
         precursors: [...n.precursors],
+        photoneutrons: [...n.photoneutrons],
       }));
       // Include rhoExtra so a boron/perturbation hook stays critical after
       // calibration (substep applies the same terms).
@@ -684,9 +685,15 @@ export class Reactor {
   setArMode(mode: "ARM" | "AR" | "LAR"): void {
     const prevMode = this.arMode;
     this.arMode = mode;
-    const bank = this.state.rods.filter((r) => this.regulatorOwns(r));
-    this.arTarget =
-      bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+    let bankSum = 0;
+    let bankCount = 0;
+    for (const rod of this.state.rods) {
+      if (this.regulatorOwns(rod)) {
+        bankSum += rod.insertion;
+        bankCount += 1;
+      }
+    }
+    this.arTarget = bankCount > 0 ? bankSum / bankCount : 0;
     this.arErrPrev = 0;
     if (mode !== prevMode) {
       const pMode = powerFraction(this.state.nodes);
@@ -726,8 +733,15 @@ export class Reactor {
     for (const rod of this.state.rods) {
       if (rod.group !== "USP") rod.target = 1;
     }
-    const uspList = this.state.rods.filter((r) => r.group === "USP");
-    const uspMean = uspList.reduce((a, r) => a + r.insertion, 0) / Math.max(1, uspList.length);
+    let uspSum = 0;
+    let uspCount = 0;
+    for (const r of this.state.rods) {
+      if (r.group === "USP") {
+        uspSum += r.insertion;
+        uspCount += 1;
+      }
+    }
+    const uspMean = uspCount > 0 ? uspSum / uspCount : 0;
     this.log.alarm(
       this.state.time,
       "AZ5",
@@ -784,22 +798,28 @@ export class Reactor {
       this.arSetpoint = p;
       this.arSetpointActive = p;
     }
-    const bank = this.state.rods.filter((r) => this.regulatorOwns(r));
-    this.arTarget =
-      bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+    let bankSum = 0;
+    let bankCount = 0;
+    for (const rod of this.state.rods) {
+      if (this.regulatorOwns(rod)) {
+        bankSum += rod.insertion;
+        bankCount += 1;
+      }
+    }
+    this.arTarget = bankCount > 0 ? bankSum / bankCount : 0;
     this.arErrPrev = 0;
     this.arSaturatedFor = 0;
     this.log.info(
       this.state.time,
       "AZ5_RESET",
-      `scram latch reset — power ${(p * 100).toFixed(1)}%, ${bank.length} rods in AR bank`,
+      `scram latch reset — power ${(p * 100).toFixed(1)}%, ${bankCount} rods in AR bank`,
       {
         power: Number(p.toExponential(4)),
         orm: Number(this.ormRods().toFixed(1)),
         arSetpoint: this.arSetpoint,
         arTarget: Number(this.arTarget.toFixed(4)),
         arMode: this.arMode,
-        rodsInBank: bank.length,
+        rodsInBank: bankCount,
       },
     );
   }
@@ -920,11 +940,15 @@ export class Reactor {
           // (the design behavior; the 00:28 accident-night power collapse
           // was this changeover FAILING, not being absent).
           this.arMode = "AR";
-          const bank = s.rods.filter(
-            (r) => r.group === "AR" && r.arSubgroup === this.arActiveGroup,
-          );
-          this.arTarget =
-            bank.reduce((a, r) => a + r.insertion, 0) / Math.max(1, bank.length);
+          let arBankSum = 0;
+          let arBankCount = 0;
+          for (const r of s.rods) {
+            if (r.group === "AR" && r.arSubgroup === this.arActiveGroup) {
+              arBankSum += r.insertion;
+              arBankCount += 1;
+            }
+          }
+          this.arTarget = arBankCount > 0 ? arBankSum / arBankCount : 0;
           this.arErrPrev = 0;
           this.log.alarm(
             s.time,
@@ -1005,12 +1029,15 @@ export class Reactor {
                 | 1
                 | 2
                 | 3);
-              const bank = s.rods.filter(
-                (r) => r.group === "AR" && r.arSubgroup === cand,
-              );
-              const mean =
-                bank.reduce((a, r) => a + r.insertion, 0) /
-                Math.max(1, bank.length);
+              let bankSum = 0;
+              let bankCount = 0;
+              for (const r of s.rods) {
+                if (r.group === "AR" && r.arSubgroup === cand) {
+                  bankSum += r.insertion;
+                  bankCount += 1;
+                }
+              }
+              const mean = bankCount > 0 ? bankSum / bankCount : 0;
               // Withdraw authority = room to go further out; insert = room in.
               if (needWithdraw ? mean > 0.05 : mean < 0.95) {
                 nextWithAuth = cand;
@@ -1034,12 +1061,15 @@ export class Reactor {
                 },
               );
               this.arActiveGroup = nextWithAuth;
-              const bank = s.rods.filter(
-                (r) => r.group === "AR" && r.arSubgroup === nextWithAuth,
-              );
-              this.arTarget =
-                bank.reduce((a, r) => a + r.insertion, 0) /
-                Math.max(1, bank.length);
+              let nextArSum = 0;
+              let nextArCount = 0;
+              for (const r of s.rods) {
+                if (r.group === "AR" && r.arSubgroup === nextWithAuth) {
+                  nextArSum += r.insertion;
+                  nextArCount += 1;
+                }
+              }
+              this.arTarget = nextArCount > 0 ? nextArSum / nextArCount : 0;
             } else if (s.time - this.lastArNoAuthT > ALARM_COOLDOWN) {
               this.lastArNoAuthT = s.time;
               const perNoAuth = this.period();
@@ -1070,24 +1100,38 @@ export class Reactor {
     // withdrawals and annunciates (AZ excluded; regulator-owned rods are
     // not frozen so LAR/AR can still trim).
     if (!this.initializing) {
-      const withdrawing = s.rods.filter(
-        (r) =>
-          r.group !== "AZ" &&
-          r.target < r.insertion - 1e-6 &&
-          !this.regulatorOwns(r),
-      );
-      if (withdrawing.length >= 8) {
-        for (const rod of withdrawing) rod.target = rod.insertion;
+      let withdrawingCount = 0;
+      for (const rod of s.rods) {
+        if (
+          rod.group !== "AZ" &&
+          rod.target < rod.insertion - 1e-6 &&
+          !this.regulatorOwns(rod)
+        ) {
+          withdrawingCount += 1;
+        }
+      }
+      if (withdrawingCount >= 8) {
+        const withdrawing: number[] = [];
+        for (const rod of s.rods) {
+          if (
+            rod.group !== "AZ" &&
+            rod.target < rod.insertion - 1e-6 &&
+            !this.regulatorOwns(rod)
+          ) {
+            rod.target = rod.insertion;
+            withdrawing.push(rod.id);
+          }
+        }
         if (s.time - this.lastSilBlokT > ALARM_COOLDOWN) {
           this.lastSilBlokT = s.time;
           const pSil = powerFraction(s.nodes);
           this.log.alarm(
             s.time,
             "SIL_BLOK",
-            `power interlock: ${withdrawing.length} rods withdrawing - all operator withdrawals halted`,
+            `power interlock: ${withdrawingCount} rods withdrawing - all operator withdrawals halted`,
             {
-              withdrawingCount: withdrawing.length,
-              withdrawingIds: withdrawing.map((r) => r.id),
+              withdrawingCount,
+              withdrawingIds: withdrawing,
               power: Number(pSil.toExponential(4)),
               period: Number(this.period().toFixed(1)),
               orm: Number(this.ormRods().toFixed(1)),
@@ -1254,16 +1298,56 @@ export class Reactor {
       this.nextStateT = s.time + STATE_INTERVAL;
       const perSt = this.period();
       const ormSt = this.ormRods();
-      const avgVoid = s.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
-      const avgXe = s.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL;
-      const avgFuel = s.nodes.reduce((a, n) => a + n.fuelTemp, 0) / N_AXIAL;
-      const avgCoolant = s.nodes.reduce((a, n) => a + n.coolantTemp, 0) / N_AXIAL;
-      const dhTotal = s.decayHeat.groups.reduce((a, g) => a + g, 0);
-      const rodIns: Record<string, number> = {};
-      for (const g of ["RR", "AR", "LAR", "AZ", "USP"] as const) {
-        const rods = s.rods.filter((r) => r.group === g);
-        rodIns[g] = Number((rods.reduce((a, r) => a + r.insertion, 0) / Math.max(1, rods.length)).toFixed(4));
+      let voidSum = 0;
+      let xeSum = 0;
+      let fuelSum = 0;
+      let coolantSum = 0;
+      for (const n of s.nodes) {
+        voidSum += n.voidFrac;
+        xeSum += n.xenon;
+        fuelSum += n.fuelTemp;
+        coolantSum += n.coolantTemp;
       }
+      const avgVoid = voidSum / N_AXIAL;
+      const avgXe = xeSum / N_AXIAL;
+      const avgFuel = fuelSum / N_AXIAL;
+      const avgCoolant = coolantSum / N_AXIAL;
+      const dhTotal = s.decayHeat.groups.reduce((a, g) => a + g, 0);
+      let rrSum = 0;
+      let rrCount = 0;
+      let arSum = 0;
+      let arCount = 0;
+      let larSum = 0;
+      let larCount = 0;
+      let azSum = 0;
+      let azCount = 0;
+      let uspSum = 0;
+      let uspCount = 0;
+      for (const rod of s.rods) {
+        if (rod.group === "RR") {
+          rrSum += rod.insertion;
+          rrCount += 1;
+        } else if (rod.group === "AR") {
+          arSum += rod.insertion;
+          arCount += 1;
+        } else if (rod.group === "LAR") {
+          larSum += rod.insertion;
+          larCount += 1;
+        } else if (rod.group === "AZ") {
+          azSum += rod.insertion;
+          azCount += 1;
+        } else {
+          uspSum += rod.insertion;
+          uspCount += 1;
+        }
+      }
+      const rodIns: Record<string, number> = {
+        RR: rrCount > 0 ? Number((rrSum / rrCount).toFixed(4)) : 0,
+        AR: arCount > 0 ? Number((arSum / arCount).toFixed(4)) : 0,
+        LAR: larCount > 0 ? Number((larSum / larCount).toFixed(4)) : 0,
+        AZ: azCount > 0 ? Number((azSum / azCount).toFixed(4)) : 0,
+        USP: uspCount > 0 ? Number((uspSum / uspCount).toFixed(4)) : 0,
+      };
       this.log.info(s.time, "STATE", "periodic plant state snapshot", {
         power: Number(pAfter.toExponential(4)),
         period: Number(perSt.toFixed(1)),
@@ -1460,9 +1544,16 @@ export class Reactor {
    * "release" it by moving manual rods (standard procedure).
    */
   arInsertion(): number {
-    const owned = this.state.rods.filter((r) => this.regulatorOwns(r));
-    if (owned.length === 0) return this.arTarget;
-    return owned.reduce((a, r) => a + r.insertion, 0) / owned.length;
+    let ownedSum = 0;
+    let ownedCount = 0;
+    for (const rod of this.state.rods) {
+      if (this.regulatorOwns(rod)) {
+        ownedSum += rod.insertion;
+        ownedCount += 1;
+      }
+    }
+    if (ownedCount === 0) return this.arTarget;
+    return ownedSum / ownedCount;
   }
 
   /** Smoothed reactor period [s] (clamped to +-1e6 for display). */
