@@ -11,6 +11,7 @@ import {
   PHOTO_BETA,
   PHOTO_LAMBDA,
   PRIZMA_PERIOD,
+  STATE_INTERVAL,
   GRAPHITE_TEMP_COEFF,
   N_AXIAL,
   N_RODS,
@@ -150,6 +151,49 @@ export class Reactor {
       );
     }
   }
+
+  /** Engage or disengage the automatic regulator. Logs AR_ENABLED on change. */
+  setArEnabled(enabled: boolean): void {
+    if (enabled === this.arEnabled) return;
+    const prev = this.arEnabled;
+    this.arEnabled = enabled;
+    const pAr = powerFraction(this.state.nodes);
+    this.log.info(
+      this.state.time,
+      "AR_ENABLED",
+      `automatic regulator ${enabled ? "engaged" : "disengaged"} (was ${prev ? "engaged" : "disengaged"})`,
+      { enabled, power: Number(pAr.toExponential(4)), orm: Number(this.ormRods().toFixed(1)), arMode: this.arMode, arSetpoint: this.arSetpoint },
+    );
+  }
+
+  /** Set power setpoint [fraction of rated]. Logs AR_SETPOINT on change. */
+  setArSetpoint(sp: number): void {
+    const clamped = Math.min(1, Math.max(0, sp));
+    if (Math.abs(clamped - this.arSetpoint) < 1e-9) return;
+    const prev = this.arSetpoint;
+    this.arSetpoint = clamped;
+    const pSp = powerFraction(this.state.nodes);
+    this.log.info(
+      this.state.time,
+      "AR_SETPOINT",
+      `setpoint changed from ${(prev * 100).toFixed(1)}% to ${(clamped * 100).toFixed(1)}%`,
+      { setpoint: clamped, prevSetpoint: prev, power: Number(pSp.toExponential(4)), orm: Number(this.ormRods().toFixed(1)) },
+    );
+  }
+
+  /** Set AR gradient [fraction/s]. Logs AR_GRADIENT on change. */
+  setArGradient(g: number): void {
+    const clamped = Math.min(0.01, Math.max(0, g));
+    if (Math.abs(clamped - this.arGradient) < 1e-12) return;
+    const prev = this.arGradient;
+    this.arGradient = clamped;
+    this.log.info(
+      this.state.time,
+      "AR_GRADIENT",
+      `gradient changed from ${(prev * 1e4).toFixed(1)}e-4 to ${(clamped * 1e4).toFixed(1)}e-4 Δk/k·s`,
+      { gradient: clamped, prevGradient: prev },
+    );
+  }
   private lastBlockedWarnT = -Infinity;
   private lastPeriodBlockWarnT = -Infinity;
   private lastRodAutoWarnT = -Infinity;
@@ -160,6 +204,8 @@ export class Reactor {
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
   private lastPrizma = { t: 0, orm: 0 };
   private nextPrizmaT = 0;
+  /** Next sim-time for a periodic STATE snapshot. */
+  private nextStateT = 0;
   /** Last flow fraction for FLOW delta logging. */
   private lastFlowFraction = 1;
   /** Power thresholds for milestone logging (fraction of rated). */
@@ -383,6 +429,7 @@ export class Reactor {
     this.periodAlarmLatched = false;
     this.lastFlowFraction = 1;
     this.lastPowerBin = 0;
+    this.nextStateT = 0;
   }
   /**
    * Find rhoBase so the current configuration is exactly critical:
@@ -975,6 +1022,16 @@ export class Reactor {
                 s.time,
                 "AR_CHANGEOVER",
                 `AR-${this.arActiveGroup} out of authority - changeover to AR-${nextWithAuth}`,
+                {
+                  fromGroup: this.arActiveGroup,
+                  toGroup: nextWithAuth,
+                  power: Number(pBefore.toExponential(4)),
+                  period: Number(this.period().toFixed(1)),
+                  orm: Number(this.ormRods().toFixed(1)),
+                  arTarget: Number(this.arTarget.toFixed(4)),
+                  arSetpoint: this.arSetpoint,
+                  arMode: this.arMode,
+                },
               );
               this.arActiveGroup = nextWithAuth;
               const bank = s.rods.filter(
@@ -1023,10 +1080,20 @@ export class Reactor {
         for (const rod of withdrawing) rod.target = rod.insertion;
         if (s.time - this.lastSilBlokT > ALARM_COOLDOWN) {
           this.lastSilBlokT = s.time;
+          const pSil = powerFraction(s.nodes);
           this.log.alarm(
             s.time,
             "SIL_BLOK",
             `power interlock: ${withdrawing.length} rods withdrawing - all operator withdrawals halted`,
+            {
+              withdrawingCount: withdrawing.length,
+              withdrawingIds: withdrawing.map((r) => r.id),
+              power: Number(pSil.toExponential(4)),
+              period: Number(this.period().toFixed(1)),
+              orm: Number(this.ormRods().toFixed(1)),
+              protectionPeriod: this.protection.period,
+              protectionOverpower: this.protection.overpower,
+            },
           );
         }
       }
@@ -1047,10 +1114,17 @@ export class Reactor {
         }
         if (blocked && s.time - this.lastPeriodBlockWarnT > 10) {
           this.lastPeriodBlockWarnT = s.time;
+          const pPer = powerFraction(s.nodes);
           this.log.warn(
             s.time,
             "PERIOD_BLOCK",
             "withdrawal blocked: period below 60 s - wait for it to recover",
+            {
+              power: Number(pPer.toExponential(4)),
+              period: Number(period.toFixed(1)),
+              protectionPeriod: this.protection.period,
+              protectionOverpower: this.protection.overpower,
+            },
           );
         }
       }
@@ -1174,6 +1248,44 @@ export class Reactor {
         }
         this.lastPowerBin = newBin;
       }
+    }
+    // Periodic STATE snapshot: full plant state for diagnostic narrative.
+    if (!this.initializing && s.time >= this.nextStateT) {
+      this.nextStateT = s.time + STATE_INTERVAL;
+      const perSt = this.period();
+      const ormSt = this.ormRods();
+      const avgVoid = s.nodes.reduce((a, n) => a + n.voidFrac, 0) / N_AXIAL;
+      const avgXe = s.nodes.reduce((a, n) => a + n.xenon, 0) / N_AXIAL;
+      const avgFuel = s.nodes.reduce((a, n) => a + n.fuelTemp, 0) / N_AXIAL;
+      const avgCoolant = s.nodes.reduce((a, n) => a + n.coolantTemp, 0) / N_AXIAL;
+      const dhTotal = s.decayHeat.groups.reduce((a, g) => a + g, 0);
+      const rodIns: Record<string, number> = {};
+      for (const g of ["RR", "AR", "LAR", "AZ", "USP"] as const) {
+        const rods = s.rods.filter((r) => r.group === g);
+        rodIns[g] = Number((rods.reduce((a, r) => a + r.insertion, 0) / Math.max(1, rods.length)).toFixed(4));
+      }
+      this.log.info(s.time, "STATE", "periodic plant state snapshot", {
+        power: Number(pAfter.toExponential(4)),
+        period: Number(perSt.toFixed(1)),
+        rho: Number((this.lastRhoIpk / BETA_EFF).toFixed(4)),
+        orm: Number(ormSt.toFixed(1)),
+        voidAvg: Number(avgVoid.toExponential(4)),
+        xenon: Number(avgXe.toExponential(4)),
+        fuelTempAvg: Number(avgFuel.toFixed(1)),
+        coolantTempAvg: Number(avgCoolant.toFixed(1)),
+        decayHeat: Number(dhTotal.toExponential(4)),
+        flowFraction: s.flowFraction,
+        scrammed: s.scrammed,
+        arEnabled: this.arEnabled,
+        arMode: this.arMode,
+        arActiveGroup: this.arActiveGroup,
+        arSetpoint: this.arSetpoint,
+        arSetpointActive: Number(this.arSetpointActive.toFixed(4)),
+        arTarget: Number(this.arTarget.toFixed(4)),
+        rodIns,
+        protectionPeriod: this.protection.period,
+        protectionOverpower: this.protection.overpower,
+      });
     }
     this.checkAlarms(pAfter);
   }

@@ -1,16 +1,14 @@
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import type { SimEvent } from "../packages/sim-core/src/types";
 import index from "../packages/ui/index.html";
 
 const LOG_PATH = "data/log.jsonl";
 
-// Ensure the data directory exists at startup.
 const logDir = LOG_PATH.substring(0, LOG_PATH.lastIndexOf("/"));
-if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
+await mkdir(logDir, { recursive: true });
 
-/** Append a single JSONL line — restart-safe, unambiguous append via node:fs. */
-function appendLogLine(line: string): void {
-  appendFileSync(LOG_PATH, line, "utf-8");
+async function appendLogLine(line: string): Promise<void> {
+  await appendFile(LOG_PATH, line, "utf-8");
 }
 
 const server = Bun.serve({
@@ -19,15 +17,19 @@ const server = Bun.serve({
     "/": index,
     "/api/log/events": {
       POST: async (req) => {
-        const events: SimEvent[] = await req.json();
-        if (!Array.isArray(events) || events.length === 0) {
-          return new Response("invalid payload", { status: 400 });
+        try {
+          const events: SimEvent[] = await req.json();
+          if (!Array.isArray(events) || events.length === 0) {
+            return new Response("invalid payload", { status: 400 });
+          }
+          const lines = events
+            .map((e) => JSON.stringify(e))
+            .join("\n") + "\n";
+          await appendLogLine(lines);
+          return new Response("ok");
+        } catch {
+          return new Response("error", { status: 500 });
         }
-        const lines = events
-          .map((e) => JSON.stringify(e))
-          .join("\n") + "\n";
-        appendLogLine(lines);
-        return new Response("ok");
       },
       OPTIONS: () => new Response(null, { status: 204 }),
     },

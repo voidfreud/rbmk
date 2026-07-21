@@ -136,6 +136,9 @@ export const ROD_SPEED = 0.4;
 export const ROD_SPEED_LAR_OUT = 0.2;
 /** PRIZMA ORM printout cycle [s] - pre-1986 ORM was NOT a live gauge. */
 export const PRIZMA_PERIOD = 300;
+/** Interval between periodic STATE snapshot events [s] — enables reconstructing
+ * continuous plant behavior from the event log without per-frame logging. */
+export const STATE_INTERVAL = 5;
 /** Graphite displacer length [m] (INSAG-7, direct). */
 export const DISPLACER_LENGTH = 4.5;
 /** USP shortened-absorber length [m] (budan/accidont: 3050 mm), from below. */
