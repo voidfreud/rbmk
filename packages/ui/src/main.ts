@@ -216,10 +216,22 @@ reactor.log.addSink((e) => {
   li.className = `event ${e.level}`;
   const title = document.createElement("div");
   title.className = "event-title";
+  const icon = e.level === "alarm" ? "▲ " : e.level === "warn" ? "◆ " : "· ";
   const seq = e.seq === undefined ? "—" : String(e.seq).padStart(4, "0");
-  title.textContent = `${hms(e.t)} [${seq}] ${e.code}: ${e.msg}`;
+  title.textContent = `${icon}${hms(e.t)} [${seq}] ${e.code}: ${e.msg}`;
   li.appendChild(title);
 
+  const ctxParts = [
+    e.actor || null,
+    e.where || null,
+    e.cause ? `because ${e.cause}` : null,
+  ].filter((p): p is string => p !== null);
+  if (ctxParts.length > 0) {
+    const ctx = document.createElement("div");
+    ctx.className = "event-meta";
+    ctx.textContent = ctxParts.join(" · ");
+    li.appendChild(ctx);
+  }
   if (data) {
     const details = document.createElement("details");
     const detSummary = document.createElement("summary");
