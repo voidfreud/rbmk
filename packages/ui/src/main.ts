@@ -164,6 +164,18 @@ const STATE_DELTA_KEYS = [
   "flowFraction",
 ] as const;
 
+const STATE_SUMMARY_KEYS = [
+  "power",
+  "rho",
+  "period",
+  "orm",
+  "voidAvg",
+  "xenon",
+  "fuelTempAvg",
+  "coolantTempAvg",
+  "flowFraction",
+] as const;
+
 type EventPayload = Record<string, unknown>;
 
 function isRecord(value: unknown): value is EventPayload {
@@ -206,7 +218,7 @@ function summarizeEventData(e: SimEvent): string[] {
   const data = isRecord(e.data) ? e.data : null;
   if (!data) return [];
   const keys = e.code === "STATE"
-    ? ["power", "rho", "period", "orm", "voidAvg", "xenon", "fuelTempAvg", "coolantTempAvg", "flowFraction"]
+    ? [...STATE_SUMMARY_KEYS]
     : ["power", "period", "rho", "orm", "speed", "flowFraction", "setpoint", "reason"];
   const values: string[] = [];
   for (const key of keys) {
@@ -309,7 +321,7 @@ function inferContextFromData(e: SimEvent): { actor: string | null; where: strin
   return { actor, where, cause };
 }
 
-function formatDataLines(data: EventPayload, limit = 20): string[] {
+function formatDataLines(data: EventPayload, limit = 20, exclude: ReadonlySet<string> = new Set()): string[] {
   const primary = [
     "power",
     "period",
@@ -342,7 +354,7 @@ function formatDataLines(data: EventPayload, limit = 20): string[] {
   const lines: string[] = [];
   const seen = new Set<string>();
   const add = (key: string): void => {
-    if (!(key in data)) return;
+    if (!(key in data) || exclude.has(key)) return;
     const value = data[key];
     if (key === "rodIns") {
       lines.push(`  rodIns: ${formatRodIns(value)}`);
@@ -420,8 +432,10 @@ reactor.log.addSink((e) => {
     detSummary.textContent = "event data";
     details.appendChild(detSummary);
     const detailText = document.createElement("pre");
-    detailText.className = "event-data";
-    detailText.textContent = formatDataLines(data).join("\n");
+    const dataExclude = e.code === "STATE"
+      ? new Set(STATE_SUMMARY_KEYS)
+      : new Set<string>();
+    detailText.textContent = formatDataLines(data, 20, dataExclude).join("\n");
     details.appendChild(detailText);
     li.appendChild(details);
   }
@@ -774,12 +788,14 @@ function snapDisplays(): void {
 }
 
 /**
- * Shared re-init UI reset (P0.2 / P0.3 + polish): clear strip buffers, rewind
- * sample clock, clear annunciator hold memory, snap damped displays, and
- * resync AR toggle / setpoint from the reactor.
+ * Shared re-init UI reset (P0.2 / P0.3 + polish): clear strip buffers,
+ * event log, rewind sample clock, clear annunciator hold memory, snap
+ * damped displays, and resync AR toggle / setpoint from the reactor.
  */
 function resetSessionUi(): void {
   trends.reset();
+  alarmList.innerHTML = "";
+  lastState = null;
   nextSample = 0;
   nextDomUpdate = 0;
   drivingIds = null;
