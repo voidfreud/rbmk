@@ -1426,17 +1426,7 @@
           <button id="pw-log" title="Log power scale: exponential power rise appears as a straight line.">log</button>
         </span>
       </h2>
-      <canvas class="strip" id="st-trends"
-        title="Shared-time trend monitor. Each enabled signal has its own labeled lane and scale; hover to compare all values at the same simulation time."></canvas>
-    </section>
-    <section class="panel" id="alarms">
-      <h2
-        title="Chronological plant events: info, warnings, protection trips, and refused operator actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).">
-        Event log</h2>
-      <ul id="alarm-list"
-        title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info. Refused drives and interlocks always log here — never silent.">
-      </ul>
-    </section>
+      <canvas class="strip" id="st-trends" </section>
   </footer>
 
   <div id="busy-overlay">
@@ -1445,48 +1435,7 @@
     <div class="busy-sub">Close that tab to take control here.</div>
   </div>
   <div id="tooltip"></div>
-  <script type="module">
-    const LOCK_NAME = "rbmk-instance";
-    const overlay = document.getElementById("busy-overlay");
-    let released = false;
-    let stopResolver = null;
-
-    async function attemptPrimary() {
-      if (released) return;
-      try {
-        await navigator.locks.request(
-          LOCK_NAME,
-          {ifAvailable: true},
-          async (lock) => {
-            if (!lock) {
-              overlay.classList.add("visible");
-              setTimeout(attemptPrimary, 2000);
-              return;
-            }
-            overlay.classList.remove("visible");
-            const stopped = new Promise((r) => {stopResolver = r;});
-            await import("./src/main.ts");
-            await stopped;
-          },
-        );
-      } catch {
-        setTimeout(attemptPrimary, 2000);
-      }
-    }
-
-    addEventListener("beforeunload", () => {
-      released = true;
-      stopResolver?.();
-    });
-
-    if ("locks" in navigator) {
-      attemptPrimary();
-    } else {
-      overlay.querySelector(".busy-sub").textContent = "Web Locks API unavailable — starting unprotected.";
-      overlay.classList.add("visible");
-      import("./src/main.ts").then(() => overlay.classList.remove("visible"));
-    }
-  </script>
+  <script type="module" src="./src/gate.ts"></script>
 </body>
 
 </html>
