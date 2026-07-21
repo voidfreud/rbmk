@@ -136,7 +136,11 @@ export class Slice {
     g.fillText("BOTTOM · coolant inlet ↑", SCALE_X + 2, TOP + coreH - 3);
 
     // Power profile as a filled area, normalized to its current axial peak.
-    const maxFlux = Math.max(1e-12, ...nodes.map((n) => n.flux));
+    let maxFlux = 1e-12;
+    for (let k = 0; k < N_AXIAL; k++) {
+      const flux = nodes[k]!.flux;
+      if (flux > maxFlux) maxFlux = flux;
+    }
     const fx = (f: number) => SCALE_X + (f / maxFlux) * (FLUX_W - 8);
     g.fillStyle = "#898781";
     g.font = "9px system-ui, sans-serif";

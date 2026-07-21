@@ -813,10 +813,17 @@ function frame(now: number): void {
 
     // Plant thermal readouts.
     const nodes = reactor.state.nodes;
-    $("p-tf").textContent = `${Math.round(Math.max(...nodes.map((n) => n.fuelTemp)))}°C`;
-    $("p-tg").textContent = `${Math.round(nodes.reduce((a, n) => a + n.graphiteTemp, 0) / N_AXIAL)}°C`;
-    $("p-x").textContent = `${(Math.max(...nodes.map((n) => n.quality)) * 100).toFixed(1)}%`;
-    $("p-dh").textContent = `${(reactor.state.decayHeat.groups.reduce((a, b) => a + b, 0) / 1e6).toFixed(0)} MW`;
+    let maxTf = 0;
+    let sumTg = 0;
+    let maxVoid = 0;
+    for (const n of nodes) {
+      if (n.fuelTemp > maxTf) maxTf = n.fuelTemp;
+      sumTg += n.graphiteTemp;
+      if (n.quality > maxVoid) maxVoid = n.quality;
+    }
+    $("p-tf").textContent = `${Math.round(maxTf)}°C`;
+    $("p-tg").textContent = `${Math.round(sumTg / N_AXIAL)}°C`;
+    $("p-x").textContent = `${(maxVoid * 100).toFixed(1)}%`;
 
     // Annunciators.
     setLamp("an-scram", reactor.state.scrammed ? "alarm" : "");

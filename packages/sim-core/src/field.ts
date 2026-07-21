@@ -93,6 +93,9 @@ export class RadialField {
   private readonly neighborW: Float32Array[];
   /** Fundamental-mode dome per channel. */
   private readonly dome: Float32Array;
+  /** Cached per-rod axial absorber/displacer effects for this update call. */
+  private readonly rodAbs: Float32Array;
+  private readonly rodDisp: Float32Array;
   /** Last computed relative power per channel (mean 1 over channels). */
   readonly rel: Float32Array;
 
@@ -101,6 +104,8 @@ export class RadialField {
     channels = buildFuelChannels(),
   ) {
     this.channels = channels;
+    this.rodAbs = new Float32Array(this.rods.length);
+    this.rodDisp = new Float32Array(this.rods.length);
     this.rel = new Float32Array(channels.length).fill(1);
     this.dome = new Float32Array(channels.length);
     this.neighborRods = [];
@@ -128,7 +133,11 @@ export class RadialField {
 
   /** Recompute the field from current rod positions and axial flux shape. */
   update(nodes: NodeState[]): void {
-    const eff = this.rods.map((rod) => rodAxialEffect(rod, nodes));
+    for (const rod of this.rods) {
+      const e = rodAxialEffect(rod, nodes);
+      this.rodAbs[rod.id] = e.abs;
+      this.rodDisp[rod.id] = e.disp;
+    }
     let sum = 0;
     for (let c = 0; c < this.channels.length; c++) {
       let f = this.dome[c]!;
@@ -136,8 +145,11 @@ export class RadialField {
       const ws = this.neighborW[c]!;
       let mod = 0;
       for (let i = 0; i < ids.length; i++) {
-        const e = eff[ids[i]!]!;
-        mod += ws[i]! * (A_DISP * e.disp - A_ABS * e.abs);
+        const rid = ids[i];
+        if (rid === undefined) continue;
+        const w = ws[i];
+        if (w === undefined) continue;
+        mod += w * (A_DISP * this.rodDisp[rid]! - A_ABS * this.rodAbs[rid]!);
       }
       f *= Math.max(0.02, 1 + mod);
       this.rel[c] = f;
