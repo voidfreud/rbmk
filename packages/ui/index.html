@@ -1,259 +1,1014 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>RBMK-1000 — Unit Control Room</title>
-<style>
-  :root {
-    --page: #0d0d0d;
-    --panel: #131312;
-    --panel-2: #1a1a19;
-    --ink: #ffffff;
-    --ink-2: #c3c2b7;
-    --muted: #898781;
-    --grid: #2c2c2a;
-    --hairline: rgba(255, 255, 255, 0.10);
-    --accent: #3987e5;
-    --good: #0ca30c;
-    --warning: #fab219;
-    --critical: #d03b3b;
-  }
-  * { box-sizing: border-box; margin: 0; }
-  html, body { height: 100%; }
-  body {
-    background: var(--page);
-    color: var(--ink-2);
-    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 1700px;
-  }
-  .num { font-variant-numeric: tabular-nums; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RBMK-1000 — Unit Control Room</title>
+  <style>
+    :root {
+      --page: #0d0d0d;
+      --panel: #131312;
+      --panel-2: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+      --good: #0ca30c;
+      --warning: #fab219;
+      --critical: #d03b3b;
+    }
 
-  header {
-    display: flex; gap: 10px; align-items: stretch;
-    position: sticky; left: 10px; z-index: 2; width: calc(100vw - 20px);
-  }
-  .tile {
-    background: var(--panel);
-    border: 1px solid var(--hairline);
-    border-radius: 6px;
-    padding: 8px 14px;
-    min-width: 108px;
-  }
-  .tile .label { color: var(--muted); font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
-  .tile .value { color: var(--ink); font-size: 22px; font-weight: 600; }
-  .tile .sub { color: var(--muted); font-size: 11px; }
-  .tile.wide { min-width: 190px; }
-  .tile.brand { display: flex; flex-direction: column; justify-content: center; min-width: 170px; }
-  .tile.brand .value { font-size: 15px; letter-spacing: 1px; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
 
-  main { display: flex; gap: 10px; }
-  /* Drag-selection on the maps must not text-select the page. */
-  main, #desk, header { user-select: none; }
-  #alarm-list { user-select: text; }
-  .panel {
-    background: var(--panel);
-    border: 1px solid var(--hairline);
-    border-radius: 6px;
-    padding: 10px;
-    display: flex; flex-direction: column; gap: 8px;
-    overflow: hidden;
-  }
-  .panel h2 {
-    font-size: 11px; font-weight: 600; letter-spacing: 0.6px;
-    text-transform: uppercase; color: var(--muted);
-  }
-  .panel-help {
-    color: var(--muted); font-size: 11px; line-height: 1.35;
-  }
-  .rod-note { padding: 7px 8px; border-left: 3px solid #d55181; background: rgba(213,81,129,0.07); color: var(--muted); font-size: 10px; line-height: 1.45; }
-  .rod-note b { color: var(--ink-2); }
-  .profile-key { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
-  .profile-key span { display: inline-flex; align-items: center; gap: 5px; }
-  .profile-key i { width: 19px; height: 0; border-top: 2px solid; }
-  .profile-key .power i { border-color: #d95926; }
-  .profile-key .steam i { border-color: #9ec5f4; border-top-style: dashed; }
-  .profile-key .xenon i { border-color: #fab219; border-top-style: dotted; }
-  .map-key, .field-key {
-    border: 1px solid var(--hairline); border-radius: 5px;
-    background: rgba(255,255,255,.018); padding: 9px;
-  }
-  .map-key { display: grid; grid-template-columns: 1.05fr 1.6fr; gap: 12px; }
-  .key-title { color: var(--ink-2); font-size: 10px; font-weight: 700; letter-spacing: .55px; text-transform: uppercase; }
-  .key-copy { color: var(--muted); font-size: 9px; line-height: 1.35; }
-  .depth-examples { display: flex; align-items: flex-end; gap: 9px; margin: 7px 0 5px; }
-  .depth-example { display: grid; justify-items: center; gap: 3px; color: var(--muted); font-size: 9px; }
-  .depth-cell { width: 24px; height: 31px; position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,.35); border-radius: 3px; background: #0d0d0d; }
-  .depth-cell i { position: absolute; inset: 0 1px auto; height: var(--level); background: #5598e7; }
-  .depth-arrow { color: #5598e7; font-size: 18px; line-height: 31px; }
-  .role-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 5px; margin-top: 7px; }
-  .role-chip { display: flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); font-size: 9px; line-height: 1.15; }
-  .role-chip i, .channel-sample { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 3px; background: #0d0d0d; font-style: normal; font-size: 9px; font-weight: 700; }
-  .role-chip b { display: block; color: var(--ink-2); font-size: 9px; }
-  .role-chip.rr i { border: 1px solid rgba(255,255,255,.35); color: var(--ink-2); }
-  .role-chip.ar i { border: 1.5px solid #199e70; color: #199e70; }
-  .role-chip.lar i { border: 1.5px solid #9085e9; color: #9085e9; }
-  .role-chip.az i { border: 1.5px solid #d55181; color: #d55181; }
-  .role-chip.usp i { border: 1.5px solid #c98500; color: #c98500; }
-  .role-chip.selected i { border: 2px solid #fff; color: #fff; }
-  .field-key { display: grid; gap: 9px; }
-  .field-scale { height: 12px; width: 100%; border-radius: 3px; position: relative; background: linear-gradient(90deg, #20110d 0%, #71301f 48%, #d95926 72%, #f0713d 100%); }
-  .field-scale::after { content: ""; position: absolute; left: var(--average-pos, 50%); top: -3px; bottom: -3px; width: 1px; background: #fff; opacity: .75; }
-  .scale-labels { display: grid; grid-template-columns: 1fr 1fr 1fr; color: var(--muted); font-size: 9px; margin-top: 3px; }
-  .scale-labels span:nth-child(2) { text-align: center; color: var(--ink-2); }
-  .scale-labels span:last-child { text-align: right; }
-  .channel-keys { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .channel-key { display: flex; gap: 7px; align-items: center; color: var(--muted); font-size: 9px; line-height: 1.25; }
-  .channel-key b { display: block; color: var(--ink-2); font-size: 10px; }
-  .channel-sample.fuel { background: #d95926; }
-  .channel-sample.cps { border: 1.5px solid #9ec5f4; }
-  .field-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
-  .field-stat { border-left: 2px solid #d95926; padding-left: 7px; color: var(--muted); font-size: 9px; line-height: 1.25; }
-  .field-stat b { display: block; color: var(--ink); font-size: 13px; font-weight: 600; }
-  .slice-guide {
-    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px 12px; font-size: 10px; color: var(--muted);
-  }
-  .slice-guide b { color: var(--ink-2); font-weight: 600; }
-  canvas { display: block; }
-  /* Strip-chart canvases: fill panel width; height set by JS. */
-  canvas.strip { width: 100%; min-height: 128px; }
-  #st-trends { min-height: 180px; }
+    html,
+    body {
+      height: 100%;
+    }
 
-  #col-map { flex: 0 0 662px; width: 662px; }
-  #col-field { flex: 0 0 462px; width: 462px; min-width: 0; }
-  #col-slice { flex: 1; min-width: 0; }
+    body {
+      background: var(--page);
+      color: var(--ink-2);
+      font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 1700px;
+    }
 
-  /* The operator desk: full-width control panel between maps and charts. */
-  #desk {
-    display: grid; gap: 10px; align-items: start;
-    grid-template-columns: 350px minmax(440px, 1.3fr) minmax(350px, 1fr) 350px;
-  }
-  #desk .panel { min-width: 0; }
-  main .panel > canvas { margin: 0 auto; }
+    .num {
+      font-variant-numeric: tabular-nums;
+    }
 
-  /* Annunciator lamp field (real panels: a grid of lit tiles). */
-  #annunciators { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 2px; }
-  .lamp {
-    border: 1px solid var(--hairline); border-radius: 4px; padding: 6px 8px;
-    color: var(--muted); display: flex; align-items: flex-start; gap: 7px;
-  }
-  .lamp i { width: 8px; height: 8px; margin-top: 3px; border-radius: 50%; background: var(--grid); flex: none; }
-  .lamp span { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-  .lamp b { color: var(--ink-2); font-size: 10px; line-height: 1.2; letter-spacing: .5px; text-transform: uppercase; }
-  .lamp small { color: var(--muted); font-size: 9px; line-height: 1.25; }
-  .lamp.warn b, .lamp.warn small { color: var(--warning); }
-  .lamp.alarm b, .lamp.alarm small { color: var(--critical); }
-  .lamp.ok i { background: var(--good); }
-  .lamp.warn { color: var(--warning); border-color: rgba(250,178,25,0.4); }
-  .lamp.warn i { background: var(--warning); }
-  .lamp.alarm { color: var(--critical); border-color: rgba(208,59,59,0.5); }
-  .lamp.alarm i { background: var(--critical); box-shadow: 0 0 6px var(--critical); }
-  .instrument-block { border: 1px solid var(--hairline); border-radius: 4px; padding: 6px 8px; }
-  .instrument-head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; }
-  .instrument-head b { color: var(--ink-2); font-weight: 600; }
-  .instrument-note { color: var(--muted); font-size: 9px; line-height: 1.3; }
-  .instrument-state { color: var(--ink-2); font-size: 10px; min-height: 14px; }
-  .instrument-block canvas { margin: 0 auto; }
+    header {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      position: sticky;
+      left: 10px;
+      z-index: 2;
+      width: calc(100vw - 20px);
+    }
 
-  /* Small stat blocks (plant thermal readouts). */
-  .mini { font-size: 11px; color: var(--muted); flex: 1; min-width: 70px; }
-  .mini b { color: var(--ink); font-weight: 600; display: block; font-size: 15px; }
-  #guide { font-size: 12px; color: var(--muted); }
-  #guide summary { cursor: pointer; color: var(--ink-2); }
-  #guide ol { margin: 6px 0 0 18px; display: flex; flex-direction: column; gap: 2px; }
-  #guide li.done { color: var(--good); }
-  #guide li.done::after { content: " ✓"; }
-  #guide li.current { color: var(--ink); }
-  footer .panel h2 button { padding: 1px 7px; font-size: 10px; }
+    .tile {
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 8px 14px;
+      min-width: 108px;
+    }
 
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  button {
-    background: var(--panel-2); color: var(--ink-2);
-    border: 1px solid var(--hairline); border-radius: 5px;
-    padding: 6px 10px; font: inherit; cursor: pointer;
-  }
-  button:hover { border-color: var(--muted); color: var(--ink); }
-  button.active { border-color: var(--accent); color: var(--ink); }
-  button:disabled { opacity: 0.4; cursor: default; }
-  input[type="range"] { accent-color: var(--accent); flex: 1; }
-  .readout { color: var(--ink); font-weight: 600; min-width: 52px; text-align: right; }
+    .tile .label {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
 
-  /* AZ-5 */
-  #az5-wrap { position: relative; width: 116px; height: 116px; margin: 2px auto; }
-  #az5 {
-    width: 100%; height: 100%; border-radius: 50%;
-    background: radial-gradient(circle at 38% 32%, #e05252, #8c1f1f 70%);
-    border: 3px solid #5a1414; color: #fff;
-    font-weight: 700; font-size: 15px; letter-spacing: 1px;
-  }
-  #az5-cover {
-    position: absolute; inset: -6px; border-radius: 10px;
-    background: rgba(230, 210, 140, 0.16);
-    border: 2px solid rgba(230, 210, 140, 0.55);
-    backdrop-filter: blur(1px);
-    color: #e6d28c; font-size: 10px; letter-spacing: 1.2px;
-    display: flex; align-items: flex-end; justify-content: center;
-    padding-bottom: 4px; cursor: pointer; user-select: none;
-  }
-  #az5-cover.open { transform: translateY(-104%) rotate(-8deg); transition: transform 0.25s; }
-  #az5-cover { transition: transform 0.25s; }
+    .tile .value {
+      color: var(--ink);
+      font-size: 22px;
+      font-weight: 600;
+    }
 
-  footer { display: flex; gap: 10px; height: 242px; }
-  footer .panel { flex: 1; min-width: 0; }
-  #trends { flex: 1 1 auto; }
-  #trends h2 { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-  #trends h2 .trend-label { margin-right: 3px; }
-  #trends h2 .trend-base { color: #9085e9; margin-right: 3px; }
-  #trends h2 .scale-label { margin-left: auto; color: var(--muted); }
-  #trends canvas[hidden] { display: none; }
-  #alarms { flex: 0 0 360px; overflow: hidden; }
-  #alarm-list { list-style: none; overflow-y: auto; flex: 1; display: flex; flex-direction: column-reverse; gap: 2px; padding: 0; }
-  #alarm-list li { padding: 2px 4px; border-radius: 3px; font-size: 12px; }
-  #alarm-list .alarm { color: var(--critical); }
-  #alarm-list .warn { color: var(--warning); }
-  #alarm-list .info { color: var(--muted); }
+    .tile .sub {
+      color: var(--muted);
+      font-size: 11px;
+    }
 
-  #tooltip {
-    position: fixed; pointer-events: none; z-index: 10; display: none;
-    background: var(--panel-2); border: 1px solid var(--hairline); border-radius: 5px;
-    padding: 5px 8px; font-size: 12px; color: var(--ink);
-    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
-  }
-  .legend { display: flex; gap: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
-  /* Per-rod servo rows for the current selection (selsyn-style readouts). */
-  #sel-rows { display: flex; flex-direction: column; gap: 3px; max-height: 132px; overflow-y: auto; }
-  .rod-row { display: flex; gap: 6px; align-items: center; font-size: 12px; }
-  .rod-row .coord { color: var(--ink); font-weight: 600; width: 46px; }
-  .rod-row .grp { color: var(--muted); width: 30px; }
-  .rod-row .bar { flex: 1; height: 8px; background: var(--panel-2); border: 1px solid var(--hairline); border-radius: 3px; position: relative; overflow: hidden; }
-  .rod-row .bar > i { position: absolute; left: 0; top: 0; bottom: 0; background: #3987e5; }
-  .rod-row .depth { width: 52px; text-align: right; color: var(--ink-2); }
-  .rod-row .lim { width: 22px; font-size: 10px; font-weight: 700; }
-  .rod-row button { padding: 0 6px; font-size: 11px; line-height: 16px; }
-  .selection-strip {
-    display: grid; grid-template-columns: auto 1fr auto; gap: 10px;
-    align-items: center; padding: 7px 8px; border: 1px solid var(--hairline);
-    border-radius: 4px; background: rgba(255,255,255,0.02);
-  }
-  .selection-strip .instruction { color: var(--ink-2); font-size: 11px; line-height: 1.3; }
-  .count-lamps { display: flex; gap: 4px; }
-  .count-lamp {
-    width: 24px; height: 24px; border: 1px solid var(--hairline); border-radius: 3px;
-    display: grid; place-items: center; color: var(--muted); font-size: 10px;
-  }
-  .count-lamp.on { color: #0d0d0d; background: #deddd5; border-color: #fff; font-weight: 700; }
-  .count-lamp.blocked { color: #0d0d0d; background: var(--warning); border-color: var(--warning); font-weight: 700; }
-  .kus-row { display: grid; grid-template-columns: 72px 1fr 1fr; gap: 7px; align-items: center; }
-  .kus-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .4px; }
-  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
-  .divider { border-top: 1px solid var(--hairline); margin: 2px 0; }
-</style>
+    .tile.wide {
+      min-width: 190px;
+    }
+
+    .tile.brand {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 170px;
+    }
+
+    .tile.brand .value {
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+
+    main {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Drag-selection on the maps must not text-select the page. */
+    main,
+    #desk,
+    header {
+      user-select: none;
+    }
+
+    #alarm-list {
+      user-select: text;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--hairline);
+      border-radius: 6px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+    }
+
+    .panel h2 {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .panel-help {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .rod-note {
+      padding: 7px 8px;
+      border-left: 3px solid #d55181;
+      background: rgba(213, 81, 129, 0.07);
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .rod-note b {
+      color: var(--ink-2);
+    }
+
+    .profile-key {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .profile-key span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .profile-key i {
+      width: 19px;
+      height: 0;
+      border-top: 2px solid;
+    }
+
+    .profile-key .power i {
+      border-color: #d95926;
+    }
+
+    .profile-key .steam i {
+      border-color: #9ec5f4;
+      border-top-style: dashed;
+    }
+
+    .profile-key .xenon i {
+      border-color: #fab219;
+      border-top-style: dotted;
+    }
+
+    .map-key,
+    .field-key {
+      border: 1px solid var(--hairline);
+      border-radius: 5px;
+      background: rgba(255, 255, 255, .018);
+      padding: 9px;
+    }
+
+    .map-key {
+      display: grid;
+      grid-template-columns: 1.05fr 1.6fr;
+      gap: 12px;
+    }
+
+    .key-title {
+      color: var(--ink-2);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .55px;
+      text-transform: uppercase;
+    }
+
+    .key-copy {
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .depth-examples {
+      display: flex;
+      align-items: flex-end;
+      gap: 9px;
+      margin: 7px 0 5px;
+    }
+
+    .depth-example {
+      display: grid;
+      justify-items: center;
+      gap: 3px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .depth-cell {
+      width: 24px;
+      height: 31px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .35);
+      border-radius: 3px;
+      background: #0d0d0d;
+    }
+
+    .depth-cell i {
+      position: absolute;
+      inset: 0 1px auto;
+      height: var(--level);
+      background: #5598e7;
+    }
+
+    .depth-arrow {
+      color: #5598e7;
+      font-size: 18px;
+      line-height: 31px;
+    }
+
+    .role-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 7px;
+    }
+
+    .role-chip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.15;
+    }
+
+    .role-chip i,
+    .channel-sample {
+      width: 20px;
+      height: 20px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      border-radius: 3px;
+      background: #0d0d0d;
+      font-style: normal;
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .role-chip b {
+      display: block;
+      color: var(--ink-2);
+      font-size: 9px;
+    }
+
+    .role-chip.rr i {
+      border: 1px solid rgba(255, 255, 255, .35);
+      color: var(--ink-2);
+    }
+
+    .role-chip.ar i {
+      border: 1.5px solid #199e70;
+      color: #199e70;
+    }
+
+    .role-chip.lar i {
+      border: 1.5px solid #9085e9;
+      color: #9085e9;
+    }
+
+    .role-chip.az i {
+      border: 1.5px solid #d55181;
+      color: #d55181;
+    }
+
+    .role-chip.usp i {
+      border: 1.5px solid #c98500;
+      color: #c98500;
+    }
+
+    .role-chip.selected i {
+      border: 2px solid #fff;
+      color: #fff;
+    }
+
+    .field-key {
+      display: grid;
+      gap: 9px;
+    }
+
+    .field-scale {
+      height: 12px;
+      width: 100%;
+      border-radius: 3px;
+      position: relative;
+      background: linear-gradient(90deg, #20110d 0%, #71301f 48%, #d95926 72%, #f0713d 100%);
+    }
+
+    .field-scale::after {
+      content: "";
+      position: absolute;
+      left: var(--average-pos, 50%);
+      top: -3px;
+      bottom: -3px;
+      width: 1px;
+      background: #fff;
+      opacity: .75;
+    }
+
+    .scale-labels {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      color: var(--muted);
+      font-size: 9px;
+      margin-top: 3px;
+    }
+
+    .scale-labels span:nth-child(2) {
+      text-align: center;
+      color: var(--ink-2);
+    }
+
+    .scale-labels span:last-child {
+      text-align: right;
+    }
+
+    .channel-keys {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .channel-key {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.25;
+    }
+
+    .channel-key b {
+      display: block;
+      color: var(--ink-2);
+      font-size: 10px;
+    }
+
+    .channel-sample.fuel {
+      background: #d95926;
+    }
+
+    .channel-sample.cps {
+      border: 1.5px solid #9ec5f4;
+    }
+
+    .field-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .field-stat {
+      border-left: 2px solid #d95926;
+      padding-left: 7px;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.25;
+    }
+
+    .field-stat b {
+      display: block;
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .slice-guide {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 12px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .slice-guide b {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* Strip-chart canvases: fill panel width; height set by JS. */
+    canvas.strip {
+      width: 100%;
+      min-height: 128px;
+    }
+
+    #st-trends {
+      min-height: 180px;
+    }
+
+    #col-map {
+      flex: 0 0 662px;
+      width: 662px;
+    }
+
+    #col-field {
+      flex: 0 0 462px;
+      width: 462px;
+      min-width: 0;
+    }
+
+    #col-slice {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* The operator desk: full-width control panel between maps and charts. */
+    #desk {
+      display: grid;
+      gap: 10px;
+      align-items: start;
+      grid-template-columns: 350px minmax(440px, 1.3fr) minmax(350px, 1fr) 350px;
+    }
+
+    #desk .panel {
+      min-width: 0;
+    }
+
+    main .panel>canvas {
+      margin: 0 auto;
+    }
+
+    /* Annunciator lamp field (real panels: a grid of lit tiles). */
+    #annunciators {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .lamp {
+      border: 1px solid var(--hairline);
+      border-radius: 4px;
+      padding: 6px 8px;
+      color: var(--muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+    }
+
+    .lamp i {
+      width: 8px;
+      height: 8px;
+      margin-top: 3px;
+      border-radius: 50%;
+      background: var(--grid);
+      flex: none;
+    }
+
+    .lamp span {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .lamp b {
+      color: var(--ink-2);
+      font-size: 10px;
+      line-height: 1.2;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .lamp small {
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.25;
+    }
+
+    .lamp.warn b,
+    .lamp.warn small {
+      color: var(--warning);
+    }
+
+    .lamp.alarm b,
+    .lamp.alarm small {
+      color: var(--critical);
+    }
+
+    .lamp.ok i {
+      background: var(--good);
+    }
+
+    .lamp.warn {
+      color: var(--warning);
+      border-color: rgba(250, 178, 25, 0.4);
+    }
+
+    .lamp.warn i {
+      background: var(--warning);
+    }
+
+    .lamp.alarm {
+      color: var(--critical);
+      border-color: rgba(208, 59, 59, 0.5);
+    }
+
+    .lamp.alarm i {
+      background: var(--critical);
+      box-shadow: 0 0 6px var(--critical);
+    }
+
+    .instrument-block {
+      border: 1px solid var(--hairline);
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+
+    .instrument-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .instrument-head b {
+      color: var(--ink-2);
+      font-weight: 600;
+    }
+
+    .instrument-note {
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.3;
+    }
+
+    .instrument-state {
+      color: var(--ink-2);
+      font-size: 10px;
+      min-height: 14px;
+    }
+
+    .instrument-block canvas {
+      margin: 0 auto;
+    }
+
+    /* Small stat blocks (plant thermal readouts). */
+    .mini {
+      font-size: 11px;
+      color: var(--muted);
+      flex: 1;
+      min-width: 70px;
+    }
+
+    .mini b {
+      color: var(--ink);
+      font-weight: 600;
+      display: block;
+      font-size: 15px;
+    }
+
+    #guide {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #guide summary {
+      cursor: pointer;
+      color: var(--ink-2);
+    }
+
+    #guide ol {
+      margin: 6px 0 0 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    #guide li.done {
+      color: var(--good);
+    }
+
+    #guide li.done::after {
+      content: " ✓";
+    }
+
+    #guide li.current {
+      color: var(--ink);
+    }
+
+    footer .panel h2 button {
+      padding: 1px 7px;
+      font-size: 10px;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: var(--panel-2);
+      color: var(--ink-2);
+      border: 1px solid var(--hairline);
+      border-radius: 5px;
+      padding: 6px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--muted);
+      color: var(--ink);
+    }
+
+    button.active {
+      border-color: var(--accent);
+      color: var(--ink);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    input[type="range"] {
+      accent-color: var(--accent);
+      flex: 1;
+    }
+
+    .readout {
+      color: var(--ink);
+      font-weight: 600;
+      min-width: 52px;
+      text-align: right;
+    }
+
+    /* AZ-5 */
+    #az5-wrap {
+      position: relative;
+      width: 116px;
+      height: 116px;
+      margin: 2px auto;
+    }
+
+    #az5 {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 32%, #e05252, #8c1f1f 70%);
+      border: 3px solid #5a1414;
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+
+    #az5-cover {
+      position: absolute;
+      inset: -6px;
+      border-radius: 10px;
+      background: rgba(230, 210, 140, 0.16);
+      border: 2px solid rgba(230, 210, 140, 0.55);
+      backdrop-filter: blur(1px);
+      color: #e6d28c;
+      font-size: 10px;
+      letter-spacing: 1.2px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #az5-cover.open {
+      transform: translateY(-104%) rotate(-8deg);
+      transition: transform 0.25s;
+    }
+
+    #az5-cover {
+      transition: transform 0.25s;
+    }
+
+    footer {
+      display: flex;
+      gap: 10px;
+      height: 242px;
+    }
+
+    footer .panel {
+      flex: 1;
+      min-width: 0;
+    }
+
+    #trends {
+      flex: 1 1 auto;
+    }
+
+    #trends h2 {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+
+    #trends h2 .trend-label {
+      margin-right: 3px;
+    }
+
+    #trends h2 .trend-base {
+      color: #9085e9;
+      margin-right: 3px;
+    }
+
+    #trends h2 .scale-label {
+      margin-left: auto;
+      color: var(--muted);
+    }
+
+    #trends canvas[hidden] {
+      display: none;
+    }
+
+    #alarms {
+      flex: 0 0 360px;
+      overflow: hidden;
+    }
+
+    #alarm-list {
+      list-style: none;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 2px;
+      padding: 0;
+    }
+
+    #alarm-list li {
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    #alarm-list .alarm {
+      color: var(--critical);
+    }
+
+    #alarm-list .warn {
+      color: var(--warning);
+    }
+
+    #alarm-list .info {
+      color: var(--muted);
+    }
+
+    #alarm-list .event-title {
+      font-family: "SFMono-Regular", Menlo, monospace;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #alarm-list .event-summary {
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 11px;
+      margin-top: 1px;
+    }
+
+    #alarm-list .event-meta {
+      color: rgba(196, 196, 190, 0.9);
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    #alarm-list .event-delta {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 10px;
+      margin-top: 1px;
+    }
+
+    #alarm-list .event-data {
+      margin: 2px 0 0;
+      color: rgba(255, 255, 255, 0.72);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 3px;
+      padding: 3px 4px;
+      font-size: 10px;
+      font-family: "SFMono-Regular", Menlo, monospace;
+      line-height: 1.2;
+      max-height: 10.5em;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    #alarm-list details {
+      margin-top: 2px;
+    }
+
+    #alarm-list summary {
+      color: rgba(198, 197, 186, 0.92);
+      cursor: pointer;
+    }
+
+    #tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+      background: var(--panel-2);
+      border: 1px solid var(--hairline);
+      border-radius: 5px;
+      padding: 5px 8px;
+      font-size: 12px;
+      color: var(--ink);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    /* Per-rod servo rows for the current selection (selsyn-style readouts). */
+    #sel-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      max-height: 132px;
+      overflow-y: auto;
+    }
+
+    .rod-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .rod-row .coord {
+      color: var(--ink);
+      font-weight: 600;
+      width: 46px;
+    }
+
+    .rod-row .grp {
+      color: var(--muted);
+      width: 30px;
+    }
+
+    .rod-row .bar {
+      flex: 1;
+      height: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--hairline);
+      border-radius: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rod-row .bar>i {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      background: #3987e5;
+    }
+
+    .rod-row .depth {
+      width: 52px;
+      text-align: right;
+      color: var(--ink-2);
+    }
+
+    .rod-row .lim {
+      width: 22px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    .rod-row button {
+      padding: 0 6px;
+      font-size: 11px;
+      line-height: 16px;
+    }
+
+    .selection-strip {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 7px 8px;
+      border: 1px solid var(--hairline);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .selection-strip .instruction {
+      color: var(--ink-2);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .count-lamps {
+      display: flex;
+      gap: 4px;
+    }
+
+    .count-lamp {
+      width: 24px;
+      height: 24px;
+      border: 1px solid var(--hairline);
+      border-radius: 3px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .count-lamp.on {
+      color: #0d0d0d;
+      background: #deddd5;
+      border-color: #fff;
+      font-weight: 700;
+    }
+
+    .count-lamp.blocked {
+      color: #0d0d0d;
+      background: var(--warning);
+      border-color: var(--warning);
+      font-weight: 700;
+    }
+
+    .kus-row {
+      display: grid;
+      grid-template-columns: 72px 1fr 1fr;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .kus-label {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+    }
+
+    .legend .sw {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      vertical-align: -1px;
+      margin-right: 4px;
+    }
+
+    .divider {
+      border-top: 1px solid var(--hairline);
+      margin: 2px 0;
+    }
+  </style>
 </head>
+
 <body>
   <header id="instruments">
     <div class="tile brand" title="RBMK-1000 Unit 4 control-room instruments. Simulation time and plant state.">
@@ -261,27 +1016,45 @@
       <div class="sub num" id="i-time">t = 00:00:00</div>
       <div class="sub" id="i-state" style="color:var(--warning)">—</div>
     </div>
-    <div class="tile" title="Reactor thermal power as % of rated (3200 MWt). AZM overpower protection trips AZ-5 above 110%.">
-      <div class="label">Power</div><div class="value num" id="i-power">—</div><div class="sub num" id="i-mw">—</div>
+    <div class="tile"
+      title="Reactor thermal power as % of rated (3200 MWt). AZM overpower protection trips AZ-5 above 110%.">
+      <div class="label">Power</div>
+      <div class="value num" id="i-power">—</div>
+      <div class="sub num" id="i-mw">—</div>
     </div>
-    <div class="tile wide" title="Direction and stability of reactor power. Period is the time for power to change by a factor of e; reactivity is shown in beta units.">
-      <div class="label">Power trend</div><div class="value" id="i-trend">—</div><div class="sub num"><span id="i-period">—</span> · <span id="i-rho">—</span></div>
+    <div class="tile wide"
+      title="Direction and stability of reactor power. Period is the time for power to change by a factor of e; reactivity is shown in beta units.">
+      <div class="label">Power trend</div>
+      <div class="value" id="i-trend">—</div>
+      <div class="sub num"><span id="i-period">—</span> · <span id="i-rho">—</span></div>
     </div>
-    <div class="tile" title="Xe-135 neutron poison relative to full-power equilibrium (1.0 = equilibrium at 100%). Builds after power drops; deep xenon pit can block restart for hours.">
-      <div class="label">Xenon poison</div><div class="value num" id="i-xe">—</div><div class="sub" id="i-xe-status">normal near 1.00×</div>
+    <div class="tile"
+      title="Xe-135 neutron poison relative to full-power equilibrium (1.0 = equilibrium at 100%). Builds after power drops; deep xenon pit can block restart for hours.">
+      <div class="label">Xenon poison</div>
+      <div class="value num" id="i-xe">—</div>
+      <div class="sub" id="i-xe-status">normal near 1.00×</div>
     </div>
-    <div class="tile wide" title="Main coolant flow and the resulting average steam fraction. Lower flow usually produces more steam void.">
-      <div class="label">Core cooling</div><div class="value num" id="i-flow">—</div><div class="sub num" id="i-void">—</div>
+    <div class="tile wide"
+      title="Main coolant flow and the resulting average steam fraction. Lower flow usually produces more steam void.">
+      <div class="label">Core cooling</div>
+      <div class="value num" id="i-flow">—</div>
+      <div class="sub num" id="i-void">—</div>
     </div>
-    <div class="tile wide" title="Equivalent control rods remaining in the core Σ(insertion) over RR+AR+LAR from the most recent PRIZMA printout. Values below 15 rods trigger an advisory annunciator during power operation (rods mostly withdrawn).">
-      <div class="label">ORM · equivalent rods in core</div><div class="value num" id="i-orm">—</div><div class="sub num" id="i-orm-age">PRIZMA report pending</div>
+    <div class="tile wide"
+      title="Equivalent control rods remaining in the core Σ(insertion) over RR+AR+LAR from the most recent PRIZMA printout. Values below 15 rods trigger an advisory annunciator during power operation (rods mostly withdrawn).">
+      <div class="label">ORM · equivalent rods in core</div>
+      <div class="value num" id="i-orm">—</div>
+      <div class="sub num" id="i-orm-age">PRIZMA report pending</div>
     </div>
   </header>
 
   <main>
     <section class="panel" id="col-map">
-      <h2 title="Real-style CPS selection field: each square is one rod-selection button. Click individual rods to add or remove them from the active selection.">Core map — rod positions and individual selection</h2>
-      <canvas id="cartogram" width="640" height="640" title="Control-rod mimic field. Click individual rod buttons to select or deselect them; use Clear selection on the SIUR desk."></canvas>
+      <h2
+        title="Real-style CPS selection field: each square is one rod-selection button. Click individual rods to add or remove them from the active selection.">
+        Core map — rod positions and individual selection</h2>
+      <canvas id="cartogram" width="640" height="640"
+        title="Control-rod mimic field. Click individual rod buttons to select or deselect them; use Clear selection on the SIUR desk."></canvas>
       <div class="map-key" id="map-legend">
         <div>
           <div class="key-title">Blue height = insertion depth</div>
@@ -292,7 +1065,8 @@
             <span class="depth-arrow">↓</span>
             <span class="depth-example"><span class="depth-cell" style="--level:100%"><i></i></span>7 m · in</span>
           </div>
-          <div class="key-copy">Standard rods fill downward from the top. USP is the exception: its short absorber fills upward from below.</div>
+          <div class="key-copy">Standard rods fill downward from the top. USP is the exception: its short absorber fills
+            upward from below.</div>
         </div>
         <div>
           <div class="key-title">Outline + letter = rod function</div>
@@ -304,15 +1078,19 @@
             <span class="role-chip usp"><i>S</i><span><b>USP</b>short · bottom</span></span>
             <span class="role-chip selected"><i>✓</i><span><b>Selected</b>white outline</span></span>
           </div>
-          <div class="key-copy" style="margin-top:7px">Click a cell to select that individual rod. The blue amount is position; the border color is type.</div>
+          <div class="key-copy" style="margin-top:7px">Click a cell to select that individual rod. The blue amount is
+            position; the border color is type.</div>
         </div>
       </div>
     </section>
 
     <section class="panel" id="col-field">
-      <h2 title="Estimated radial power distribution reconstructed from rod positions and the axial flux field.">Radial power field</h2>
-      <p class="panel-help">A top-down heat map of where fission power is being produced. Compare colors across the core; hover any fuel channel for its MW value.</p>
-      <canvas id="channelmap" width="440" height="440" title="Radial channel-power map. Hover a fuel channel for its estimated MW and relation to the core average."></canvas>
+      <h2 title="Estimated radial power distribution reconstructed from rod positions and the axial flux field.">Radial
+        power field</h2>
+      <p class="panel-help">A top-down heat map of where fission power is being produced. Compare colors across the
+        core; hover any fuel channel for its MW value.</p>
+      <canvas id="channelmap" width="440" height="440"
+        title="Radial channel-power map. Hover a fuel channel for its estimated MW and relation to the core average."></canvas>
       <div class="field-key">
         <div>
           <div class="key-title">Orange brightness = power in that fuel channel</div>
@@ -320,8 +1098,10 @@
           <div class="scale-labels"><span>low power</span><span>core average</span><span>highest channel</span></div>
         </div>
         <div class="channel-keys">
-          <div class="channel-key"><span class="channel-sample fuel"></span><span><b>Fuel channel</b>orange is its relative power</span></div>
-          <div class="channel-key"><span class="channel-sample cps"></span><span><b>Control-rod channel</b>dark square; not a power reading</span></div>
+          <div class="channel-key"><span class="channel-sample fuel"></span><span><b>Fuel channel</b>orange is its
+              relative power</span></div>
+          <div class="channel-key"><span class="channel-sample cps"></span><span><b>Control-rod channel</b>dark square;
+              not a power reading</span></div>
         </div>
       </div>
       <div class="field-stats num">
@@ -332,20 +1112,31 @@
     </section>
 
     <section class="panel" id="col-slice">
-      <h2 title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">Core profile — top to bottom</h2>
-      <p class="panel-help">This is a vertical measurement plot, not a drawing of the rods. Wider/rightward means more of the named quantity at that depth.</p>
+      <h2
+        title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">
+        Core profile — top to bottom</h2>
+      <p class="panel-help">This is a vertical measurement plot, not a drawing of the rods. Wider/rightward means more
+        of the named quantity at that depth.</p>
       <div class="profile-key">
         <span class="power"><i></i><b>power shape</b> (relative)</span>
         <span class="steam"><i></i><b>steam void</b> (0–100%)</span>
         <span class="xenon"><i></i><b>xenon</b> (0–2× average)</span>
       </div>
-      <div class="rod-note"><b>Rod tracks:</b> RR, AR, LAR, and AZ are the same top-entry design; only their absorber-tip depth is plotted. USP is a shorter absorber entering from the bottom. Water and graphite are deliberately not drawn here.</div>
-      <canvas id="slice" width="440" height="520" title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
+      <div class="rod-note"><b>Rod tracks:</b> RR, AR, LAR, and AZ are the same top-entry design; only their
+        absorber-tip depth is plotted. USP is a shorter absorber entering from the bottom. Water and graphite are
+        deliberately not drawn here.</div>
+      <canvas id="slice" width="440" height="520"
+        title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
       <div class="slice-guide">
-        <span title="Each bank track has a single pink marker at the leading end of its absorber."><b style="color:#d55181">pink marker</b> · absorber tip</span>
-        <span title="The thin vertical color strip shows coolant warming from the bottom inlet toward the top outlet."><b>temperature strip</b> · coolant, bottom → top</span>
-        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓ RR/AR/LAR/AZ</b> · metres from top</span>
-        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres from bottom</span>
+        <span title="Each bank track has a single pink marker at the leading end of its absorber."><b
+            style="color:#d55181">pink marker</b> · absorber tip</span>
+        <span
+          title="The thin vertical color strip shows coolant warming from the bottom inlet toward the top outlet."><b>temperature
+            strip</b> · coolant, bottom → top</span>
+        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓
+            RR/AR/LAR/AZ</b> · metres from top</span>
+        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres
+          from bottom</span>
       </div>
     </section>
 
@@ -353,56 +1144,89 @@
 
   <section id="desk">
     <div class="panel" id="desk-plant">
-      <h2 title="Plant session (BShchU desk): initial conditions, sim time scale, coolant flow, thermal readouts.">1 · Plant · BShchU</h2>
+      <h2 title="Plant session (BShchU desk): initial conditions, sim time scale, coolant flow, thermal readouts.">1 ·
+        Plant · BShchU</h2>
       <div class="row">
-        <button id="init-power" title="Initialize a steady run at ~100% rated power with rods trimmed and xenon near equilibrium. Resets simulation time.">start at power</button>
-        <button id="init-shutdown" title="Cold start: all rods fully inserted, fresh core (no xenon), source-level flux. Bring the reactor critical by withdrawing rods.">cold start</button>
+        <button id="init-power"
+          title="Initialize a steady run at ~100% rated power with rods trimmed and xenon near equilibrium. Resets simulation time.">start
+          at power</button>
+        <button id="init-shutdown"
+          title="Cold start: all rods fully inserted, fresh core (no xenon), source-level flux. Bring the reactor critical by withdrawing rods.">cold
+          start</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)" title="Simulation time acceleration (does not change real plant physics rates, only how fast wall-clock advances sim time).">time</span>
+        <span style="color:var(--muted)"
+          title="Simulation time acceleration (does not change real plant physics rates, only how fast wall-clock advances sim time).">time</span>
         <button data-speed="0" title="Pause the simulation. State freezes until you resume.">pause</button>
         <button data-speed="1" class="active" title="Real-time: 1 second of sim per 1 second wall-clock.">1×</button>
         <button data-speed="10" title="Fast-forward ×10. Useful for xenon and long holds.">10×</button>
-        <button data-speed="60" title="Fast-forward ×60. For multi-hour xenon evolution; keep an eye on alarms.">60×</button>
+        <button data-speed="60"
+          title="Fast-forward ×60. For multi-hour xenon evolution; keep an eye on alarms.">60×</button>
       </div>
-      <details id="guide" title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, individually selected RR rods, ARM/AR/LAR, period, ORM printout).">
+      <details id="guide"
+        title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, individually selected RR rods, ARM/AR/LAR, period, ORM printout).">
         <summary>startup procedure</summary>
         <ol id="checklist">
-          <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range ISS count-rate (ИСС).">cold start — core subcritical; watch ISS count-rate</li>
-          <li id="ck-2" title="AZ bank — emergency protection rods must be cocked (fully withdrawn) before any positive reactivity insert.">cock AZ bank — select AZ, hold ▲▲ until fully out</li>
-          <li id="ck-3" title="RR rods are selected individually on the mimic field. Choose a spatially balanced set of 1–4; the panel blocks withdrawal with 5 or more selected.">select 1–4 balanced RR rods on the core map; withdraw, then pause</li>
-          <li id="ck-4" title="Reactor period [s]: when finite and short (&lt;150 s), stop withdrawing; let power rise. Startup rule: stop if period &lt; 60 s; AZS trips at &lt; 10 s.">period finite (&lt;150 s): stop withdrawing, let power rise</li>
-          <li id="ck-5" title="ARM — low-power automatic regulator (~0.25–6% band). Engage with non-zero setpoint before leaving startup range.">engage ARM (setpoint &gt; 0) in the low-power band</li>
-          <li id="ck-6" title="Hand off to AR (main-range ~5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">hand off to AR above ~5%, LAR above ~10%; hold power at setpoint</li>
+          <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range ISS count-rate (ИСС).">cold start
+            — core subcritical; watch ISS count-rate</li>
+          <li id="ck-2"
+            title="AZ bank — emergency protection rods must be cocked (fully withdrawn) before any positive reactivity insert.">
+            cock AZ bank — select AZ, hold ▲▲ until fully out</li>
+          <li id="ck-3"
+            title="RR rods are selected individually on the mimic field. Choose a spatially balanced set of 1–4; the panel blocks withdrawal with 5 or more selected.">
+            select 1–4 balanced RR rods on the core map; withdraw, then pause</li>
+          <li id="ck-4"
+            title="Reactor period [s]: when finite and short (&lt;150 s), stop withdrawing; let power rise. Startup rule: stop if period &lt; 60 s; AZS trips at &lt; 10 s.">
+            period finite (&lt;150 s): stop withdrawing, let power rise</li>
+          <li id="ck-5"
+            title="ARM — low-power automatic regulator (~0.25–6% band). Engage with non-zero setpoint before leaving startup range.">
+            engage ARM (setpoint &gt; 0) in the low-power band</li>
+          <li id="ck-6"
+            title="Hand off to AR (main-range ~5–105%) above ~5%, then LAR (local, in-core) above ~10%. Hold power at the regulator setpoint.">
+            hand off to AR above ~5%, LAR above ~10%; hold power at setpoint</li>
         </ol>
-        <p style="margin-top:6px" title="Operator path through a full shift drill. Refused actions appear in the event log."><b style="color:var(--ink-2)">operator path:</b>
-        cold start → cock AZ bank → select and withdraw RR sets → engage ARM/AR → power →
-        AZ-1 setback → AZ-5 scram → reset scram. Watch period and the
-        ORM · PRIZMA printout; read the <b style="color:var(--ink-2)">event log</b>
-        for refused actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).</p>
-        <p style="margin-top:4px" title="Sim-only shortcuts not present on the real desk."><b style="color:var(--ink-2)">sim-only:</b>
-        flow slider, start at power, time accel (1×/10×/60×).</p>
-        <p style="margin-top:4px" title="After AZ-5: reset the scram latch, then re-cock AZ bank. ORM printouts are your only pre-1986 margin gauge during the xenon pit."><b style="color:var(--ink-2)">after a scram:</b> reset scram,
-        then restart as above — but mind the xenon: for hours after a
-        power run the pit deepens, and ORM printouts are your only margin
-        gauge. Sometimes the honest move is to wait it out.</p>
+        <p style="margin-top:6px"
+          title="Operator path through a full shift drill. Refused actions appear in the event log."><b
+            style="color:var(--ink-2)">operator path:</b>
+          cold start → cock AZ bank → select and withdraw RR sets → engage ARM/AR → power →
+          AZ-1 setback → AZ-5 scram → reset scram. Watch period and the
+          ORM · PRIZMA printout; read the <b style="color:var(--ink-2)">event log</b>
+          for refused actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).</p>
+        <p style="margin-top:4px" title="Sim-only shortcuts not present on the real desk."><b
+            style="color:var(--ink-2)">sim-only:</b>
+          flow slider, start at power, time accel (1×/10×/60×).</p>
+        <p style="margin-top:4px"
+          title="After AZ-5: reset the scram latch, then re-cock AZ bank. ORM printouts are your only pre-1986 margin gauge during the xenon pit.">
+          <b style="color:var(--ink-2)">after a scram:</b> reset scram,
+          then restart as above — but mind the xenon: for hours after a
+          power run the pit deepens, and ORM printouts are your only margin
+          gauge. Sometimes the honest move is to wait it out.</p>
       </details>
       <div class="row">
-        <span style="color:var(--muted)" title="Main circulation pump flow demand as % of rated. Range 30–120%.">pumps · flow</span>
-        <input type="range" id="flow" min="30" max="120" value="100" step="1" title="Coolant mass-flow fraction [% of rated]. Lower flow increases boiling and void (positive reactivity on this plant)." />
+        <span style="color:var(--muted)" title="Main circulation pump flow demand as % of rated. Range 30–120%.">pumps ·
+          flow</span>
+        <input type="range" id="flow" min="30" max="120" value="100" step="1"
+          title="Coolant mass-flow fraction [% of rated]. Lower flow increases boiling and void (positive reactivity on this plant)." />
         <span class="readout num" id="flow-val" title="Commanded flow as percent of rated mass flow.">100%</span>
       </div>
       <div class="divider"></div>
       <div class="row">
         <span class="mini num" title="Hottest fuel temperature in the core [°C]."><b id="p-tf">—</b>fuel max</span>
-        <span class="mini num" title="Average graphite moderator temperature [°C]. Graphite feedback is slow (hours)."><b id="p-tg">—</b>graphite avg</span>
-        <span class="mini num" title="Core-exit steam quality (mass fraction vapor). Higher quality → more void."><b id="p-x">—</b>exit quality</span>
-        <span class="mini num" title="Decay heat power from fission products [fraction of rated]. Remains after scram."><b id="p-dh">—</b>decay heat</span>
+        <span class="mini num"
+          title="Average graphite moderator temperature [°C]. Graphite feedback is slow (hours)."><b
+            id="p-tg">—</b>graphite avg</span>
+        <span class="mini num" title="Core-exit steam quality (mass fraction vapor). Higher quality → more void."><b
+            id="p-x">—</b>exit quality</span>
+        <span class="mini num"
+          title="Decay heat power from fission products [fraction of rated]. Remains after scram."><b
+            id="p-dh">—</b>decay heat</span>
       </div>
     </div>
 
     <div class="panel" id="desk-rods">
-      <h2 title="TEZ L.24-style SIUR rod desk: address individual rods on the mimic field, then hold either KUS channel to move them. Selsyn rows show depth and end limits.">2 · Individual rod selection · SIUR</h2>
+      <h2
+        title="TEZ L.24-style SIUR rod desk: address individual rods on the mimic field, then hold either KUS channel to move them. Selsyn rows show depth and end limits.">
+        2 · Individual rod selection · SIUR</h2>
       <div class="selection-strip">
         <div class="instruction"><b>Select on the core map</b><br>Choose 1–4 rods manually for withdrawal.</div>
         <div class="count-lamps" title="TEZ L.24 selected-rod counter. The 5 lamp also means withdrawal is restricted.">
@@ -414,116 +1238,197 @@
         </div>
         <button id="sel-none" title="Sbros vybora: clear every currently selected rod button.">clear selection</button>
       </div>
-      <div id="sel-info" class="num" style="color:var(--ink)" title="Selected rods and whether withdrawal is available.">No rods selected</div>
+      <div id="sel-info" class="num" style="color:var(--ink)"
+        title="Selected rods and whether withdrawal is available.">No rods selected</div>
       <div class="kus-row">
         <span class="kus-label">KUS main</span>
-        <button id="rod-out" title="Hold the main KUS channel to withdraw selected rods. Release stops them. Withdrawal is blocked with 5 or more selected rods.">▲ hold · withdraw</button>
-        <button id="rod-in" title="Hold the main KUS channel to insert selected rods. Release stops them; insertion has no selection-count restriction.">▼ hold · insert</button>
+        <button id="rod-out"
+          title="Hold the main KUS channel to withdraw selected rods. Release stops them. Withdrawal is blocked with 5 or more selected rods.">▲
+          hold · withdraw</button>
+        <button id="rod-in"
+          title="Hold the main KUS channel to insert selected rods. Release stops them; insertion has no selection-count restriction.">▼
+          hold · insert</button>
       </div>
       <div class="kus-row">
         <span class="kus-label">KUS reserve</span>
-        <button id="rod-out-reserve" title="Reserve KUS channel: same withdrawal command through the redundant control path.">▲ hold · withdraw</button>
-        <button id="rod-in-reserve" title="Reserve KUS channel: same insertion command through the redundant control path.">▼ hold · insert</button>
+        <button id="rod-out-reserve"
+          title="Reserve KUS channel: same withdrawal command through the redundant control path.">▲ hold ·
+          withdraw</button>
+        <button id="rod-in-reserve"
+          title="Reserve KUS channel: same insertion command through the redundant control path.">▼ hold ·
+          insert</button>
       </div>
       <div class="row" style="margin-top:2px">
-        <button id="sel-az-bank" title="Dedicated PK-AZ group control: select the emergency-protection bank for cocking before startup.">select AZ protection bank</button>
-        <button id="rod-stop-all" title="Simulator safety convenience: halt every rod drive, including unselected banks still travelling.">stop all drives</button>
-        <button id="rod-override" title="Take selected AR/LAR rods out of automatic control so you can drive them manually.">override auto</button>
-        <button id="rod-return" title="Return selected AR/LAR rods to the automatic regulator; the PI controller will reclaim them.">return to auto</button>
+        <button id="sel-az-bank"
+          title="Dedicated PK-AZ group control: select the emergency-protection bank for cocking before startup.">select
+          AZ protection bank</button>
+        <button id="rod-stop-all"
+          title="Simulator safety convenience: halt every rod drive, including unselected banks still travelling.">stop
+          all drives</button>
+        <button id="rod-override"
+          title="Take selected AR/LAR rods out of automatic control so you can drive them manually.">override
+          auto</button>
+        <button id="rod-return"
+          title="Return selected AR/LAR rods to the automatic regulator; the PI controller will reclaim them.">return to
+          auto</button>
       </div>
-      <div id="sel-rows" title="Per-selected-rod selsyn readouts: coordinate, group, insertion bar, depth [m], VK (upper) / NK (lower) limit lamps."></div>
+      <div id="sel-rows"
+        title="Per-selected-rod selsyn readouts: coordinate, group, insertion bar, depth [m], VK (upper) / NK (lower) limit lamps.">
+      </div>
     </div>
 
     <div class="panel" id="desk-auto">
-      <h2 title="Automatic power regulation (ARM / AR / LAR). The open-loop plant is unstable (positive void); the regulator holds power.">3 · AR regulation · ARM/AR/LAR</h2>
+      <h2
+        title="Automatic power regulation (ARM / AR / LAR). The open-loop plant is unstable (positive void); the regulator holds power.">
+        3 · AR regulation · ARM/AR/LAR</h2>
       <div class="row">
-        <button id="ar-toggle" class="active" title="Engage or disengage the automatic regulator PI loop. Disengaged: open-loop; power will drift on void/xenon/Doppler.">engaged</button>
-        <button id="ar-mode-arm" title="ARM — low-power automatic regulator. Band ~0.25–6% rated, summed side-chamber signal, 4 rods.">ARM</button>
-        <button id="ar-mode-ar" class="active" title="AR — main-range automatic regulator. Band ~5–105% rated, side ionization chambers. Three subgroups; one active.">AR</button>
-        <button id="ar-mode-lar" title="LAR — Local Automatic Regulator (in-core KTV chambers). Primary ~10–100%; BLIND / inoperable below ~10% power.">LAR</button>
+        <button id="ar-toggle" class="active"
+          title="Engage or disengage the automatic regulator PI loop. Disengaged: open-loop; power will drift on void/xenon/Doppler.">engaged</button>
+        <button id="ar-mode-arm"
+          title="ARM — low-power automatic regulator. Band ~0.25–6% rated, summed side-chamber signal, 4 rods.">ARM</button>
+        <button id="ar-mode-ar" class="active"
+          title="AR — main-range automatic regulator. Band ~5–105% rated, side ionization chambers. Three subgroups; one active.">AR</button>
+        <button id="ar-mode-lar"
+          title="LAR — Local Automatic Regulator (in-core KTV chambers). Primary ~10–100%; BLIND / inoperable below ~10% power.">LAR</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)" title="Average insertion of the active AR bank (0 = fully out, 1 = fully in).">bank at</span><span class="readout num" id="ar-pos" title="Active AR bank average insertion depth.">—</span>
-        <span style="color:var(--muted); margin-left:6px" title="Which AR subgroup is currently in automatic control.">active</span>
-        <span class="readout num" id="ar-active" title="Active AR subgroup (AR-1 / AR-2 / AR-3). Changeover switches on saturation or imbalance.">AR-1</span>
+        <span style="color:var(--muted)"
+          title="Average insertion of the active AR bank (0 = fully out, 1 = fully in).">bank at</span><span
+          class="readout num" id="ar-pos" title="Active AR bank average insertion depth.">—</span>
+        <span style="color:var(--muted); margin-left:6px"
+          title="Which AR subgroup is currently in automatic control.">active</span>
+        <span class="readout num" id="ar-active"
+          title="Active AR subgroup (AR-1 / AR-2 / AR-3). Changeover switches on saturation or imbalance.">AR-1</span>
       </div>
       <div class="row">
-        <span style="color:var(--muted)" title="Enable automatic changeover for each AR subgroup. Disable to hold a failed/saturated bank out of service.">subgroup auto:</span>
-        <button id="ar-sw-1" class="active" title="AR-1 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-1</button>
-        <button id="ar-sw-2" class="active" title="AR-2 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-2</button>
-        <button id="ar-sw-3" class="active" title="AR-3 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-3</button>
+        <span style="color:var(--muted)"
+          title="Enable automatic changeover for each AR subgroup. Disable to hold a failed/saturated bank out of service.">subgroup
+          auto:</span>
+        <button id="ar-sw-1" class="active"
+          title="AR-1 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-1</button>
+        <button id="ar-sw-2" class="active"
+          title="AR-2 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-2</button>
+        <button id="ar-sw-3" class="active"
+          title="AR-3 subgroup: allow automatic changeover into/out of this bank of 4 AR rods.">AR-3</button>
       </div>
       <div class="row">
-        <span style="color:var(--muted)" title="Operator power demand [% rated]. The active setpoint ramps toward this at the gradient limit.">setpoint</span>
-        <input type="range" id="setpoint" min="0" max="110" value="100" step="1" title="AR/ARM/LAR power setpoint target [% of rated]. 0 disengages demand; AZ-1 forces setback toward 50%." />
-        <span class="readout num" id="setpoint-val" title="Commanded power setpoint as % of rated thermal power.">100%</span>
+        <span style="color:var(--muted)"
+          title="Operator power demand [% rated]. The active setpoint ramps toward this at the gradient limit.">setpoint</span>
+        <input type="range" id="setpoint" min="0" max="110" value="100" step="1"
+          title="AR/ARM/LAR power setpoint target [% of rated]. 0 disengages demand; AZ-1 forces setback toward 50%." />
+        <span class="readout num" id="setpoint-val"
+          title="Commanded power setpoint as % of rated thermal power.">100%</span>
       </div>
       <div class="row">
-        <span style="color:var(--muted)" title="arGradient: maximum rate the active setpoint may ramp toward the operator target [%/s]. Prevents step-saturating the small AR bank.">gradient</span>
-        <input type="range" id="gradient" min="1" max="35" value="3" step="1" title="Setpoint ramp rate (gradient) in 0.01 %/s steps. Default 0.03 %/s. Higher = faster power maneuvers." />
-        <span class="readout num" id="gradient-val" title="Current setpoint gradient limit in % of rated per second.">0.03%/s</span>
+        <span style="color:var(--muted)"
+          title="arGradient: maximum rate the active setpoint may ramp toward the operator target [%/s]. Prevents step-saturating the small AR bank.">gradient</span>
+        <input type="range" id="gradient" min="1" max="35" value="3" step="1"
+          title="Setpoint ramp rate (gradient) in 0.01 %/s steps. Default 0.03 %/s. Higher = faster power maneuvers." />
+        <span class="readout num" id="gradient-val"
+          title="Current setpoint gradient limit in % of rated per second.">0.03%/s</span>
       </div>
       <div class="instrument-block">
         <div class="instrument-head"><b>AR error · “zaichik”</b><span>−5 … +5 percentage points</span></div>
-        <canvas id="imbalance" width="230" height="40" title="Power minus active setpoint. Left: power low, AR withdraws. Right: power high, AR inserts. Bank saturation, not this needle alone, causes changeover."></canvas>
+        <canvas id="imbalance" width="230" height="40"
+          title="Power minus active setpoint. Left: power low, AR withdraws. Right: power high, AR inserts. Bank saturation, not this needle alone, causes changeover."></canvas>
         <div class="instrument-state num" id="imbalance-state">balanced · error 0.00 percentage points</div>
-        <div class="instrument-note">left = power low → rods out · center = holding target · right = power high → rods in. Changeover occurs only if the active bank reaches an end stop for 5 s.</div>
+        <div class="instrument-note">left = power low → rods out · center = holding target · right = power high → rods
+          in. Changeover occurs only if the active bank reaches an end stop for 5 s.</div>
       </div>
       <div class="instrument-block">
         <div class="instrument-head"><b>Reactivity · ZRT-A style</b><span>β units</span></div>
-        <canvas id="reactivity-meter" width="230" height="46" title="Net core reactivity in beta units. Zero is critical. Positive tends to raise power; negative tends to lower it. +1 beta is prompt critical, not a separate modeled AZ trip."></canvas>
+        <canvas id="reactivity-meter" width="230" height="46"
+          title="Net core reactivity in beta units. Zero is critical. Positive tends to raise power; negative tends to lower it. +1 beta is prompt critical, not a separate modeled AZ trip."></canvas>
         <div class="instrument-state num" id="reactivity-state">+0.00 β · critical / steady</div>
-        <div class="instrument-note">0 = critical · positive = rising tendency · negative = falling tendency · red +1 β = prompt-critical physical boundary, not an RPS setpoint.</div>
+        <div class="instrument-note">0 = critical · positive = rising tendency · negative = falling tendency · red +1 β
+          = prompt-critical physical boundary, not an RPS setpoint.</div>
       </div>
     </div>
 
     <div class="panel" id="desk-protection">
-      <h2 title="Reactor Protection System (RPS / АЗ). Operator-blockable trips, setback, full scram, and annunciator lamps.">4 · AZ protection · RPS</h2>
+      <h2
+        title="Reactor Protection System (RPS / АЗ). Operator-blockable trips, setback, full scram, and annunciator lamps.">
+        4 · AZ protection · RPS</h2>
       <div class="row">
-        <button id="rps-azm" class="active" title="AZM — emergency overpower protection. When armed, trips AZ-5 if power &gt; 110% rated. Click to arm/block (blocked trips still log a warning).">AZM armed · 110%</button>
-        <button id="rps-azs" class="active" title="AZS — emergency period protection. When armed, trips AZ-5 if reactor period &lt; 10 s. Click to arm/block (operator-blockable, as historically).">AZS armed · 10 s</button>
+        <button id="rps-azm" class="active"
+          title="AZM — emergency overpower protection. When armed, trips AZ-5 if power &gt; 110% rated. Click to arm/block (blocked trips still log a warning).">AZM
+          armed · 110%</button>
+        <button id="rps-azs" class="active"
+          title="AZS — emergency period protection. When armed, trips AZ-5 if reactor period &lt; 10 s. Click to arm/block (operator-blockable, as historically).">AZS
+          armed · 10 s</button>
       </div>
       <div class="row">
-        <button id="az1" title="AZ-1 — graduated setback: drives the AZ (emergency) bank in and reduces the AR setpoint toward 50% rated. Not a full scram.">AZ-1 setback</button>
-        <button id="scram-reset" title="Reset the AZ-5 scram latch. Rods stay where they stopped; re-enables automatic regulation. Then re-cock AZ and restart carefully (xenon!).">reset scram</button>
+        <button id="az1"
+          title="AZ-1 — graduated setback: drives the AZ (emergency) bank in and reduces the AR setpoint toward 50% rated. Not a full scram.">AZ-1
+          setback</button>
+        <button id="scram-reset"
+          title="Reset the AZ-5 scram latch. Rods stay where they stopped; re-enables automatic regulation. Then re-cock AZ and restart carefully (xenon!).">reset
+          scram</button>
       </div>
       <div id="annunciators">
-        <div class="lamp" id="an-scram"><i></i><span><b>AZ-5 · full scram</b><small>Latched → RR/AR/LAR/AZ insert; USP stays put</small></span></div>
-        <div class="lamp" id="an-period"><i></i><span><b>Startup period</b><small>Rising period &lt;60 s → rod withdrawal blocked</small></span></div>
-        <div class="lamp" id="an-azm"><i></i><span><b>AZM · overpower</b><small id="an-azm-detail">Power &gt;110% → AZ-5</small></span></div>
-        <div class="lamp" id="an-azs"><i></i><span><b>AZS · fast rise</b><small id="an-azs-detail">Rising period &lt;10 s → AZ-5</small></span></div>
-        <div class="lamp" id="an-silblok"><i></i><span><b>Power interlock</b><small>8+ rods withdrawing → stop all drives</small></span></div>
-        <div class="lamp" id="an-chg"><i></i><span><b>AR changeover</b><small>Active bank at end stop 5 s → standby bank</small></span></div>
-        <div class="lamp" id="an-lar"><i></i><span><b>LAR dropout</b><small>Local detectors blind &lt;10% → change to AR</small></span></div>
-        <div class="lamp" id="an-orm"><i></i><span><b>ORM low · advisory</b><small>PRIZMA estimate &lt;15 rods · no automatic trip</small></span></div>
+        <div class="lamp" id="an-scram"><i></i><span><b>AZ-5 · full scram</b><small>Latched → RR/AR/LAR/AZ insert; USP
+              stays put</small></span></div>
+        <div class="lamp" id="an-period"><i></i><span><b>Startup period</b><small>Rising period &lt;60 s → rod
+              withdrawal blocked</small></span></div>
+        <div class="lamp" id="an-azm"><i></i><span><b>AZM · overpower</b><small id="an-azm-detail">Power &gt;110% →
+              AZ-5</small></span></div>
+        <div class="lamp" id="an-azs"><i></i><span><b>AZS · fast rise</b><small id="an-azs-detail">Rising period &lt;10
+              s → AZ-5</small></span></div>
+        <div class="lamp" id="an-silblok"><i></i><span><b>Power interlock</b><small>8+ rods withdrawing → stop all
+              drives</small></span></div>
+        <div class="lamp" id="an-chg"><i></i><span><b>AR changeover</b><small>Active bank at end stop 5 s → standby
+              bank</small></span></div>
+        <div class="lamp" id="an-lar"><i></i><span><b>LAR dropout</b><small>Local detectors blind &lt;10% → change to
+              AR</small></span></div>
+        <div class="lamp" id="an-orm"><i></i><span><b>ORM low · advisory</b><small>PRIZMA estimate &lt;15 rods · no
+              automatic trip</small></span></div>
       </div>
       <div id="az5-wrap">
-        <button id="az5" disabled title="AZ-5 — full emergency scram button. Inserts RR/AR/LAR/AZ banks; pre-1986 USP shortened rods are NOT driven. Requires lifting the safety cover first.">AZ-5</button>
-        <div id="az5-cover" title="Safety cover over AZ-5. Click to open/flip the cover, then press AZ-5 for a full scram. Click again to close.">SAFETY COVER</div>
+        <button id="az5" disabled
+          title="AZ-5 — full emergency scram button. Inserts RR/AR/LAR/AZ banks; pre-1986 USP shortened rods are NOT driven. Requires lifting the safety cover first.">AZ-5</button>
+        <div id="az5-cover"
+          title="Safety cover over AZ-5. Click to open/flip the cover, then press AZ-5 for a full scram. Click again to close.">
+          SAFETY COVER</div>
       </div>
     </div>
   </section>
 
   <footer>
     <section class="panel" id="trends">
-      <h2 title="One shared-time recorder. Reactivity is always shown; add or remove related signals as depth-aligned lanes with independent scales.">
+      <h2
+        title="One shared-time recorder. Reactivity is always shown; add or remove related signals as depth-aligned lanes with independent scales.">
         <span class="trend-label">Trend monitor</span>
-        <span class="trend-base" title="Reactivity is the permanent base trace: positive values drive power upward; negative values drive it downward.">base: reactivity</span>
-        <button class="active" data-overlay="power" aria-pressed="true" title="Add/remove reactor power on the shared time axis.">− power</button>
-        <button class="active" data-overlay="period" aria-pressed="true" title="Add/remove reactor period on the shared time axis.">− period</button>
-        <button data-overlay="xe" aria-pressed="false" title="Add/remove the slower Xe-135 poison trend on the shared time axis.">+ xenon</button>
+        <span class="trend-base"
+          title="Reactivity is the permanent base trace: positive values drive power upward; negative values drive it downward.">base:
+          reactivity</span>
+        <button class="active" data-overlay="power" aria-pressed="true"
+          title="Add/remove reactor power on the shared time axis.">− power</button>
+        <button class="active" data-overlay="period" aria-pressed="true"
+          title="Add/remove reactor period on the shared time axis.">− period</button>
+        <button data-overlay="xe" aria-pressed="false"
+          title="Add/remove the slower Xe-135 poison trend on the shared time axis.">+ xenon</button>
         <span id="pw-scale" class="scale-label">power scale
-          <button id="pw-auto" class="active" title="Auto scale: logarithmic below 0.5% power, linear above.">auto</button>
+          <button id="pw-auto" class="active"
+            title="Auto scale: logarithmic below 0.5% power, linear above.">auto</button>
           <button id="pw-lin" title="Linear vertical power scale.">lin</button>
           <button id="pw-log" title="Log power scale: exponential power rise appears as a straight line.">log</button>
         </span>
       </h2>
-      <canvas class="strip" id="st-trends" title="Shared-time trend monitor. Each enabled signal has its own labeled lane and scale; hover to compare all values at the same simulation time."></canvas>
+      <canvas class="strip" id="st-trends"
+        title="Shared-time trend monitor. Each enabled signal has its own labeled lane and scale; hover to compare all values at the same simulation time."></canvas>
     </section>
-    <section class="panel" id="alarms"><h2 title="Chronological plant events: info, warnings, protection trips, and refused operator actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).">Event log</h2><ul id="alarm-list" title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info. Refused drives and interlocks always log here — never silent."></ul></section>
+    <section class="panel" id="alarms">
+      <h2
+        title="Chronological plant events: info, warnings, protection trips, and refused operator actions (SEL_LIMIT, SIL_BLOK, PERIOD_BLOCK, …).">
+        Event log</h2>
+      <ul id="alarm-list"
+        title="Newest events appear at the bottom. Color: red = alarm, amber = warning, gray = info. Refused drives and interlocks always log here — never silent.">
+      </ul>
+    </section>
   </footer>
 
   <div id="tooltip"></div>
   <script type="module" src="./src/main.ts"></script>
 </body>
+
 </html>

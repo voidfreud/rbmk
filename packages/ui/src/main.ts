@@ -153,13 +153,287 @@ for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-overlay]")
 // ---------------------------------------------------------------------------
 // Event log feed
 // ---------------------------------------------------------------------------
+const STATE_DELTA_KEYS = [
+  "power",
+  "period",
+  "rho",
+  "orm",
+  "voidAvg",
+  "fuelTempAvg",
+  "coolantTempAvg",
+  "flowFraction",
+] as const;
+
+type EventPayload = Record<string, unknown>;
+
+function isRecord(value: unknown): value is EventPayload {
+  return typeof value === "object" && value !== null;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function fmtNum(value: number): string {
+  if (Math.abs(value) < 1e-3) return `${value.toExponential(2)}`;
+  return value.toFixed(4);
+}
+
+function formatMetric(key: string, value: unknown): string {
+  if (!isFiniteNumber(value)) return `${String(value)}`;
+  if (key === "power") return `${(value * 100).toFixed(2)}%`;
+  if (key === "rho") return `${value.toFixed(5)} β`;
+  if (key === "period") return `${value.toFixed(1)} s`;
+  if (key === "voidAvg" || key === "flowFraction") return `${(value * 100).toFixed(2)}%`;
+  if (key === "xenon" || key === "decayHeat") return `${value.toExponential(3)}`;
+  if (key === "fuelTempAvg" || key === "coolantTempAvg") return `${value.toFixed(1)} °C`;
+  if (key === "orm") return `${value.toFixed(1)}`;
+  return fmtNum(value);
+}
+
+function formatRodIns(value: unknown): string {
+  if (!isRecord(value)) return `${String(value)}`;
+  const entries = ["RR", "AR", "LAR", "AZ", "USP"]
+    .map((group) => {
+      const v = value[group];
+      return isFiniteNumber(v) ? `${group} ${(v * 100).toFixed(1)}%` : null;
+    })
+    .filter((entry): entry is string => entry !== null);
+  return entries.length > 0 ? entries.join(", ") : "{}";
+}
+
+function summarizeEventData(e: SimEvent): string[] {
+  const data = isRecord(e.data) ? e.data : null;
+  if (!data) return [];
+  const keys = e.code === "STATE"
+    ? ["power", "rho", "period", "orm", "voidAvg", "xenon", "fuelTempAvg", "coolantTempAvg", "flowFraction"]
+    : ["power", "period", "rho", "orm", "speed", "flowFraction", "setpoint", "reason"];
+  const values: string[] = [];
+  for (const key of keys) {
+    const value = data[key];
+    if (value === undefined) continue;
+    values.push(`${key}: ${formatMetric(key, value)}`);
+  }
+  return values;
+}
+
+let lastState: EventPayload | null = null;
+
+function stateDeltas(
+  next: EventPayload,
+  before: EventPayload | null = lastState,
+): string[] {
+  if (!before) return [];
+  const deltas: string[] = [];
+  for (const key of STATE_DELTA_KEYS) {
+    const prev = before[key];
+    const curr = next[key];
+    if (!isFiniteNumber(prev) || !isFiniteNumber(curr)) continue;
+    const delta = curr - prev;
+    if (Math.abs(delta) < 1e-12) continue;
+    const sign = delta >= 0 ? "+" : "";
+    const label = key === "power" ? `${(delta * 100).toFixed(3)}pp`
+      : key === "period" ? `${delta.toFixed(1)} s`
+      : key === "rho" ? `${delta.toFixed(5)} β`
+      : key === "voidAvg" || key === "flowFraction"
+      ? `${sign}${(delta * 100).toFixed(2)}pp`
+      : formatMetric(key, delta);
+    deltas.push(`Δ${key} ${sign}${label}`);
+  }
+  return deltas;
+}
+
+function transitionLines(
+  before: EventPayload,
+  after: EventPayload,
+  keys: readonly string[] = [],
+): string[] {
+  const tracked = keys.length > 0 ? keys : [
+    ...new Set([...Object.keys(before), ...Object.keys(after)]),
+  ];
+  const lines: string[] = [];
+  for (const key of tracked) {
+    const prev = before[key];
+    const next = after[key];
+    if (prev === next) continue;
+    if (!prev || !next) {
+      lines.push(`${key}: ${String(prev)} → ${String(next)}`);
+      continue;
+    }
+    if (isFiniteNumber(prev) && isFiniteNumber(next)) {
+      const delta = next - prev;
+      const sign = delta >= 0 ? "+" : "";
+      const label = key === "power" ? `${(delta * 100).toFixed(3)}pp`
+        : key === "period" ? `${delta.toFixed(1)} s`
+        : key === "rho" ? `${delta.toFixed(5)} β`
+        : key === "voidAvg" || key === "flowFraction"
+          ? `${sign}${(delta * 100).toFixed(2)}pp`
+          : formatMetric(key, delta);
+      lines.push(`${key}: ${formatMetric(key, prev)} → ${formatMetric(key, next)} (${sign}${label})`);
+      continue;
+    }
+    lines.push(`${key}: ${String(prev)} → ${String(next)}`);
+  }
+  return lines;
+}
+
+function inferContextFromData(e: SimEvent): { actor: string | null; where: string | null; cause: string | null } {
+  const data = isRecord(e.data) ? e.data : null;
+  const actor = e.actor
+    ? e.actor
+    : e.code.startsWith("ROD") ? "operator"
+      : e.code.startsWith("AR") ? "AR control"
+      : e.code === "FLOW" || e.code === "SPEED" ? "console"
+      : e.code === "STATE" || e.code === "POWER" || e.code === "PRIZMA" ? "core"
+      : e.code === "AZ1" || e.code === "AZ5" ? "protection logic"
+      : e.code === "ALERT" ? "reactor core"
+      : null;
+
+  const where = e.where
+    ? e.where
+    : e.code === "FLOW"
+      ? "coolant loop"
+      : e.code === "SPEED"
+        ? "operator panel"
+        : e.code === "PRIZMA"
+          ? "controls panel"
+          : null;
+
+  const cause = e.cause
+    || (isRecord(data) && typeof data.reason === "string" ? data.reason : null)
+    || (typeof data?.reasonDetail === "string" ? data.reasonDetail : null)
+    || (isRecord(data) && typeof data.trigger === "string" ? data.trigger : null)
+    || (typeof e.msg === "string" && e.msg.includes("—") ? e.msg.split("—")[1]?.trim() : null)
+    || null;
+
+  return { actor, where, cause };
+}
+
+function formatDataLines(data: EventPayload, limit = 20): string[] {
+  const primary = [
+    "power",
+    "period",
+    "rho",
+    "orm",
+    "voidAvg",
+    "xenon",
+    "fuelTempAvg",
+    "coolantTempAvg",
+    "decayHeat",
+    "flowFraction",
+    "rodIns",
+    "arMode",
+    "arActiveGroup",
+    "arSetpoint",
+    "arSetpointActive",
+    "arTarget",
+    "scrammed",
+    "protectionPeriod",
+    "protectionOverpower",
+    "speed",
+    "setpoint",
+    "prevSetpoint",
+    "milestone",
+    "fromGroup",
+    "toGroup",
+    "activeGroup",
+    "reason",
+  ];
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  const add = (key: string): void => {
+    if (!(key in data)) return;
+    const value = data[key];
+    if (key === "rodIns") {
+      lines.push(`  rodIns: ${formatRodIns(value)}`);
+    } else {
+      lines.push(`  ${key}: ${formatMetric(key, value)}`);
+    }
+    seen.add(key);
+  };
+  for (const key of primary) add(key);
+  for (const key of Object.keys(data)) {
+    if (seen.has(key)) continue;
+    if (lines.length >= limit) break;
+    const value = data[key];
+    lines.push(`  ${key}: ${formatMetric(key, value)}`);
+    seen.add(key);
+  }
+  return lines;
+}
+
 const alarmList = $("alarm-list");
 reactor.log.addSink((e) => {
+  const data = isRecord(e.data) ? e.data : null;
   const li = document.createElement("li");
-  li.className = e.level;
+  li.className = `event ${e.level}`;
+  const title = document.createElement("div");
+  title.className = "event-title";
   const icon = e.level === "alarm" ? "▲ " : e.level === "warn" ? "◆ " : "· ";
-  li.textContent = `${icon}${hms(e.t)} ${e.code}: ${e.msg}`;
+  const seq = e.seq === undefined ? "—" : String(e.seq).padStart(4, "0");
+  title.textContent = `${icon}${hms(e.t)} [${seq}] ${e.code}: ${e.msg}`;
+  li.appendChild(title);
+
+  const snapshot = summarizeEventData(e);
+  if (snapshot.length > 0) {
+    const summary = document.createElement("div");
+    summary.className = "event-summary";
+    summary.textContent = `snapshot: ${snapshot.join(" · ")}`;
+    li.appendChild(summary);
+  }
+
+  const before = isRecord(e.before) ? e.before : null;
+  const after = isRecord(e.after) ? e.after : null;
+  const lines: string[] = [];
+  if (before && after) {
+    const transition = transitionLines(before, after, e.code === "STATE" ? [...STATE_DELTA_KEYS] : []);
+    lines.push(...transition);
+  } else if (e.code === "STATE" && data) {
+    const delta = stateDeltas(data);
+    lines.push(...delta);
+  }
+  if (lines.length > 0) {
+    const deltaLine = document.createElement("div");
+    deltaLine.className = "event-delta";
+    deltaLine.textContent = e.before && e.after
+      ? `transition: ${lines.join(" · ")}`
+      : `Δ: ${lines.join(" · ")}`;
+    li.appendChild(deltaLine);
+  }
+
+  const context = inferContextFromData(e);
+  const metaParts = [
+    context.actor ? `actor: ${context.actor}` : null,
+    context.where ? `where: ${context.where}` : null,
+    context.cause ? `cause: ${context.cause}` : null,
+  ].filter((line): line is string => line !== null);
+  if (metaParts.length > 0) {
+    const meta = document.createElement("div");
+    meta.className = "event-meta";
+    meta.textContent = metaParts.join(" · ");
+    li.appendChild(meta);
+  }
+
+  if (data) {
+    const details = document.createElement("details");
+    const detSummary = document.createElement("summary");
+    detSummary.textContent = "event data";
+    details.appendChild(detSummary);
+    const detailText = document.createElement("pre");
+    detailText.className = "event-data";
+    detailText.textContent = formatDataLines(data).join("\n");
+    details.appendChild(detailText);
+    li.appendChild(details);
+  }
+
   alarmList.prepend(li);
+  if (e.code === "STATE") {
+    if (after && isRecord(after)) {
+      lastState = after;
+    } else if (data) {
+      lastState = { ...data };
+    }
+  }
   while (alarmList.children.length > 200) alarmList.lastChild?.remove();
 });
 

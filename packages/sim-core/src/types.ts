@@ -88,8 +88,21 @@ export interface SimEvent {
   code: string;
   msg: string;
   data?: Record<string, unknown>;
+  // Sequence number: auto-assigned by EventLog.emit() (monotonically
+  // increasing). Callers may supply a higher value; lower/non-increasing
+  // values are silently replaced.
+  seq?: number;
+  // Event context: actor and where are inferred by info/warn/alarm unless
+  // the caller supplies explicit overrides. cause is inferred when the
+  // message or data payload provides a trigger string.
+  actor?: string;
+  cause?: string;
+  where?: string;
+  // Optional snapshots used when an event represents a change and the
+  // before/after values are useful for diagnostics.
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
 }
-
 export function zeroNode(): NodeState {
   return {
     flux: 0,

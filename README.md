@@ -146,12 +146,16 @@ duplicates physics logic.
 
 Every reactor event — rod commands, protection trips, regulator changeovers,
 power milestones, AR configuration changes, and operator actions — logs a
-structured `SimEvent` with sim-time, severity level, event code, human-readable
-message, and a `data` snapshot of the operating state at that instant (power,
-period, ORM, rod positions, AR state, etc.). A low-frequency `STATE` snapshot
+structured `SimEvent` with a monotonic sequence number, sim-time, severity
+level, event code, human-readable message, optional `actor`/`cause`/`where`
+context fields (inferred by the logger from the event code and message), and a
+`data` snapshot of the operating state at that instant (power, period, ORM,
+rod positions, AR state, etc.). A low-frequency `STATE` snapshot
 (every 5 sim-s) captures the full plant condition including void fraction,
 xenon, fuel/coolant temperatures, rod bank insertions, reactivity margin,
 protection state, and decay heat for continuous diagnostic narrative.
+See [docs/observability.md](docs/observability.md) for the full event schema
+and enrichment pipeline.
 
 Events are stored in an in-memory ring buffer (10 000 capacity) and forwarded
 to registered sinks: the UI's chronological event feed, annunciator lamps, and

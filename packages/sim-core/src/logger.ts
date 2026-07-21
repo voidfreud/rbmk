@@ -1,5 +1,142 @@
 import type { SimEvent } from "./types";
 
+type EventMeta = Partial<
+  Pick<SimEvent, "actor" | "cause" | "where" | "before" | "after">
+>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseCause(
+  msg: string,
+  data?: Record<string, unknown>,
+  cause?: string,
+): string | undefined {
+  if (cause) return cause;
+  if (isRecord(data)) {
+    const reason = data.reason;
+    if (typeof reason === "string") return reason;
+    const reasonDetail = data.reasonDetail;
+    if (typeof reasonDetail === "string") return reasonDetail;
+    const trigger = data.trigger;
+    if (typeof trigger === "string") return trigger;
+    if (typeof data.cause === "string") return data.cause;
+  }
+  const split = msg.indexOf("—");
+  if (split >= 0) {
+    const suffix = msg.slice(split + 1).trim();
+    if (suffix.length > 0) return suffix;
+  }
+  const maybeDash = msg.indexOf(" - ");
+  if (maybeDash >= 0) {
+    const suffix = msg.slice(maybeDash + 3).trim();
+    if (suffix.length > 0) return suffix;
+  }
+  return undefined;
+}
+
+function inferActor(code: string): string {
+  // Operator actions: explicit console/setter commands.
+  if (
+    code === "ROD_CMD" ||
+    code === "ROD_AUTO" ||
+    code === "SCRAM_HOLD" ||
+    code === "PERIOD_BLOCK" ||
+    code === "AZ_COCK" ||
+    code === "AR_ENABLED" ||
+    code === "AR_SETPOINT" ||
+    code === "AR_GRADIENT" ||
+    code === "AR_MODE" ||
+    code === "AR_OVERRIDE" ||
+    code === "PROTECTION" ||
+    code === "AZ5_RESET" ||
+    code === "FLOW" ||
+    code === "RHO_EXTRA" ||
+    code === "SPEED" ||
+    code.startsWith("SEL_")
+  ) {
+    return "operator";
+  }
+  // Protection trips (automatic, not operator-triggered).
+  if (code === "AZ1" || code === "AZ5") {
+    return "protection logic";
+  }
+  // Safety interlocks and warnings.
+  if (code === "SIL_BLOK" || code === "RPS_BLOCKED" || code === "PERIOD") {
+    return "safety interlock";
+  }
+  // Automatic regulator: control actions and advisories emitted by the
+  // regulation loop, not from an operator command.
+  if (
+    code.startsWith("AR_") ||
+    code.startsWith("LAR_")
+  ) {
+    return "AR controller";
+  }
+  if (code === "STATE" || code === "POWER" || code === "PRIZMA") {
+    return "instrumentation";
+  }
+  if (code === "INIT") {
+    return "plant startup";
+  }
+  return "reactor core";
+}
+
+function inferWhere(code: string): string {
+  if (
+    code === "ROD_AUTO" ||
+    code === "SCRAM_HOLD" ||
+    code === "PERIOD_BLOCK" ||
+    code === "AZ_COCK" ||
+    code === "ROD_CMD"
+  ) {
+    return "rod controls";
+  }
+  if (code === "AZ1" || code === "AZ5") {
+    return "protection panel";
+  }
+  if (
+    code.startsWith("AR_") ||
+    code.startsWith("LAR_")
+  ) {
+    return "AR/regulation";
+  }
+  if (code === "PROTECTION" || code === "RPS_BLOCKED" || code === "PERIOD") {
+    return "protection panel";
+  }
+  if (code === "FLOW") {
+    return "coolant loop";
+  }
+  if (code === "RHO_EXTRA" || code === "SPEED") {
+    return "operator console";
+  }
+  if (code === "STATE" || code === "POWER" || code === "PRIZMA") {
+    return "control instruments";
+  }
+  if (code === "INIT") {
+    return "initialization";
+  }
+  return "simulation kernel";
+}
+
+function enrichMeta(
+  code: string,
+  msg: string,
+  data: Record<string, unknown> | undefined,
+  userMeta?: EventMeta,
+): EventMeta {
+  return {
+    actor: userMeta?.actor ?? inferActor(code),
+    where: userMeta?.where ?? inferWhere(code),
+    cause:
+      parseCause(msg, data, userMeta?.cause) ??
+      (isRecord(userMeta) ? (userMeta.cause as string | undefined) : undefined),
+    before: userMeta?.before,
+    after: userMeta?.after,
+  };
+}
+
 export type EventSink = (event: SimEvent) => void;
 
 /**
@@ -21,6 +158,8 @@ export class EventLog {
   private readonly events: SimEvent[] = [];
   private readonly sinks: EventSink[] = [];
   private readonly capacity: number;
+  private nextSeq = 0;
+
 
   constructor(capacity = 10000) {
     this.capacity = capacity;
@@ -31,21 +170,47 @@ export class EventLog {
   }
 
   emit(event: SimEvent): void {
+    if (event.seq == null || event.seq <= this.nextSeq) {
+      event.seq = ++this.nextSeq;
+    } else {
+      this.nextSeq = event.seq;
+    }
     this.events.push(event);
     if (this.events.length > this.capacity) this.events.shift();
     for (const sink of this.sinks) sink(event);
   }
 
-  info(t: number, code: string, msg: string, data?: Record<string, unknown>) {
-    this.emit({ t, level: "info", code, msg, data });
+  info(
+    t: number,
+    code: string,
+    msg: string,
+    data?: Record<string, unknown>,
+    meta?: EventMeta,
+  ): void {
+    const enriched = enrichMeta(code, msg, data, meta);
+    this.emit({ t, level: "info", code, msg, data, ...enriched });
   }
 
-  warn(t: number, code: string, msg: string, data?: Record<string, unknown>) {
-    this.emit({ t, level: "warn", code, msg, data });
+  warn(
+    t: number,
+    code: string,
+    msg: string,
+    data?: Record<string, unknown>,
+    meta?: EventMeta,
+  ): void {
+    const enriched = enrichMeta(code, msg, data, meta);
+    this.emit({ t, level: "warn", code, msg, data, ...enriched });
   }
 
-  alarm(t: number, code: string, msg: string, data?: Record<string, unknown>) {
-    this.emit({ t, level: "alarm", code, msg, data });
+  alarm(
+    t: number,
+    code: string,
+    msg: string,
+    data?: Record<string, unknown>,
+    meta?: EventMeta,
+  ): void {
+    const enriched = enrichMeta(code, msg, data, meta);
+    this.emit({ t, level: "alarm", code, msg, data, ...enriched });
   }
 
   all(): readonly SimEvent[] {
