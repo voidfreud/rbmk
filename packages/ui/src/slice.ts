@@ -9,13 +9,13 @@ import {
 const GROUPS: RodGroup[] = ["RR", "AR", "LAR", "AZ", "USP"];
 
 /** Layout constants (logical px). */
-const TOP = 34;
-const BOTTOM_PAD = 30;
+const TOP = 30;
+const BOTTOM_PAD = 10;
 const SCALE_X = 30; // depth scale gutter
 const FLUX_W = 150; // layered power/void/xenon profile
 const TEMP_W = 16; // coolant temperature strip
 const BANK_W = 30; // per-bank channel width
-const BANK_GAP = 10;
+const BANK_GAP = 15;
 const ABSORBER_COLOR = "#d55181";
 
 /**
@@ -113,7 +113,8 @@ export class Slice {
     g.fillText("ABSORBER TIP POSITION", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 17);
     g.font = "8px system-ui, sans-serif";
     g.fillStyle = "#898781";
-    g.fillText("↓ same standard rod     USP ↑", banksX + 2.5 * BANK_W + 2 * BANK_GAP, TOP - 6);
+    g.textAlign = "left";
+    g.fillText("↓ standard rods     ↑ USP (last track)", banksX, TOP - 6);
 
     // Depth scale.
     g.textAlign = "right";

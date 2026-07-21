@@ -45,7 +45,7 @@ export class Cartogram {
     this.ctx.scale(dpr, dpr);
     this.cx = w / 2;
     this.cy = w / 2;
-    this.scale = w / 19; // lattice spans roughly -8.6..8.6
+    this.scale = w / 17.7; // enlarged lattice with a small ~6px barrel margin
     this.cell = this.scale * 0.82;
   }
 

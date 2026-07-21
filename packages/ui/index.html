@@ -50,10 +50,10 @@
       display: flex;
       gap: 10px;
       align-items: stretch;
-      position: sticky;
-      left: 10px;
+      position: static;
       z-index: 2;
       width: calc(100vw - 20px);
+      order: 3;
     }
 
     .tile {
@@ -101,6 +101,7 @@
     main {
       display: flex;
       gap: 10px;
+      order: 1;
     }
 
     /* Drag-selection on the maps must not text-select the page. */
@@ -438,8 +439,15 @@
     }
 
     #col-map {
-      flex: 0 0 662px;
-      width: 662px;
+      flex: 0 0 538px;
+      width: 538px;
+      height: 543px;
+      box-sizing: border-box;
+    }
+
+    #col-map > canvas {
+      width: 530px !important;
+      height: 530px !important;
     }
 
     #col-field {
@@ -449,8 +457,105 @@
     }
 
     #col-slice {
-      flex: 1;
+      flex: 0 0 440px;
+      width: 440px;
       min-width: 0;
+      order: 2;
+    }
+
+    #col-field { order: 3; }
+
+    #col-field .panel-help,
+    #col-field .field-key,
+    #col-slice .panel-help,
+    #col-slice .profile-key,
+    #col-slice .rod-note,
+    #col-slice .slice-guide {
+      margin-top: 0;
+    }
+
+    #col-field canvas,
+    #col-slice canvas { order: 1; }
+    #col-field .field-key { order: 2; margin-top: 0; }
+    #col-field .field-stats { order: 3; }
+    #col-field .panel-help { order: 4; }
+    #col-slice .panel-help,
+    #col-slice .profile-key,
+    #col-slice .rod-note { order: 2; }
+    #col-slice .slice-guide { order: 3; margin-top: auto; }
+
+    #col-field .field-key {
+      width: calc(100% - 12px);
+      align-self: center;
+      margin-top: 0;
+      height: 77px;
+      box-sizing: border-box;
+      padding: 6px;
+      gap: 4px;
+    }
+
+    #col-field .field-key .field-stats {
+      width: 100%;
+      margin-left: 0;
+      gap: 4px;
+    }
+
+    #col-field .field-key .key-title {
+      font-size: 9px;
+    }
+
+    #col-field .field-key .field-scale {
+      height: 10px;
+    }
+
+    #col-field .field-key .scale-labels {
+      font-size: 8px;
+    }
+
+    #col-field .field-key .field-stat {
+      font-size: 8px;
+    }
+
+    #col-field .field-key .field-stat b {
+      font-size: 11px;
+    }
+
+    #col-field { padding-bottom: 14px; }
+
+    #col-field,
+    #col-slice {
+      height: 543px;
+      box-sizing: border-box;
+    }
+
+    #col-map,
+    #col-slice,
+    #col-field {
+      padding: 4px;
+      gap: 4px;
+    }
+
+    #col-slice {
+      justify-content: center;
+      align-items: center;
+    }
+
+    #col-map > h2,
+    #col-slice > h2,
+    #col-field > h2 {
+      display: none;
+    }
+
+    #col-field > canvas {
+      width: 450px !important;
+      height: 450px !important;
+      align-self: center;
+    }
+
+    #col-slice > canvas {
+      width: 440px !important;
+      height: 520px !important;
+      align-self: center;
     }
 
     /* The operator desk: full-width control panel between maps and charts. */
@@ -459,6 +564,7 @@
       gap: 10px;
       align-items: start;
       grid-template-columns: 350px minmax(440px, 1.3fr) minmax(350px, 1fr) 350px;
+      order: 2;
     }
 
     #desk .panel {
@@ -729,6 +835,7 @@
       display: flex;
       gap: 10px;
       height: 242px;
+      order: 4;
     }
 
     footer .panel {
@@ -1037,7 +1144,8 @@
         Core map — rod positions and individual selection</h2>
       <canvas id="cartogram" width="640" height="640"
         title="Control-rod mimic field. Click individual rod buttons to select or deselect them; use Clear selection on the SIUR desk."></canvas>
-      <div class="map-key" id="map-legend">
+      <!-- map legend removed: hover a rod for insertion depth and function. -->
+      <!-- <div class="map-key" id="map-legend">
         <div>
           <div class="key-title">Blue height = insertion depth</div>
           <div class="depth-examples" aria-label="Rod insertion examples">
@@ -1063,33 +1171,25 @@
           <div class="key-copy" style="margin-top:7px">Click a cell to select that individual rod. The blue amount is
             position; the border color is type.</div>
         </div>
-      </div>
+      </div> -->
     </section>
 
     <section class="panel" id="col-field">
       <h2 title="Estimated radial power distribution reconstructed from rod positions and the axial flux field.">Radial
         power field</h2>
-      <p class="panel-help">A top-down heat map of where fission power is being produced. Compare colors across the
-        core; hover any fuel channel for its MW value.</p>
       <canvas id="channelmap" width="440" height="440"
         title="Radial channel-power map. Hover a fuel channel for its estimated MW and relation to the core average."></canvas>
       <div class="field-key">
         <div>
-          <div class="key-title">Orange brightness = power in that fuel channel</div>
+          <div class="key-title">Orange brightness = relative channel power</div>
           <div class="field-scale" id="field-scale"></div>
-          <div class="scale-labels"><span>low power</span><span>core average</span><span>highest channel</span></div>
+          <div class="scale-labels"><span>low</span><span>core average</span><span>high</span></div>
         </div>
-        <div class="channel-keys">
-          <div class="channel-key"><span class="channel-sample fuel"></span><span><b>Fuel channel</b>orange is its
-              relative power</span></div>
-          <div class="channel-key"><span class="channel-sample cps"></span><span><b>Control-rod channel</b>dark square;
-              not a power reading</span></div>
+        <div class="field-stats num">
+          <div class="field-stat"><span>hottest fuel channel</span><b id="field-hot">—</b></div>
+          <div class="field-stat"><span>highest-power side</span><b id="field-side">—</b></div>
+          <div class="field-stat"><span>quadrant balance</span><b id="field-spread">—</b></div>
         </div>
-      </div>
-      <div class="field-stats num">
-        <div class="field-stat"><span>hottest fuel channel</span><b id="field-hot">—</b></div>
-        <div class="field-stat"><span>highest-power side</span><b id="field-side">—</b></div>
-        <div class="field-stat"><span>quadrant balance</span><b id="field-spread">—</b></div>
       </div>
     </section>
 
@@ -1097,6 +1197,7 @@
       <h2
         title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">
         Core profile — top to bottom</h2>
+      <!--
       <p class="panel-help">This is a vertical measurement plot, not a drawing of the rods. Wider/rightward means more
         of the named quantity at that depth.</p>
       <div class="profile-key">
@@ -1106,20 +1207,9 @@
       </div>
       <div class="rod-note"><b>Rod tracks:</b> RR, AR, LAR, and AZ are the same top-entry design; only their
         absorber-tip depth is plotted. USP is a shorter absorber entering from the bottom. Water and graphite are
-        deliberately not drawn here.</div>
+        deliberately not drawn here.</div> -->
       <canvas id="slice" width="440" height="520"
         title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
-      <div class="slice-guide">
-        <span title="Each bank track has a single pink marker at the leading end of its absorber."><b
-            style="color:#d55181">pink marker</b> · absorber tip</span>
-        <span
-          title="The thin vertical color strip shows coolant warming from the bottom inlet toward the top outlet."><b>temperature
-            strip</b> · coolant, bottom → top</span>
-        <span title="Standard absorbers enter from the top; their readout is metres down from the core top."><b>↓
-            RR/AR/LAR/AZ</b> · metres from top</span>
-        <span title="USP is a shorter absorber entering from below, with no graphite displacer."><b>↑ USP</b> · metres
-          from bottom</span>
-      </div>
     </section>
 
   </main>
