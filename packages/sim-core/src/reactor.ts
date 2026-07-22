@@ -202,6 +202,7 @@ export class Reactor {
   private lastSilBlokT = -Infinity;
   private lastBandWarnT = -Infinity;
   private lastAzCockT = -Infinity;
+  private lastArAzBlockT = -Infinity;
   /** Last PRIZMA ORM printout {t, orm}; pre-1986 ORM was NOT live. */
   private lastPrizma = { t: 0, orm: 0 };
   private nextPrizmaT = 0;
@@ -421,6 +422,7 @@ export class Reactor {
     this.lastSilBlokT = -Infinity;
     this.lastBandWarnT = -Infinity;
     this.lastAzCockT = -Infinity;
+    this.lastArAzBlockT = -Infinity;
     this.lastBlockedWarnT = -Infinity;
     this.lastPeriodBlockWarnT = -Infinity;
     this.lastRodAutoWarnT = -Infinity;
@@ -486,6 +488,14 @@ export class Reactor {
   // -------------------------------------------------------------------------
   // Controls
   // -------------------------------------------------------------------------
+
+  /** Rule 3.1.7: positive-reactivity drives wait until AZ is cocked. */
+  private azBankCocked(): boolean {
+    for (const rod of this.state.rods) {
+      if (rod.group === "AZ" && rod.insertion > 0.05) return false;
+    }
+    return true;
+  }
 
   /**
    * Command a rod group, AR subgroup ("AR1".."AR3"), single rod id, or every
@@ -581,31 +591,27 @@ export class Reactor {
       if (
         t < rod.insertion &&
         rod.group !== "AZ" &&
-        !this.initializing
+        !this.initializing &&
+        !this.azBankCocked()
       ) {
-        const azIn = this.state.rods.some(
-          (r) => r.group === "AZ" && r.insertion > 0.05,
-        );
-        if (azIn) {
-          if (this.state.time - this.lastAzCockT > 5) {
-            this.lastAzCockT = this.state.time;
-            const pAz = powerFraction(this.state.nodes);
-            this.log.warn(
-              this.state.time,
-              "AZ_COCK",
-              `withdrawal of rod ${rod.id} refused: AZ bank not cocked (Rule 3.1.7)`,
-              {
-                rodId: rod.id,
-                group: rod.group,
-                selector: String(selector),
-                power: Number(pAz.toExponential(4)),
-                period: Number(this.period().toFixed(1)),
-                orm: Number(this.ormRods().toFixed(1)),
-              },
-            );
-          }
-          continue;
+        if (this.state.time - this.lastAzCockT > 5) {
+          this.lastAzCockT = this.state.time;
+          const pAz = powerFraction(this.state.nodes);
+          this.log.warn(
+            this.state.time,
+            "AZ_COCK",
+            `withdrawal of rod ${rod.id} refused: AZ bank not cocked (Rule 3.1.7)`,
+            {
+              rodId: rod.id,
+              group: rod.group,
+              selector: String(selector),
+              power: Number(pAz.toExponential(4)),
+              period: Number(this.period().toFixed(1)),
+              orm: Number(this.ormRods().toFixed(1)),
+            },
+          );
         }
+        continue;
       }
       rod.target = t;
     }
@@ -1041,8 +1047,43 @@ export class Reactor {
       this.arTarget += 5 * (err - this.arErrPrev) + 2 * err * dt;
       this.arTarget = Math.min(1, Math.max(0, this.arTarget));
       this.arErrPrev = err;
+      const azCocked = this.azBankCocked();
+      let arWithdrawalBlocked = false;
       for (const rod of s.rods) {
-        if (this.regulatorOwns(rod)) rod.target = this.arTarget;
+        if (!this.regulatorOwns(rod)) continue;
+        if (!azCocked && this.arTarget < rod.insertion - 1e-9) {
+          // Automatic regulation may add negative reactivity while AZ is
+          // inserted, but it cannot withdraw a rod and add positive
+          // reactivity before the protection bank is cocked.
+          rod.target = rod.insertion;
+          arWithdrawalBlocked = true;
+        } else {
+          rod.target = this.arTarget;
+        }
+      }
+      if (
+        arWithdrawalBlocked &&
+        s.time - this.lastArAzBlockT > 5
+      ) {
+        this.lastArAzBlockT = s.time;
+        this.log.warn(
+          s.time,
+          "AR_AZ_BLOCK",
+          "automatic regulator withdrawal blocked: AZ bank not cocked",
+          {
+            power: Number(pBefore.toExponential(4)),
+            period: Number(this.period().toFixed(1)),
+            arMode: this.arMode,
+            arTarget: Number(this.arTarget.toFixed(4)),
+            azInsertion: Number(
+              s.rods.reduce(
+                (max, rod) =>
+                  rod.group === "AZ" ? Math.max(max, rod.insertion) : max,
+                0,
+              ).toFixed(4),
+            ),
+          },
+        );
       }
       // Automatic changeover: a regulating bank that has held an end stop
       // for five seconds hands off to a standby bank. LAR is the primary
@@ -1573,6 +1614,24 @@ export class Reactor {
     }
     return out;
   }
+  /**
+   * Instantaneous flux-weighted core reactivity [beta]. Unlike
+   * {@link reactivityBeta}, this is not an inverse-kinetics instrument and is
+   * intentionally unsmoothed so rod-drive transients remain visible.
+   */
+  netReactivityBeta(): number {
+    const rodRho = rodReactivityByNode(this.state.rods, this.rodRhoScratch);
+    const feedback = this.feedbackRhoByNode(this.feedbackScratch);
+    for (let k = 0; k < N_AXIAL; k++) {
+      this.rhoScratch[k] =
+        this.state.rhoBase +
+        this.state.rhoExtra +
+        rodRho[k]! +
+        feedback[k]!;
+    }
+    return globalReactivity(this.state.nodes, this.rhoScratch) / BETA_EFF;
+  }
+
 
   /** Thermal power deposited per node [W], including decay heat. */
   private nodePowers(out = this.nodePowerScratch): number[] {

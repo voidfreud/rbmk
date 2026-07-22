@@ -1280,32 +1280,40 @@
     <div id="annunciators">
       <div class="lamp" id="an-scram" title="AZ-5 full scram: latched → RR/AR/LAR/AZ insert; USP stays put.">
         <i></i><span><b>AZ-5</b><small>Latched → RR/AR/LAR/AZ insert; USP
-            stays put</small></span></div>
+            stays put</small></span>
+      </div>
       <div class="lamp" id="an-period"
         title="Startup period protection: rising period below 60 seconds blocks rod withdrawal.">
         <i></i><span><b>START<br>PERIOD</b><small>Rising period &lt;60 s → rod
-            withdrawal blocked</small></span></div>
+            withdrawal blocked</small></span>
+      </div>
       <div class="lamp" id="an-azm" title="AZM overpower protection: power above 110 percent commands AZ-5.">
         <i></i><span><b>AZM</b><small id="an-azm-detail">Power &gt;110% →
-            AZ-5</small></span></div>
+            AZ-5</small></span>
+      </div>
       <div class="lamp" id="an-azs" title="AZS period protection: rising period below 10 seconds commands AZ-5.">
         <i></i><span><b>AZS<br>PERIOD</b><small id="an-azs-detail">Rising period &lt;10
-            s → AZ-5</small></span></div>
+            s → AZ-5</small></span>
+      </div>
       <div class="lamp" id="an-silblok" title="Power interlock: eight or more rods withdrawing stops all drives.">
         <i></i><span><b>SIL<br>BLOK</b><small>8+ rods withdrawing → stop all
-            drives</small></span></div>
+            drives</small></span>
+      </div>
       <div class="lamp" id="an-chg"
         title="AR changeover: active bank at an end stop for five seconds hands off to standby.">
         <i></i><span><b>AR<br>CHANGE</b><small>Active bank at end stop 5 s → standby
-            bank</small></span></div>
+            bank</small></span>
+      </div>
       <div class="lamp" id="an-lar"
         title="LAR dropout: local detectors are blind below 10 percent, so control changes to AR.">
         <i></i><span><b>LAR<br>DROP</b><small>Local detectors blind &lt;10% → change to
-            AR</small></span></div>
+            AR</small></span>
+      </div>
       <div class="lamp" id="an-orm"
         title="ORM advisory: PRIZMA estimates fewer than 15 equivalent rods; no automatic trip.">
         <i></i><span><b>ORM<br>LOW</b><small>PRIZMA estimate &lt;15 rods · no
-            automatic trip</small></span></div>
+            automatic trip</small></span>
+      </div>
     </div>
   </header>
 
@@ -1386,11 +1394,11 @@
 
     <section class="panel" id="trends">
       <h2
-        title="One shared-time recorder. Reactivity is always shown; add or remove related signals as depth-aligned lanes with independent scales.">
+        title="One shared-time recorder. Net reactivity and power are raw core signals so rod-drive transients remain visible; xenon is slower.">
         <span class="trend-label">Trend monitor</span>
         <span class="trend-base"
-          title="Reactivity is the permanent base trace: positive values drive power upward; negative values drive it downward.">base:
-          reactivity</span>
+          title="Net instantaneous core reactivity: rod motion and feedback before panel damping.">base:
+          net reactivity</span>
         <button class="active" data-overlay="power" aria-pressed="true"
           title="Add/remove reactor power on the shared time axis.">− power</button>
         <button class="active" data-overlay="period" aria-pressed="true"

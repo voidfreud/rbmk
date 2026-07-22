@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { N_AXIAL, ROD_SPEED, USP_ABS_LENGTH } from "../src/constants";
+import { BETA_EFF, N_AXIAL, ROD_SPEED, USP_ABS_LENGTH } from "../src/constants";
 import { globalReactivity } from "../src/kinetics";
 import { Reactor } from "../src/reactor";
 import { buildRods, rodReactivityByNode, stepRodDrives } from "../src/rods";
@@ -87,6 +87,37 @@ describe("control rods", () => {
     );
     expect(fullDelta).toBeLessThan(-0.02);
   });
+  test("graphite tip worth has a non-linear positive hump", () => {
+    const rods = buildRods(211);
+    for (const rod of rods) {
+      rod.insertion = 0;
+      rod.target = 0;
+    }
+    const nodes: NodeState[] = [];
+    for (let k = 0; k < N_AXIAL; k++) {
+      const node = zeroNode();
+      node.flux = 0.05 + (0.95 * k) / (N_AXIAL - 1);
+      nodes.push(node);
+    }
+    const base = rodReactivityByNode(rods);
+    const worthAt = (insertion: number): number => {
+      for (const rod of rods) {
+        if (rod.group !== "USP") rod.insertion = insertion;
+      }
+      const current = rodReactivityByNode(rods);
+      return globalReactivity(
+        nodes,
+        current.map((value, k) => value - base[k]!),
+      ) / BETA_EFF;
+    };
+    const early = worthAt(0.05);
+    const peak = worthAt(0.18);
+    const late = worthAt(0.3);
+    expect(peak).toBeGreaterThan(early * 2);
+    expect(peak).toBeGreaterThan(late);
+    expect(peak).toBeGreaterThan(0.7);
+  });
+
 
   test("USP full stroke completes in ~7–9 s (stroke = USP_ABS_LENGTH)", () => {
     const rods = buildRods(211);

@@ -216,6 +216,38 @@ describe("control and protection system", () => {
     expect(blocked.length).toBeGreaterThan(0);
   });
 
+  test("automatic regulator withdrawal is blocked until AZ is cocked", () => {
+    for (const mode of ["ARM", "AR", "LAR"] as const) {
+      const r = new Reactor();
+      r.initAtPower(1.0);
+      for (const rod of r.state.rods) {
+        if (rod.group === "AZ") {
+          rod.insertion = 1;
+          rod.target = 1;
+        } else if (rod.group === "AR" || rod.group === "LAR") {
+          rod.insertion = 0.5;
+          rod.target = 0.5;
+        }
+      }
+      r.setArMode(mode);
+      r.setArSetpoint(0.5);
+      const internals = r as unknown as {
+        arSetpointActive: number;
+        arTarget: number;
+      };
+      internals.arSetpointActive = 0.5;
+      internals.arTarget = 0;
+      r.protection.overpower = false;
+      r.protection.period = false;
+      const owned = r.state.rods.filter((rod) => r.regulatorOwns(rod));
+      r.tick(1, 0.01);
+      for (const rod of owned) {
+        expect(rod.insertion).toBeGreaterThanOrEqual(0.5 - 1e-9);
+      }
+      expect(r.log.all().some((event) => event.code === "AR_AZ_BLOCK")).toBe(true);
+    }
+  });
+
   test("initAtPower after initShutdown leaves arEnabled true", () => {
     const r = new Reactor();
     r.initShutdown();

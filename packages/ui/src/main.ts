@@ -95,7 +95,7 @@ const trends = new MultiTrendChart(
   $<HTMLCanvasElement>("st-trends"),
   [
     {
-      id: "rho", label: "reactivity", color: "#9085e9",
+      id: "rho", label: "net reactivity", color: "#9085e9",
       fmt: (v) => `${v.toFixed(2)}β`, clampAbs: 25,
       refLines: [{ v: 1, color: "#d03b3b", label: "PHYSICAL LIMIT +1β · not an RPS trip" }],
     },
@@ -861,16 +861,16 @@ function frame(now: number): void {
 
   const t = reactor.state.time;
   if (t >= nextSample) {
-    // Charts sample the same sim-time-smoothed instruments as the meters
-    // (tau = 0.5 sim-s), so thresholds drawn on the strip match the panel.
+    // The trend recorder intentionally uses raw core power/net reactivity so
+    // short rod-drive transients are not erased by the damped panel meters.
     trends.push(t, {
-      power: disp.power * 100,
+      power: reactor.powerFraction() * 100,
       // Inverse period (growth rate) separates the 60/15/10 s limits.
       period: disp.periodRate,
-      rho: disp.rho,
+      rho: reactor.netReactivityBeta(),
       xe: disp.xe,
     });
-    nextSample = t + 0.5;
+    nextSample = t + 0.1;
   }
 
   // Instruments, throttled to 5 Hz.

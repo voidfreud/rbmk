@@ -80,6 +80,9 @@ historical water gaps, allowing the initial positive scram effect to appear
 under the appropriate low-ORM, bottom-peaked conditions. The AZ-5 event log
 records the computed first-step tip reactivity; ordinary centered full-power
 operation can correctly show a negative first step instead of a visible spike.
+The trend monitor uses `Reactor.netReactivityBeta()` and raw core power at
+100 ms samples, while the panel meters remain damped. This keeps short
+rod-drive transients visible instead of drawing a smoothed linear trace.
 
 Constants, units, source notes, confidence, and deliberately estimated values
 are documented in [`docs/physics.md`](docs/physics.md).
@@ -101,6 +104,9 @@ delayed PRIZMA-style ORM advisory below 15 rods. The reactor is genuinely
 unstable open-loop because its positive void coefficient is part of the model;
 the automatic regulator is what holds it. Xe-135 is shown by default in the
 trend monitor because its production and decay unfold over hours, not seconds.
+Rule 3.1.7 also applies to automatic regulation: ARM/AR/LAR can insert
+before AZ is cocked, but their withdrawal targets are held until the AZ bank
+is fully withdrawn.
 
 ## How the pieces fit
 

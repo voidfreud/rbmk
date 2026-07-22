@@ -26,6 +26,14 @@ counter, the counter advances to it and subsequent auto-assigned sequences
 remain monotonic. A supplied `seq` that is null or **less than or equal** to the
 counter is silently replaced with the next auto-assigned value.
 
+## Transient trend data
+
+The control-room trend recorder samples at 100 ms of simulation time. Its
+power lane uses raw `Reactor.powerFraction()` and its reactivity lane uses
+the unsmoothed `Reactor.netReactivityBeta()` value. Panel readouts remain
+damped independently, so short rod-drive transients are not hidden by
+instrument filtering.
+
 ## Metadata enrichment
 
 Before an event is emitted, `EventLog.info()`, `.warn()`, and `.alarm()` run an
