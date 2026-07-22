@@ -166,4 +166,11 @@ describe("kinetics / inhour", () => {
     expect(reading).toBeGreaterThan(stepBeta * 0.6);
     expect(reading).toBeLessThan(stepBeta * 1.5);
   });
+  test("net reactivity exposes unsmoothed current core reactivity", () => {
+    const r = new Reactor();
+    r.initAtPower(1.0);
+    const before = r.netReactivityBeta();
+    r.setRhoExtra(0.05 * BETA_EFF);
+    expect(r.netReactivityBeta() - before).toBeCloseTo(0.05, 6);
+  });
 });

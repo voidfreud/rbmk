@@ -56,6 +56,8 @@ NRC ML20202G309.
 ## Interlocks
 - No positive reactivity insertion unless AZ rods cocked/armed (rule 3.1.7);
   blocked on warning signals (3.1.9).
+- The same cocked/armed interlock gates automatic ARM/AR/LAR withdrawal;
+  insertion remains permitted before AZ cocking.
 - Withdrawal restriction at 5+ selected (panel logic).
 - "Silovaya blokirovka": fires when >=8 rods of RR/USP/BAZ/AR/LAR are being
   withdrawn - clears selection, annunciates; combined with "PK mode" it

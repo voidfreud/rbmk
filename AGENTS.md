@@ -39,6 +39,8 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
 - Node reactivity = rhoBase (criticality calibration) + rods + void +
   Doppler + graphite temp + xenon. Node coupling is an implicit tridiagonal
   diffusion solve, unconditionally stable; fast-forward uses maxStep=0.1 s.
+- `Reactor.netReactivityBeta()` is the unsmoothed, instantaneous core
+  reactivity used by the transient trend; panel displays may remain damped.
 - Rods model the pre-1986 geometry: absorber from the top, 4.5 m graphite
   displacer, 1.25 m water columns - so the positive scram ("tip effect")
   emerges from geometry, not scripting. See rods.test.ts.
@@ -48,6 +50,9 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   high-power transient; low-power detector dropout remains separate. USP enter
   from BELOW, are manually driven for axial shaping, and are NOT driven by
   AZ-5 (pre-1986). Protections: AZS (period), AZM (overpower), both
+- Rule 3.1.7 applies to automatic drives too: ARM/AR/LAR may insert rods
+  before AZ cocking, but automatic withdrawal is held until the AZ bank is
+  essentially fully withdrawn.
   operator-blockable; AZ-1 setback; delayed PRIZMA ORM advisory below 15 rods.
   Regulator setpoint ramps at arGradient.
 - The plant is genuinely unstable open-loop (positive void coefficient);
