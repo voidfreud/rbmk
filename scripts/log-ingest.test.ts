@@ -21,6 +21,17 @@ describe("log ingestion validation", () => {
     );
     expect(result).toEqual({ status: 400, message: "invalid event" });
   });
+  test("rejects non-finite nested structured values", () => {
+    for (const field of ["data", "before", "after"]) {
+      const payload = JSON.parse(
+        `[{"t":1,"level":"info","code":"TEST","msg":"bad","${field}":{"value":1e400}}]`,
+      );
+      expect(validateLogBatch(payload, 100)).toEqual({
+        status: 400,
+        message: "invalid event",
+      });
+    }
+  });
 
   test("rejects oversized batches", () => {
     const result = validateLogBatch(

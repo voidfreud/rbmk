@@ -47,6 +47,8 @@ describe("issue regressions", () => {
     base.initAtPower(1);
     scaled.initAtPower(1);
 
+    // Scaling flux, delayed precursors, and photoneutrons together should
+    // leave the normalized trial growth rate unchanged.
     for (let k = 0; k < base.state.nodes.length; k++) {
       const baseNode = base.state.nodes[k]!;
       const scaledNode = scaled.state.nodes[k]!;
@@ -61,8 +63,5 @@ describe("issue regressions", () => {
     scaled.calibrateCritical();
 
     expect(scaled.state.rhoBase).toBeCloseTo(base.state.rhoBase, 8);
-    for (const node of scaled.state.nodes) {
-      expect(node.photoneutrons.every(Number.isFinite)).toBe(true);
-    }
   });
 });

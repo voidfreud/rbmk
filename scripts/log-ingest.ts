@@ -29,8 +29,17 @@ function hasBoundedString(
 function hasBoundedRecord(value: unknown, maxBytes: number): boolean {
   if (value === undefined) return true;
   if (!isRecord(value)) return false;
-  const json = JSON.stringify(value);
-  return json !== undefined && encoder.encode(json).byteLength <= maxBytes;
+  try {
+    const json = JSON.stringify(value, (_key, nested) => {
+      if (typeof nested === "number" && !Number.isFinite(nested)) {
+        throw new TypeError("non-finite structured value");
+      }
+      return nested;
+    });
+    return json !== undefined && encoder.encode(json).byteLength <= maxBytes;
+  } catch {
+    return false;
+  }
 }
 
 function isSimEvent(value: unknown): value is SimEvent {
