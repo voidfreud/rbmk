@@ -1,9 +1,9 @@
 import {
   N_AXIAL,
   Reactor,
+  P_RATED,
   SimEvent,
   equilibriumIodineXenon,
-  type RodState,
 } from "@rbmk/sim-core";
 import { Cartogram, depthLabel, rodCoord, rodStrokeM } from "./cartogram";
 import { ChannelMap } from "./channelmap";
@@ -491,7 +491,6 @@ function driveSelected(cmd: "out" | "in" | "stop"): void {
   }
   drivingIds = ids;
   for (const id of ids) {
-    const rod = reactor.state.rods[id]!;
     if (cmd === "out") reactor.setRodTarget(id, 0);
     else if (cmd === "in") reactor.setRodTarget(id, 1);
   }
@@ -942,6 +941,8 @@ function frame(now: number): void {
     $("p-tf").textContent = `${Math.round(maxTf)}°C`;
     $("p-tg").textContent = `${Math.round(sumTg / N_AXIAL)}°C`;
     $("p-x").textContent = `${(maxVoid * 100).toFixed(1)}%`;
+    const decayHeat = reactor.state.decayHeat.groups.reduce((sum, group) => sum + group, 0) / P_RATED;
+    $("p-dh").textContent = `${(decayHeat * 100).toFixed(2)}%`;
 
     // Annunciators.
     setLamp("an-scram", reactor.state.scrammed ? "alarm" : "");

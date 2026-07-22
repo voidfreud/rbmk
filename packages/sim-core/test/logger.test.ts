@@ -41,17 +41,14 @@ describe("EventLog", () => {
     expect(events[2]!.seq).toBe(102);
   });
 
-  test("ring buffer evicts oldest events at capacity", () => {
+  test("ring buffer preserves chronological order after repeated wraparound", () => {
     const log = new EventLog(3);
-    log.info(0, "A", "a");
-    log.info(1, "B", "b");
-    log.info(2, "C", "c");
-    log.info(3, "D", "d");
+    for (const code of ["A", "B", "C", "D", "E", "F", "G", "H"]) {
+      log.info(0, code, code.toLowerCase());
+    }
     const events = log.all();
     expect(events.length).toBe(3);
-    expect(events[0]!.code).toBe("B");
-    expect(events[1]!.code).toBe("C");
-    expect(events[2]!.code).toBe("D");
+    expect(events.map((event) => event.code)).toEqual(["F", "G", "H"]);
   });
 
   test("info/warn/alarm set correct levels", () => {

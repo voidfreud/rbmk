@@ -1,5 +1,5 @@
 import { appendFile, mkdir } from "node:fs/promises";
-import type { SimEvent } from "../packages/sim-core/src/types";
+import { readBoundedBody, validateLogBatch } from "./log-ingest";
 import index from "../packages/ui/index.html";
 
 const LOG_PATH = "data/log.jsonl";
@@ -21,12 +21,29 @@ const server = Bun.serve({
     "/api/log/events": {
       POST: async (req) => {
         try {
-          const events: SimEvent[] = await req.json();
-          if (!Array.isArray(events) || events.length === 0) {
-            return new Response("invalid payload", { status: 400 });
+          const bodyResult = await readBoundedBody(req);
+          if ("status" in bodyResult) {
+            return new Response(bodyResult.message, {
+              status: bodyResult.status,
+            });
           }
-          const lines = events
-            .map((e) => JSON.stringify(e))
+          let payload: unknown;
+          try {
+            payload = JSON.parse(new TextDecoder().decode(bodyResult.body));
+          } catch {
+            return new Response("invalid JSON", { status: 400 });
+          }
+          const validation = validateLogBatch(
+            payload,
+            bodyResult.body.byteLength,
+          );
+          if ("status" in validation) {
+            return new Response(validation.message, {
+              status: validation.status,
+            });
+          }
+          const lines = validation.events
+            .map((event) => JSON.stringify(event))
             .join("\n") + "\n";
           await appendLogLine(lines);
           return new Response("ok");

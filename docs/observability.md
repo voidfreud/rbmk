@@ -49,7 +49,7 @@ code and message text:
 | `FLOW`, `RHO_EXTRA`, `SPEED` | `"operator"` |
 | `AZ1`, `AZ5` | `"protection logic"` |
 | `SIL_BLOK`, `RPS_BLOCKED`, `PERIOD` | `"safety interlock"` |
-| `AR_BAND`, `AR_CHANGEOVER`, `AR_NO_AUTH`, `LAR_DROPOUT` | `"AR controller"` |
+| `AR_BAND`, `AR_CHANGEOVER`, `AR_NO_AUTH`, `AR_AZ_BLOCK`, `LAR_DROPOUT` | `"AR controller"` |
 | `STATE`, `POWER`, `PRIZMA` | `"instrumentation"` |
 | `INIT` | `"plant startup"` |
 | (fallback) | `"reactor core"` |
@@ -60,7 +60,7 @@ code and message text:
 |---|---|
 | `ROD_AUTO`, `SCRAM_HOLD`, `PERIOD_BLOCK`, `AZ_COCK`, `ROD_CMD` | `"rod controls"` |
 | `AZ1`, `AZ5` | `"protection panel"` |
-| `AR_*`, `LAR_*` | `"AR/regulation"` |
+| `AR_*`, `LAR_*` (including `AR_AZ_BLOCK`) | `"AR/regulation"` |
 | `PROTECTION`, `RPS_BLOCKED`, `PERIOD` | `"protection panel"` |
 | `FLOW` | `"coolant loop"` |
 | `RHO_EXTRA`, `SPEED` | `"operator console"` |
@@ -90,6 +90,7 @@ and forwarded to three registered sinks:
    3 s or 100 events and POSTed to `POST /api/log/events`; a
    `navigator.sendBeacon` on page unload prevents event loss. The full log is
    downloadable from `GET /api/log/download` and lives at `data/log.jsonl`.
+The development endpoint rejects malformed batches, limits each request to 1 MiB and 100 events, and bounds event context and data payloads before appending anything.
 
 ## Event codes
 
@@ -113,6 +114,7 @@ and forwarded to three registered sinks:
 | `LAR_DROPOUT` | alarm | LAR dropped out below its detector band, changeover to AR |
 | `AR_BAND` | warn | Power outside regulator band |
 | `AR_CHANGEOVER` | warn | AR subgroup changeover |
+| `AR_AZ_BLOCK` | warn | Automatic regulator withdrawal blocked until the AZ bank is cocked |
 | `AR_NO_AUTH` | warn | AR out of authority (saturated) |
 | `SIL_BLOK` | alarm | Power interlock: 8+ rods withdrawing halted |
 | `PERIOD` | alarm | Reactor period below 15 s |

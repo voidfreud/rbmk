@@ -171,6 +171,7 @@ batches events (every 3 s or 100 events, whichever comes first) and POSTs them
 to `POST /api/log/events`; on page unload a `navigator.sendBeacon` flush
 ensures no events are lost. The full log is downloadable from
 `GET /api/log/download`.
+The ingestion endpoint rejects malformed events and bounds request bodies, batch sizes, and structured payloads before writing JSONL.
 
 ## Verification
 

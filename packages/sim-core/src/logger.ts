@@ -155,14 +155,19 @@ export function hms(t: number): string {
  * optional sinks (a JSONL file writer, a UI console, ...).
  */
 export class EventLog {
-  private readonly events: SimEvent[] = [];
+  private readonly events: SimEvent[];
   private readonly sinks: EventSink[] = [];
   private readonly capacity: number;
+  private head = 0;
+  private count = 0;
   private nextSeq = 0;
 
-
   constructor(capacity = 10000) {
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw new RangeError("EventLog capacity must be a positive integer");
+    }
     this.capacity = capacity;
+    this.events = new Array<SimEvent>(capacity);
   }
 
   addSink(sink: EventSink): void {
@@ -175,8 +180,13 @@ export class EventLog {
     } else {
       this.nextSeq = event.seq;
     }
-    this.events.push(event);
-    if (this.events.length > this.capacity) this.events.shift();
+    const index = (this.head + this.count) % this.capacity;
+    this.events[index] = event;
+    if (this.count < this.capacity) {
+      this.count++;
+    } else {
+      this.head = (this.head + 1) % this.capacity;
+    }
     for (const sink of this.sinks) sink(event);
   }
 
@@ -214,6 +224,10 @@ export class EventLog {
   }
 
   all(): readonly SimEvent[] {
-    return this.events;
+    const events = new Array<SimEvent>(this.count);
+    for (let i = 0; i < this.count; i++) {
+      events[i] = this.events[(this.head + i) % this.capacity]!;
+    }
+    return events;
   }
 }
