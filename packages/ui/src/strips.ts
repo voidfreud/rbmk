@@ -38,7 +38,7 @@ export class MultiTrendChart {
   powerLogMode = false;
 
   constructor(
-    private readonly canvas: HTMLCanvasElement,
+    canvas: HTMLCanvasElement,
     private readonly series: TrendSeries[],
     enabled: string[],
     private readonly windowSamples = 360,

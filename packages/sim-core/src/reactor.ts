@@ -208,8 +208,6 @@ export class Reactor {
   private nextPrizmaT = 0;
   /** Next sim-time for a periodic STATE snapshot. */
   private nextStateT = 0;
-  /** Last flow fraction for FLOW delta logging. */
-  private lastFlowFraction = 1;
   /** Power thresholds for milestone logging (fraction of rated). */
   private static readonly POWER_MILESTONES = [
     1e-4, 3e-4, 1e-3, 3e-3, 0.01, 0.03, 0.05, 0.10, 0.25, 0.50, 0.75,
@@ -297,7 +295,6 @@ export class Reactor {
     this.refreshDecayShape(1);
     // Clean plant defaults: full flow, protections armed (UI may have blocked).
     s.flowFraction = 1;
-    this.lastFlowFraction = 1;
     this.lastPowerBin = 0;
     this.protection.overpower = true;
     this.protection.period = true;
@@ -430,7 +427,6 @@ export class Reactor {
     this.lastPeriodAlarmT = -Infinity;
     this.lastArNoAuthT = -Infinity;
     this.periodAlarmLatched = false;
-    this.lastFlowFraction = 1;
     this.lastPowerBin = 0;
     this.nextStateT = 0;
   }
@@ -470,6 +466,8 @@ export class Reactor {
           node.flux *= inv;
           for (let g = 0; g < node.precursors.length; g++)
             node.precursors[g]! *= inv;
+          for (let g = 0; g < node.photoneutrons.length; g++)
+            node.photoneutrons[g]! *= inv;
         }
       }
       return logGrowth / ((steps / 2) * dt);
@@ -623,7 +621,9 @@ export class Reactor {
       if (affected.length > 0) {
         const cmdPower = powerFraction(this.state.nodes);
         const cmdPeriod = this.period();
-        const delta = t - affected[0]!.insertion;
+        const delta =
+          affected.reduce((sum, rod) => sum + (t - rod.insertion), 0) /
+          affected.length;
         this.log.info(
           this.state.time,
           "ROD_CMD",
@@ -659,6 +659,15 @@ export class Reactor {
     }
     if (affected.length > 0) {
       const pArOv = powerFraction(this.state.nodes);
+      const groups: string[] = [];
+      for (const id of affected) {
+        const group = this.state.rods[id]!.group;
+        if (!groups.includes(group)) groups.push(group);
+      }
+      const groupLabel =
+        groups.length === 1
+          ? `${groups[0]} rods`
+          : `automatic regulator rods (${groups.join("/")})`;
       const insertions = affected.map((id) => this.state.rods[id]!.insertion);
       const meanIns = insertions.reduce((a, b) => a + b, 0) / insertions.length;
       this.log.info(
@@ -666,10 +675,11 @@ export class Reactor {
         "AR_OVERRIDE",
         auto
           ? `rods returned to automatic control (${affected.length})`
-          : `manual override of ${affected.length} ${this.state.rods[affected[0]!]!.group} rods`,
+          : `manual override of ${affected.length} ${groupLabel}`,
         {
           ids: affected,
           count: affected.length,
+          groups,
           auto,
           insertions: insertions.map((v) => Number(v.toFixed(4))),
           meanInsertion: Number(meanIns.toFixed(4)),
@@ -893,7 +903,6 @@ export class Reactor {
         orm: Number(this.ormRods().toFixed(1)),
       },
     );
-    this.lastFlowFraction = this.state.flowFraction;
   }
 
   /**
@@ -946,6 +955,12 @@ export class Reactor {
    * on fast transients.
    */
   tick(dt: number, maxStep = DT_INTERNAL): void {
+    if (!Number.isFinite(dt) || dt <= 0) {
+      throw new RangeError("dt must be finite and greater than zero");
+    }
+    if (!Number.isFinite(maxStep) || maxStep <= 0) {
+      throw new RangeError("maxStep must be finite and greater than zero");
+    }
     let remaining = dt;
     while (remaining > 1e-9) {
       const step = Math.min(maxStep, remaining);
