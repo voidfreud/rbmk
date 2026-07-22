@@ -11,3 +11,5 @@ dist/
 .vscode/
 coverage/
 data/
+
+.gitnexus/
