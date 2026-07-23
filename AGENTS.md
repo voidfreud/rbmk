@@ -9,7 +9,7 @@ code with it; that repo and INSAG-7 serve as reference material only.
 - **Bun** (no Node, no build step). TypeScript strict mode throughout.
 - `bun run check` - strict TypeScript plus the physics validation suite
 - `bun run start` - control-room UI at http://localhost:3141/
-- `bun run smoke:ui` - validates a complete served UI entry point
+- `bun run smoke:ui` - validates the served UI entry point and static DOM bindings
 - `bun run ci` - check + smoke (same gate as GitHub Actions)
 
 ## Layout

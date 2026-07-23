@@ -252,20 +252,50 @@ reactor.log.addSink((e) => {
 // are persisted to disk. Flushes every ~3 s or every 100 events, whichever
 // comes first + sendBeacon on pagehide for lossless session tails.
 const logPending: SimEvent[] = [];
-let logFlushTimer: ReturnType<typeof setInterval> | null = null;
-function flushLog(): void {
-  if (logPending.length === 0) return;
-  const batch = logPending.splice(0, logPending.length);
-  const body = JSON.stringify(batch);
-  fetch("/api/log/events", { method: "POST", body, headers: { "Content-Type": "application/json" } }).catch(() => {});
+type LogFlushTimer = ReturnType<typeof setInterval>;
+let logFlushTimer: LogFlushTimer | null = null;
+let logFlushInFlight = false;
+
+function startLogFlushTimer(): void {
+  if (logFlushTimer) return;
+  logFlushTimer = setInterval(() => {
+    flushLog();
+    if (logPending.length === 0 && !logFlushInFlight && logFlushTimer) {
+      clearInterval(logFlushTimer);
+      logFlushTimer = null;
+    }
+  }, 3000);
 }
+
+function flushLog(): void {
+  if (logPending.length === 0 || logFlushInFlight) return;
+  const batch = logPending.splice(0, logPending.length);
+  logFlushInFlight = true;
+  const body = JSON.stringify(batch);
+  fetch("/api/log/events", {
+    method: "POST",
+    body,
+    keepalive: true,
+    headers: { "Content-Type": "application/json" },
+  })
+    .then((response) => {
+      if (!response.ok) throw new Error(`event log rejected: ${response.status}`);
+    })
+    .catch(() => {
+      logPending.unshift(...batch);
+    })
+    .finally(() => {
+      logFlushInFlight = false;
+      if (logPending.length > 0) startLogFlushTimer();
+    });
+}
+
 reactor.log.addSink((e) => {
   logPending.push(e);
   if (logPending.length >= 100) flushLog();
-  else if (!logFlushTimer) {
-    logFlushTimer = setInterval(() => { flushLog(); if (logPending.length === 0 && logFlushTimer) { clearInterval(logFlushTimer); logFlushTimer = null; } }, 3000);
-  }
+  else startLogFlushTimer();
 });
+
 addEventListener("pagehide", () => {
   if (logPending.length > 0) {
     navigator.sendBeacon("/api/log/events", new Blob([JSON.stringify(logPending)], { type: "application/json" }));

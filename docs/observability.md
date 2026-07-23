@@ -44,7 +44,7 @@ code and message text:
 
 | Condition | `actor` value |
 |---|---|
-| `ROD_CMD`, `ROD_AUTO`, `SCRAM_HOLD`, `PERIOD_BLOCK`, `AZ_COCK`, `SEL_*` | `"operator"` |
+| `ROD_CMD`, `ROD_AUTO`, `SCRAM_HOLD`, `PERIOD_BLOCK`, `AZ_COCK`, `SELECT`, `ROD_STOP`, `AZ5_COVER`, `SEL_*` | `"operator"` |
 | `AR_ENABLED`, `AR_SETPOINT`, `AR_GRADIENT`, `AR_MODE`, `AR_OVERRIDE`, `PROTECTION`, `AZ5_RESET` | `"operator"` |
 | `FLOW`, `RHO_EXTRA`, `SPEED` | `"operator"` |
 | `AZ1`, `AZ5` | `"protection logic"` |
@@ -58,8 +58,8 @@ code and message text:
 
 | Condition | `where` value |
 |---|---|
-| `ROD_AUTO`, `SCRAM_HOLD`, `PERIOD_BLOCK`, `AZ_COCK`, `ROD_CMD` | `"rod controls"` |
-| `AZ1`, `AZ5` | `"protection panel"` |
+| `ROD_AUTO`, `SCRAM_HOLD`, `PERIOD_BLOCK`, `AZ_COCK`, `ROD_CMD`, `SELECT`, `ROD_STOP` | `"rod controls"` |
+| `AZ1`, `AZ5`, `AZ5_COVER` | `"protection panel"` |
 | `AR_*`, `LAR_*` (including `AR_AZ_BLOCK`) | `"AR/regulation"` |
 | `PROTECTION`, `RPS_BLOCKED`, `PERIOD` | `"protection panel"` |
 | `FLOW` | `"coolant loop"` |
@@ -99,6 +99,9 @@ The development endpoint rejects malformed batches, limits each request to 1 MiB
 | `INIT` | info | Reactor initialization |
 | `PROTECTION` | info | Protection channel armed/blocked |
 | `ROD_CMD` | info | Rod drive command issued |
+| `SELECT` | info | Individual rod selection changed |
+| `ROD_STOP` | info | All rod drives stopped |
+| `SEL_LIMIT` | warn | Withdrawal limited by the selected-rod count |
 | `SCRAM_HOLD` | warn | Withdrawal refused while scrammed |
 | `ROD_AUTO` | warn | Manual command to auto-controlled rod refused |
 | `PERIOD_BLOCK` | warn | Withdrawal blocked: short period |
@@ -110,6 +113,7 @@ The development endpoint rejects malformed batches, limits each request to 1 MiB
 | `AR_MODE` | info | Regulator mode switch (AR/ARM/LAR) |
 | `AZ1` | alarm | AZ-1 setback actuated |
 | `AZ5` | alarm | AZ-5 scram actuated; payload includes USP mean insertion and computed first-step graphite-tip reactivity |
+| `AZ5_COVER` | info | AZ-5 safety cover opened or closed |
 | `AZ5_RESET` | info | Scram latch reset |
 | `LAR_DROPOUT` | alarm | LAR dropped out below its detector band, changeover to AR |
 | `AR_BAND` | warn | Power outside regulator band |

@@ -58,6 +58,21 @@ const TAU_DECAY_SHAPE = 3600;
 const TAU_PERIOD = 2.0;
 /** Minimum sim-time between repeated emissions of the same alarm [s]. */
 const ALARM_COOLDOWN = 60;
+function requireFiniteNumber(value: number, name: string): number {
+  if (!Number.isFinite(value)) {
+    throw new RangeError(`${name} must be finite`);
+  }
+  return value;
+}
+
+function requireUnitInterval(value: number, name: string): number {
+  requireFiniteNumber(value, name);
+  if (value < 0 || value > 1) {
+    throw new RangeError(`${name} must be between 0 and 1`);
+  }
+  return value;
+}
+
 
 export interface ReactorOptions {
   rodCount?: number;
@@ -169,7 +184,7 @@ export class Reactor {
 
   /** Set power setpoint [fraction of rated]. Logs AR_SETPOINT on change. */
   setArSetpoint(sp: number): void {
-    const clamped = Math.min(1, Math.max(0, sp));
+    const clamped = Math.min(1, Math.max(0, requireFiniteNumber(sp, "setpoint")));
     if (Math.abs(clamped - this.arSetpoint) < 1e-9) return;
     const prev = this.arSetpoint;
     this.arSetpoint = clamped;
@@ -184,7 +199,7 @@ export class Reactor {
 
   /** Set AR gradient [fraction/s]. Logs AR_GRADIENT on change. */
   setArGradient(g: number): void {
-    const clamped = Math.min(0.01, Math.max(0, g));
+    const clamped = Math.min(0.01, Math.max(0, requireFiniteNumber(g, "gradient")));
     if (Math.abs(clamped - this.arGradient) < 1e-12) return;
     const prev = this.arGradient;
     this.arGradient = clamped;
@@ -214,7 +229,7 @@ export class Reactor {
     1.0, 1.10, 1.20,
   ] as const;
   /** Index into POWER_MILESTONES of the highest threshold already logged. */
-  private lastPowerBin = 0;
+  private lastPowerBin = -1;
 
   constructor(options: ReactorOptions = {}) {
     this.log = options.log ?? new EventLog();
@@ -250,11 +265,12 @@ export class Reactor {
       uspInsertion?: number;
     } = {},
   ): void {
+    const requestedPower = requireUnitInterval(fraction, "fraction");
     const s = this.state;
-    const manual = opts.manualInsertion ?? 0.45;
-    const auto = opts.autoInsertion ?? 0.5;
+    const manual = requireUnitInterval(opts.manualInsertion ?? 0.45, "manualInsertion");
+    const auto = requireUnitInterval(opts.autoInsertion ?? 0.5, "autoInsertion");
     // USP absorbers ride partway in from the bottom to trim the axial field.
-    const usp = opts.uspInsertion ?? 0.2;
+    const usp = requireUnitInterval(opts.uspInsertion ?? 0.2, "uspInsertion");
     for (const rod of s.rods) {
       const ins =
         rod.group === "AR" || rod.group === "LAR"
@@ -273,7 +289,7 @@ export class Reactor {
       }
     }
 
-    // Chopped cosine with extrapolation length, normalized to `fraction`.
+    // Chopped cosine with extrapolation length, normalized to `requestedPower`.
     const delta = 0.7;
     const shape: number[] = [];
     for (let k = 0; k < N_AXIAL; k++) {
@@ -285,17 +301,17 @@ export class Reactor {
     const avg = shape.reduce((a, b) => a + b, 0) / N_AXIAL;
     for (let k = 0; k < N_AXIAL; k++) {
       const node = s.nodes[k]!;
-      node.flux = (fraction * shape[k]!) / avg;
+      node.flux = (requestedPower * shape[k]!) / avg;
       const eq = equilibriumIodineXenon(node.flux);
       node.iodine = eq.iodine;
       node.xenon = eq.xenon;
     }
     equilibriumPrecursors(s.nodes);
-    s.decayHeat.groups = equilibriumDecayHeat(fraction * P_RATED);
+    s.decayHeat.groups = equilibriumDecayHeat(requestedPower * P_RATED);
     this.refreshDecayShape(1);
     // Clean plant defaults: full flow, protections armed (UI may have blocked).
     s.flowFraction = 1;
-    this.lastPowerBin = 0;
+    this.lastPowerBin = -1;
     this.protection.overpower = true;
     this.protection.period = true;
     equilibriumThermal(s.nodes, this.nodePowers(), s.flowFraction);
@@ -305,8 +321,8 @@ export class Reactor {
     // prior ARM session cannot leave full-power outside the ARM band.
     this.arEnabled = true;
     this.arMode = "AR";
-    this.arSetpoint = fraction;
-    this.arSetpointActive = fraction;
+    this.arSetpoint = requestedPower;
+    this.arSetpointActive = requestedPower;
     this.arTarget = auto;
     this.arErrPrev = 0;
     this.arActiveGroup = 1;
@@ -328,7 +344,7 @@ export class Reactor {
       this.calibrateCritical();
       this.tick(12);
       if (
-        Math.abs(powerFraction(s.nodes) - fraction) < 0.002 &&
+        Math.abs(powerFraction(s.nodes) - requestedPower) < 0.002 &&
         Math.abs(this.smoothedRate) < 2e-4
       ) {
         break;
@@ -344,7 +360,14 @@ export class Reactor {
     this.nextPrizmaT = 0;
     this.lastPrizma = { t: 0, orm: this.ormRods() };
     const pInit = powerFraction(s.nodes);
-    this.log.info(s.time, "INIT", `initialized at ${Math.round(fraction * 100)}% power`, {
+    this.lastPowerBin = -1;
+    while (
+      this.lastPowerBin + 1 < Reactor.POWER_MILESTONES.length &&
+      pInit >= Reactor.POWER_MILESTONES[this.lastPowerBin + 1]!
+    ) {
+      this.lastPowerBin++;
+    }
+    this.log.info(s.time, "INIT", `initialized at ${Math.round(requestedPower * 100)}% power`, {
       rhoBase: s.rhoBase,
       power: Number(pInit.toExponential(4)),
       orm: Number(this.ormRods().toFixed(1)),
@@ -427,7 +450,7 @@ export class Reactor {
     this.lastPeriodAlarmT = -Infinity;
     this.lastArNoAuthT = -Infinity;
     this.periodAlarmLatched = false;
-    this.lastPowerBin = 0;
+    this.lastPowerBin = -1;
     this.nextStateT = 0;
   }
   /**
@@ -886,7 +909,11 @@ export class Reactor {
 
   setFlowFraction(fraction: number): void {
     const prev = this.state.flowFraction;
-    this.state.flowFraction = Math.min(1.2, Math.max(0, fraction));
+    const clamped = Math.min(
+      1.2,
+      Math.max(0, requireFiniteNumber(fraction, "flowFraction")),
+    );
+    this.state.flowFraction = clamped;
     const pFlow = powerFraction(this.state.nodes);
     const meanVoid =
       this.state.nodes.reduce((a, n) => a + n.voidFrac, 0) /
@@ -894,9 +921,9 @@ export class Reactor {
     this.log.info(
       this.state.time,
       "FLOW",
-      `pump flow set to ${Math.round(fraction * 100)}% (was ${Math.round(prev * 100)}%)`,
+      `pump flow set to ${Math.round(clamped * 100)}% (was ${Math.round(prev * 100)}%)`,
       {
-        flowFraction: this.state.flowFraction,
+        flowFraction: clamped,
         previousFlow: Number(prev.toFixed(4)),
         power: Number(pFlow.toExponential(4)),
         meanVoid: Number(meanVoid.toExponential(4)),
@@ -912,15 +939,16 @@ export class Reactor {
    * step change if you want the core re-critical at the new value.
    */
   setRhoExtra(rho: number): void {
+    const value = requireFiniteNumber(rho, "rhoExtra");
     const prev = this.state.rhoExtra;
-    this.state.rhoExtra = rho;
-    if (Math.abs(rho - prev) > 1e-12) {
+    this.state.rhoExtra = value;
+    if (Math.abs(value - prev) > 1e-12) {
       this.log.info(
         this.state.time,
         "RHO_EXTRA",
-        `extra reactivity set to ${(rho * 1e5).toFixed(1)}e-5 Δk/k (was ${(prev * 1e5).toFixed(1)}e-5)`,
+        `extra reactivity set to ${(value * 1e5).toFixed(1)}e-5 Δk/k (was ${(prev * 1e5).toFixed(1)}e-5)`,
         {
-          rhoExtra: rho,
+          rhoExtra: value,
           previousRhoExtra: prev,
           power: Number(powerFraction(this.state.nodes).toExponential(4)),
           orm: Number(this.ormRods().toFixed(1)),
@@ -1133,22 +1161,24 @@ export class Reactor {
             }
             this.arTarget = arBankCount > 0 ? arBankSum / arBankCount : 0;
             this.arErrPrev = 0;
-            this.log.warn(
-              s.time,
-              "AR_CHANGEOVER",
-              `LAR out of authority - changeover to AR-${this.arActiveGroup}`,
-              {
-                fromMode: "LAR",
-                toMode: "AR",
-                toGroup: this.arActiveGroup,
-                power: Number(pLar.toExponential(4)),
-                period: Number(this.period().toFixed(1)),
-                orm: Number(this.ormRods().toFixed(1)),
-                larTarget: Number(larTarget.toFixed(4)),
-                arTarget: Number(this.arTarget.toFixed(4)),
-                arSetpoint: this.arSetpoint,
-              },
-            );
+            if (!this.initializing) {
+              this.log.warn(
+                s.time,
+                "AR_CHANGEOVER",
+                `LAR out of authority - changeover to AR-${this.arActiveGroup}`,
+                {
+                  fromMode: "LAR",
+                  toMode: "AR",
+                  toGroup: this.arActiveGroup,
+                  power: Number(pLar.toExponential(4)),
+                  period: Number(this.period().toFixed(1)),
+                  orm: Number(this.ormRods().toFixed(1)),
+                  larTarget: Number(larTarget.toFixed(4)),
+                  arTarget: Number(this.arTarget.toFixed(4)),
+                  arSetpoint: this.arSetpoint,
+                },
+              );
+            }
             this.arSaturatedFor = 0;
           }
         } else {
@@ -1181,21 +1211,23 @@ export class Reactor {
               }
             }
             if (nextWithAuth !== null) {
-              this.log.warn(
-                s.time,
-                "AR_CHANGEOVER",
-                `AR-${this.arActiveGroup} out of authority - changeover to AR-${nextWithAuth}`,
-                {
-                  fromGroup: this.arActiveGroup,
-                  toGroup: nextWithAuth,
-                  power: Number(pBefore.toExponential(4)),
-                  period: Number(this.period().toFixed(1)),
-                  orm: Number(this.ormRods().toFixed(1)),
-                  arTarget: Number(this.arTarget.toFixed(4)),
-                  arSetpoint: this.arSetpoint,
-                  arMode: this.arMode,
-                },
-              );
+              if (!this.initializing) {
+                this.log.warn(
+                  s.time,
+                  "AR_CHANGEOVER",
+                  `AR-${this.arActiveGroup} out of authority - changeover to AR-${nextWithAuth}`,
+                  {
+                    fromGroup: this.arActiveGroup,
+                    toGroup: nextWithAuth,
+                    power: Number(pBefore.toExponential(4)),
+                    period: Number(this.period().toFixed(1)),
+                    orm: Number(this.ormRods().toFixed(1)),
+                    arTarget: Number(this.arTarget.toFixed(4)),
+                    arSetpoint: this.arSetpoint,
+                    arMode: this.arMode,
+                  },
+                );
+              }
               this.arActiveGroup = nextWithAuth;
               let nextArSum = 0;
               let nextArCount = 0;
@@ -1209,19 +1241,21 @@ export class Reactor {
             } else if (s.time - this.lastArNoAuthT > ALARM_COOLDOWN) {
               this.lastArNoAuthT = s.time;
               const perNoAuth = this.period();
-              this.log.warn(
-                s.time,
-                "AR_NO_AUTH",
-                `AR out of authority — all subgroups saturated. Power ${(pBefore * 100).toFixed(1)}%, release with manual rods`,
-                {
-                  power: Number(pBefore.toExponential(4)),
-                  period: Number(perNoAuth.toFixed(1)),
-                  orm: Number(this.ormRods().toFixed(1)),
-                  arTarget: Number(this.arTarget.toFixed(4)),
-                  arSetpoint: this.arSetpoint,
-                  activeGroup: this.arActiveGroup,
-                },
-              );
+              if (!this.initializing) {
+                this.log.warn(
+                  s.time,
+                  "AR_NO_AUTH",
+                  `AR out of authority — all subgroups saturated. Power ${(pBefore * 100).toFixed(1)}%, release with manual rods`,
+                  {
+                    power: Number(pBefore.toExponential(4)),
+                    period: Number(perNoAuth.toFixed(1)),
+                    orm: Number(this.ormRods().toFixed(1)),
+                    arTarget: Number(this.arTarget.toFixed(4)),
+                    arSetpoint: this.arSetpoint,
+                    activeGroup: this.arActiveGroup,
+                  },
+                );
+              }
             }
             this.arSaturatedFor = 0;
           }

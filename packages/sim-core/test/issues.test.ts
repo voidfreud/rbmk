@@ -41,6 +41,31 @@ describe("issue regressions", () => {
     }
   });
 
+  test("rejects nonfinite public control inputs", () => {
+    const reactor = new Reactor();
+    expect(() => reactor.setFlowFraction(Number.NaN)).toThrow(RangeError);
+    expect(() => reactor.setArSetpoint(Number.NaN)).toThrow(RangeError);
+    expect(() => reactor.setArGradient(Number.NaN)).toThrow(RangeError);
+    expect(() => reactor.setRhoExtra(Number.NaN)).toThrow(RangeError);
+    expect(() => reactor.initAtPower(Number.NaN)).toThrow(RangeError);
+    expect(() => reactor.initAtPower(-0.1)).toThrow(RangeError);
+    expect(() => reactor.initAtPower(1.1)).toThrow(RangeError);
+  });
+
+  test("initialization logs a chronological, quiet baseline", () => {
+    const reactor = new Reactor();
+    reactor.initAtPower(1);
+    reactor.tick(0.02);
+    const events = reactor.log.all();
+
+    expect(events[0]?.code).toBe("INIT");
+    expect(events.filter((entry) => entry.code === "AR_CHANGEOVER")).toHaveLength(0);
+    expect(events.filter((entry) => entry.code === "POWER")).toHaveLength(0);
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i]!.t).toBeGreaterThanOrEqual(events[i - 1]!.t);
+    }
+  });
+
   test("critical calibration normalizes photoneutron trial state", () => {
     const base = new Reactor();
     const scaled = new Reactor();

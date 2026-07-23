@@ -54,6 +54,9 @@ function inferActor(code: string): string {
     code === "FLOW" ||
     code === "RHO_EXTRA" ||
     code === "SPEED" ||
+    code === "SELECT" ||
+    code === "ROD_STOP" ||
+    code === "AZ5_COVER" ||
     code.startsWith("SEL_")
   ) {
     return "operator";
@@ -89,11 +92,14 @@ function inferWhere(code: string): string {
     code === "SCRAM_HOLD" ||
     code === "PERIOD_BLOCK" ||
     code === "AZ_COCK" ||
-    code === "ROD_CMD"
+    code === "ROD_CMD" ||
+    code === "SELECT" ||
+    code === "ROD_STOP" ||
+    code.startsWith("SEL_")
   ) {
     return "rod controls";
   }
-  if (code === "AZ1" || code === "AZ5") {
+  if (code === "AZ1" || code === "AZ5" || code === "AZ5_COVER") {
     return "protection panel";
   }
   if (
