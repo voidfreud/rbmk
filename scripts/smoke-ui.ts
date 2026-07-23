@@ -45,6 +45,20 @@ try {
   if (missing.length > 0) {
     throw new Error(`UI response is incomplete; missing: ${missing.join(", ")}`);
   }
+  // Catch the common browser failure where main.ts dereferences a missing
+  // element and the animation loop dies on its first DOM update.
+  const htmlIds = new Set(
+    [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]!),
+  );
+  const source = await Bun.file("packages/ui/src/main.ts").text();
+  const staticDomRefs = [
+    ...source.matchAll(/\$\s*(?:<[^>]+>\s*)?\(\s*"([^"]+)"\s*\)/g),
+  ].map((match) => match[1]!);
+  const missingDomIds = [...new Set(staticDomRefs)].filter((id) => !htmlIds.has(id));
+  if (missingDomIds.length > 0) {
+    throw new Error(`UI source references missing DOM ids: ${missingDomIds.join(", ")}`);
+  }
+
 
   const scriptPath = html.match(/<script[^>]+src="([^"]+)"/)?.[1];
   if (!scriptPath) throw new Error("UI response has no executable bundle");

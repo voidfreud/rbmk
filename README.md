@@ -32,7 +32,7 @@ when you want to work through startup from a shutdown state.
 | --- | --- |
 | `bun run start` | Opens the interactive control room. |
 | `bun run check` | Type-checks the project and runs the physics suite. |
-| `bun run smoke:ui` | Serves and validates the browser entry point. |
+| `bun run smoke:ui` | Serves and validates the UI entry point and its static DOM bindings. |
 
 ## A look inside the model
 

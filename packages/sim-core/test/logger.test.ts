@@ -84,6 +84,20 @@ describe("EventLog", () => {
     expect(events[2]!.actor).toBe("operator");
   });
 
+  test("UI operator events get specific metadata", () => {
+    const log = new EventLog();
+    log.info(0, "SELECT", "rod selected");
+    log.info(1, "ROD_STOP", "all drives stopped");
+    log.info(2, "AZ5_COVER", "cover opened");
+    log.warn(3, "SEL_LIMIT", "withdrawal limited");
+    const events = log.all();
+    for (const event of events) expect(event.actor).toBe("operator");
+    expect(events[0]!.where).toBe("rod controls");
+    expect(events[1]!.where).toBe("rod controls");
+    expect(events[2]!.where).toBe("protection panel");
+    expect(events[3]!.where).toBe("rod controls");
+  });
+
   test("safety interlocks get actor 'safety interlock'", () => {
     const log = new EventLog();
     log.alarm(0, "SIL_BLOK", "power interlock");
