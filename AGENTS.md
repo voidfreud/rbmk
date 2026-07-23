@@ -31,6 +31,9 @@ packages/ui/         canvas control room, subscribes to sim-core
   src/slice.ts       axial core profile (power, rod tracks, coolant direction)
   src/strips.ts      shared-time MultiTrendChart recorder (ring buffer)
 packages/sim-plant/  (future) pumps, drum separators, turbine, grid
+artifacts/           dated audit reports and execution plans (e.g. the
+                     modularization plan for reactor.ts/main.ts); check here
+                     before re-auditing or re-planning
 ```
 
 ## Physics model (v0)
