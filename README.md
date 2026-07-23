@@ -167,9 +167,13 @@ and enrichment pipeline.
 Events are stored in an in-memory ring buffer (10 000 capacity) and forwarded
 to registered sinks: the UI's chronological event feed, annunciator lamps, and
 (when `bun run start` is running) a JSONL file at `data/log.jsonl`. The UI
-batches events (every 3 s or 100 events, whichever comes first) and POSTs them
-to `POST /api/log/events`; on page unload a `navigator.sendBeacon` flush
-ensures no events are lost. The full log is downloadable from
+batches events (every 3 s or 100 events, whichever comes first, capped at
+768 KiB per request) and POSTs them to `POST /api/log/events?s=<session>`;
+the server serializes appends and dedupes per session on the event sequence
+number, so a retried batch never writes twice. The pending queue is bounded
+(2 000 events, oldest dropped first) so a stopped server cannot grow memory
+without limit, and on page unload a `navigator.sendBeacon` flush sends what
+fits in the browser's keepalive quota. The full log is downloadable from
 `GET /api/log/download`.
 The ingestion endpoint rejects malformed events and bounds request bodies, batch sizes, and structured payloads before writing JSONL.
 

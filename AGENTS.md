@@ -7,7 +7,8 @@ code with it; that repo and INSAG-7 serve as reference material only.
 ## Stack and commands
 
 - **Bun** (no Node, no build step). TypeScript strict mode throughout.
-- `bun run check` - strict TypeScript plus the physics validation suite
+- `bun run check` - strict TypeScript plus the full test suite
+- `bun run test` - physics tests only (packages/sim-core/test)
 - `bun run start` - control-room UI at http://localhost:3141/
 - `bun run smoke:ui` - validates the served UI entry point and static DOM bindings
 - `bun run ci` - check + smoke (same gate as GitHub Actions)
@@ -90,7 +91,7 @@ packages/sim-plant/  (future) pumps, drum separators, turbine, grid
   exposed as a public method (e.g. `Reactor.regulatorOwns`); the UI calls
   it — never duplicate the logic (a second copy drifts silently).
   
-- Every reactor event logs a structured `SimEvent` with a monotonic `seq`, sim-time, level (`info`/`warn`/`alarm`), event code, human-readable message, optional `actor`/`cause`/`where` context (inferred by `enrichMeta` from event code and message), optional `data` snapshot, and optional `before`/`after` transition snapshots. The in-memory ring (10 000 events) feeds UI sinks and, when the dev server is running, a JSONL file at `data/log.jsonl` via `POST /api/log/events?s=<session>` (downloadable at `GET /api/log/download`). The UI batches events (≤100 events / 768 KiB per request, every 3 s), bounds its pending queue (2 000, oldest dropped), and uses `navigator.sendBeacon` on page unload; the server serializes appends and dedupes per session on the `seq` high-water mark so retries never duplicate lines.  Full schema and enrichment tables live in `docs/observability.md`. Event codes: `INIT`, `PROTECTION`, `ROD_CMD`, `SCRAM_HOLD`, `ROD_AUTO`, `PERIOD_BLOCK`, `AZ_COCK`, `AR_OVERRIDE`, `AR_ENABLED`, `AR_SETPOINT`, `AR_GRADIENT`, `AR_MODE`, `AZ5`, `AZ1`, `AZ5_RESET`, `FLOW`, `RHO_EXTRA`, `LAR_DROPOUT`, `AR_BAND`, `AR_CHANGEOVER`, `AR_NO_AUTH`, `AR_AZ_BLOCK`, `SIL_BLOK`, `PERIOD`, `PRIZMA`, `RPS_BLOCKED`, `STATE`, `POWER`, `SPEED`.
+- Every reactor event logs a structured `SimEvent` with a monotonic `seq`, sim-time, level (`info`/`warn`/`alarm`), event code, human-readable message, optional `actor`/`cause`/`where` context (inferred by `enrichMeta` from event code and message), optional `data` snapshot, and optional `before`/`after` transition snapshots. The in-memory ring (10 000 events) feeds UI sinks and, when the dev server is running, a JSONL file at `data/log.jsonl` via `POST /api/log/events?s=<session>` (downloadable at `GET /api/log/download`). The UI batches events (≤100 events / 768 KiB per request, every 3 s), bounds its pending queue (2 000, oldest dropped), and uses `navigator.sendBeacon` on page unload; the server serializes appends and dedupes per session on the `seq` high-water mark so retries never duplicate lines.  Full schema and enrichment tables live in `docs/observability.md`. Event codes: `INIT`, `PROTECTION`, `ROD_CMD`, `SCRAM_HOLD`, `ROD_AUTO`, `PERIOD_BLOCK`, `AZ_COCK`, `AR_OVERRIDE`, `AR_ENABLED`, `AR_SETPOINT`, `AR_GRADIENT`, `AR_MODE`, `AZ5`, `AZ1`, `AZ5_RESET`, `FLOW`, `RHO_EXTRA`, `LAR_DROPOUT`, `AR_BAND`, `AR_CHANGEOVER`, `AR_NO_AUTH`, `AR_AZ_BLOCK`, `SIL_BLOK`, `PERIOD`, `PRIZMA`, `RPS_BLOCKED`, `STATE`, `POWER`, `SPEED`, `SELECT`, `SEL_LIMIT`, `ROD_STOP`, `AZ5_COVER`.
 
 ## Roadmap
 

@@ -158,71 +158,11 @@
       color: var(--muted);
     }
 
-    .panel-help {
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.35;
-    }
-
-    .rod-note {
-      padding: 7px 8px;
-      border-left: 3px solid #d55181;
-      background: rgba(213, 81, 129, 0.07);
-      color: var(--muted);
-      font-size: 10px;
-      line-height: 1.45;
-    }
-
-    .rod-note b {
-      color: var(--ink-2);
-    }
-
-    .profile-key {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    .profile-key span {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .profile-key i {
-      width: 19px;
-      height: 0;
-      border-top: 2px solid;
-    }
-
-    .profile-key .power i {
-      border-color: #d95926;
-    }
-
-    .profile-key .steam i {
-      border-color: #9ec5f4;
-      border-top-style: dashed;
-    }
-
-    .profile-key .xenon i {
-      border-color: #fab219;
-      border-top-style: dotted;
-    }
-
-    .map-key,
     .field-key {
       border: 1px solid var(--hairline);
       border-radius: 5px;
       background: rgba(255, 255, 255, .018);
       padding: 9px;
-    }
-
-    .map-key {
-      display: grid;
-      grid-template-columns: 1.05fr 1.6fr;
-      gap: 12px;
     }
 
     .key-title {
@@ -231,117 +171,6 @@
       font-weight: 700;
       letter-spacing: .55px;
       text-transform: uppercase;
-    }
-
-    .key-copy {
-      color: var(--muted);
-      font-size: 9px;
-      line-height: 1.35;
-    }
-
-    .depth-examples {
-      display: flex;
-      align-items: flex-end;
-      gap: 9px;
-      margin: 7px 0 5px;
-    }
-
-    .depth-example {
-      display: grid;
-      justify-items: center;
-      gap: 3px;
-      color: var(--muted);
-      font-size: 9px;
-    }
-
-    .depth-cell {
-      width: 24px;
-      height: 31px;
-      position: relative;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, .35);
-      border-radius: 3px;
-      background: #0d0d0d;
-    }
-
-    .depth-cell i {
-      position: absolute;
-      inset: 0 1px auto;
-      height: var(--level);
-      background: #5598e7;
-    }
-
-    .depth-arrow {
-      color: #5598e7;
-      font-size: 18px;
-      line-height: 31px;
-    }
-
-    .role-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 5px;
-      margin-top: 7px;
-    }
-
-    .role-chip {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 9px;
-      line-height: 1.15;
-    }
-
-    .role-chip i,
-    .channel-sample {
-      width: 20px;
-      height: 20px;
-      flex: none;
-      display: grid;
-      place-items: center;
-      border-radius: 3px;
-      background: #0d0d0d;
-      font-style: normal;
-      font-size: 9px;
-      font-weight: 700;
-    }
-
-    .role-chip b {
-      display: block;
-      color: var(--ink-2);
-      font-size: 9px;
-    }
-
-    .role-chip.rr i {
-      border: 1px solid rgba(255, 255, 255, .35);
-      color: var(--ink-2);
-    }
-
-    .role-chip.ar i {
-      border: 1.5px solid #199e70;
-      color: #199e70;
-    }
-
-    .role-chip.lar i {
-      border: 1.5px solid #9085e9;
-      color: #9085e9;
-    }
-
-    .role-chip.az i {
-      border: 1.5px solid #d55181;
-      color: #d55181;
-    }
-
-    .role-chip.usp i {
-      border: 1.5px solid #c98500;
-      color: #c98500;
-    }
-
-    .role-chip.selected i {
-      border: 2px solid #fff;
-      color: #fff;
     }
 
     .field-key {
@@ -385,35 +214,6 @@
       text-align: right;
     }
 
-    .channel-keys {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .channel-key {
-      display: flex;
-      gap: 7px;
-      align-items: center;
-      color: var(--muted);
-      font-size: 9px;
-      line-height: 1.25;
-    }
-
-    .channel-key b {
-      display: block;
-      color: var(--ink-2);
-      font-size: 10px;
-    }
-
-    .channel-sample.fuel {
-      background: #d95926;
-    }
-
-    .channel-sample.cps {
-      border: 1.5px solid #9ec5f4;
-    }
-
     .field-stats {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -432,19 +232,6 @@
       display: block;
       color: var(--ink);
       font-size: 13px;
-      font-weight: 600;
-    }
-
-    .slice-guide {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 4px 12px;
-      font-size: 10px;
-      color: var(--muted);
-    }
-
-    .slice-guide b {
-      color: var(--ink-2);
       font-weight: 600;
     }
 
@@ -1080,14 +867,6 @@
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
     }
 
-    .legend {
-      display: flex;
-      gap: 10px;
-      font-size: 11px;
-      color: var(--muted);
-      flex-wrap: wrap;
-    }
-
     /* Per-rod servo rows for the current selection (selsyn-style readouts). */
     #sel-rows {
       display: flex;
@@ -1212,15 +991,6 @@
       letter-spacing: .4px;
     }
 
-    .legend .sw {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
-      vertical-align: -1px;
-      margin-right: 4px;
-    }
-
     .divider {
       border-top: 1px solid var(--hairline);
       margin: 2px 0;
@@ -1229,7 +999,7 @@
 </head>
 
 <body>
-  <header id="instruments">
+  <header>
     <div class="tile brand" title="RBMK-1000 Unit 4 control-room instruments. Simulation time and plant state.">
       <div class="value">RBMK-1000 · U4</div>
       <div class="sub num" id="i-time">t = 00:00:00</div>
@@ -1349,17 +1119,6 @@
       <h2
         title="Vertical view through the 7 m core. Top is the rod-drive side; coolant enters at the bottom and flows upward.">
         Core profile — top to bottom</h2>
-      <!--
-      <p class="panel-help">This is a vertical measurement plot, not a drawing of the rods. Wider/rightward means more
-        of the named quantity at that depth.</p>
-      <div class="profile-key">
-        <span class="power"><i></i><b>power shape</b> (relative)</span>
-        <span class="steam"><i></i><b>steam void</b> (0–100%)</span>
-        <span class="xenon"><i></i><b>xenon</b> (0–2× average)</span>
-      </div>
-      <div class="rod-note"><b>Rod tracks:</b> RR, AR, LAR, and AZ are the same top-entry design; only their
-        absorber-tip depth is plotted. USP is a shorter absorber entering from the bottom. Water and graphite are
-        deliberately not drawn here.</div> -->
       <canvas id="slice" width="440" height="520"
         title="Vertical core profile. Hover any depth for power, steam void, xenon, fuel temperature, and coolant temperature; hover a rod bank for its insertion."></canvas>
     </section>
@@ -1414,7 +1173,7 @@
       <details id="guide"
         title="SIUR cold-start checklist. Steps light as you complete them. Same terms as desk tooltips (AZ bank, individually selected RR rods, ARM/AR/LAR, period, ORM printout).">
         <summary>startup procedure</summary>
-        <ol id="checklist">
+        <ol>
           <li id="ck-1" title="Initialize cold: core subcritical. Watch startup-range ISS count-rate (ИСС).">cold start
             — core subcritical; watch ISS count-rate</li>
           <li id="ck-2"

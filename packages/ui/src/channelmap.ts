@@ -91,16 +91,13 @@ export class ChannelMap {
   /** Plain-language summary values for the readout below the map. */
   summary(): {
     hottest: number;
-    coolest: number;
     highQuadrant: string;
     highOffsetPct: number;
     spreadPct: number;
   } {
     let hottest = 0;
-    let coolest = Infinity;
     for (const rel of this.field.rel) {
       hottest = Math.max(hottest, rel);
-      coolest = Math.min(coolest, rel);
     }
     const q = this.quadrants();
     const entries = Object.entries(q) as ["nw" | "ne" | "sw" | "se", number][];
@@ -109,7 +106,6 @@ export class ChannelMap {
     const low = entries[entries.length - 1]!;
     return {
       hottest,
-      coolest,
       highQuadrant: high[0].toUpperCase(),
       highOffsetPct: (high[1] - 1) * 100,
       spreadPct: (high[1] - low[1]) * 100,

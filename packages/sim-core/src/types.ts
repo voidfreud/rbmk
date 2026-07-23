@@ -1,4 +1,4 @@
-import { N_AXIAL, N_DELAYED_GROUPS } from "./constants";
+import { N_AXIAL, N_DELAYED_GROUPS, PHOTO_BETA } from "./constants";
 
 /** One axial node of the core. All arrays in CoreState are length N_AXIAL. */
 export interface NodeState {
@@ -106,7 +106,7 @@ export function zeroNode(): NodeState {
   return {
     flux: 0,
     precursors: new Array(N_DELAYED_GROUPS).fill(0),
-    photoneutrons: [0, 0],
+    photoneutrons: new Array(PHOTO_BETA.length).fill(0),
     iodine: 0,
     xenon: 0,
     fuelTemp: 270,

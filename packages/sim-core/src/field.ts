@@ -4,7 +4,7 @@ import {
   N_FUEL_CHANNELS,
   NODE_HEIGHT,
 } from "./constants";
-import { absorberInterval, displacerInterval } from "./rods";
+import { absorberInterval, displacerInterval, overlapWithNode } from "./rods";
 import type { NodeState, RodState } from "./types";
 
 /**
@@ -67,13 +67,8 @@ export function rodAxialEffect(
   for (let k = 0; k < N_AXIAL; k++) {
     const flux = nodes[k]!.flux;
     fluxSum += flux;
-    const nodeTop = k * NODE_HEIGHT;
-    const nodeBottom = nodeTop + NODE_HEIGHT;
     const ov = (iv: [number, number] | null) =>
-      iv
-        ? Math.max(0, Math.min(iv[1], nodeBottom) - Math.max(iv[0], nodeTop)) /
-          NODE_HEIGHT
-        : 0;
+      overlapWithNode(iv, k) / NODE_HEIGHT;
     absW += ov(absIv) * flux;
     dispW += ov(dispIv) * flux;
   }
