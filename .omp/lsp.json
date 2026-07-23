@@ -1,0 +1,27 @@
+{
+  "servers": {
+    "typescript-language-server": {
+      "disabled": true
+    },
+    "tsgo": {
+      "command": "tsc",
+      "args": [
+        "--lsp",
+        "--stdio"
+      ],
+      "fileTypes": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mts",
+        ".cts"
+      ],
+      "rootMarkers": [
+        "tsconfig.json",
+        "package.json",
+        ".git"
+      ]
+    }
+  }
+}
