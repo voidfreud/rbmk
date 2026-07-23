@@ -251,10 +251,20 @@ reactor.log.addSink((e) => {
 // Batched POST sink: forwards events to the server's JSONL endpoint so they
 // are persisted to disk. Flushes every ~3 s or every 100 events, whichever
 // comes first + sendBeacon on pagehide for lossless session tails.
+// Upload pipeline for the JSONL log. Requests are capped at the server's
+// 100-event / 1 MiB limits; the pending queue itself is bounded so a dead
+// server cannot grow memory without limit (oldest events drop first).
+const LOG_SESSION = crypto.randomUUID();
+const MAX_LOG_PENDING = 2000;
+const MAX_BATCH_EVENTS = 100;
+/** Headroom under the server's 1 MiB body limit. */
+const MAX_BATCH_BYTES = 768 * 1024;
+/** sendBeacon bodies share the browser's ~64 KiB keepalive quota. */
+const MAX_BEACON_BYTES = 60 * 1024;
 const logPending: SimEvent[] = [];
-type LogFlushTimer = ReturnType<typeof setInterval>;
-let logFlushTimer: LogFlushTimer | null = null;
+let logFlushTimer: Timer | null = null;
 let logFlushInFlight = false;
+let logOverflowWarned = false;
 
 function startLogFlushTimer(): void {
   if (logFlushTimer) return;
@@ -267,15 +277,37 @@ function startLogFlushTimer(): void {
   }, 3000);
 }
 
+function trimLogPending(): void {
+  if (logPending.length <= MAX_LOG_PENDING) return;
+  logPending.splice(0, logPending.length - MAX_LOG_PENDING);
+  if (!logOverflowWarned) {
+    logOverflowWarned = true;
+    console.warn("event log upload is falling behind; dropping oldest events");
+  }
+}
+
+/** Shift a bounded batch off the pending queue, pre-serialized. */
+function drainLogBatch(maxEvents: number, maxBytes: number): { body: string; batch: SimEvent[] } {
+  const parts: string[] = [];
+  const batch: SimEvent[] = [];
+  let bytes = 2; // []
+  while (logPending.length > 0 && batch.length < maxEvents) {
+    const part = JSON.stringify(logPending[0]);
+    if (batch.length > 0 && bytes + part.length + 1 > maxBytes) break;
+    bytes += part.length + 1;
+    parts.push(part);
+    batch.push(logPending.shift()!);
+  }
+  return { body: `[${parts.join(",")}]`, batch };
+}
+
 function flushLog(): void {
   if (logPending.length === 0 || logFlushInFlight) return;
-  const batch = logPending.splice(0, logPending.length);
+  const { body, batch } = drainLogBatch(MAX_BATCH_EVENTS, MAX_BATCH_BYTES);
   logFlushInFlight = true;
-  const body = JSON.stringify(batch);
-  fetch("/api/log/events", {
+  fetch(`/api/log/events?s=${LOG_SESSION}`, {
     method: "POST",
     body,
-    keepalive: true,
     headers: { "Content-Type": "application/json" },
   })
     .then((response) => {
@@ -283,6 +315,7 @@ function flushLog(): void {
     })
     .catch(() => {
       logPending.unshift(...batch);
+      trimLogPending();
     })
     .finally(() => {
       logFlushInFlight = false;
@@ -298,7 +331,11 @@ reactor.log.addSink((e) => {
 
 addEventListener("pagehide", () => {
   if (logPending.length > 0) {
-    navigator.sendBeacon("/api/log/events", new Blob([JSON.stringify(logPending)], { type: "application/json" }));
+    const { body } = drainLogBatch(MAX_LOG_PENDING, MAX_BEACON_BYTES);
+    navigator.sendBeacon(
+      `/api/log/events?s=${LOG_SESSION}`,
+      new Blob([body], { type: "application/json" }),
+    );
     logPending.length = 0;
   }
 });

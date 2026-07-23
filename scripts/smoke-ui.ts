@@ -54,7 +54,60 @@ try {
   const staticDomRefs = [
     ...source.matchAll(/\$\s*(?:<[^>]+>\s*)?\(\s*"([^"]+)"\s*\)/g),
   ].map((match) => match[1]!);
-  const missingDomIds = [...new Set(staticDomRefs)].filter((id) => !htmlIds.has(id));
+  // Template-literal lookups ($(`ar-mode-${m}`)) resolve against the nearest
+  // preceding for-loop that binds each hole: `for (const m of [..])` or
+  // `for (let i = A; i < B; i++)` (with optional `+ k` offset in the hole).
+  const domainOf = (before: string, name: string): (string | number)[] | null => {
+    let match: RegExpExecArray | null;
+    let last: RegExpExecArray | null = null;
+    const ofRe = new RegExp(`for\\s*\\(\\s*const ${name} of \\[([^\\]]*)\\]`, "g");
+    while ((match = ofRe.exec(before))) last = match;
+    if (last) {
+      return last[1]!.split(",").map((item) => {
+        const text = item.trim();
+        const quoted = text.match(/^["'](.*)["']$/);
+        return quoted ? quoted[1]! : Number(text);
+      });
+    }
+    const numRe = new RegExp(
+      `for\\s*\\(\\s*let ${name}\\s*=\\s*(\\d+)\\s*;\\s*${name}\\s*(<=?)\\s*(\\d+)`,
+      "g",
+    );
+    while ((match = numRe.exec(before))) last = match;
+    if (!last) return null;
+    const lo = Number(last[1]);
+    const hi = Number(last[3]);
+    const out: number[] = [];
+    for (let v = lo; last[2] === "<" ? v < hi : v <= hi; v++) out.push(v);
+    return out;
+  };
+  const dynamicDomRefs: string[] = [];
+  for (const match of source.matchAll(/\$\s*(?:<[^>]+>\s*)?\(\s*`([^`]+)`\s*\)/g)) {
+    const template = match[1]!;
+    const before = source.slice(0, match.index);
+    const holes = [...template.matchAll(/\$\{\s*(\w+)\s*(?:\+\s*(\d+)\s*)?\}/g)];
+    let domains = holes.map((hole) => {
+      const domain = domainOf(before, hole[1]!);
+      const offset = hole[2] ? Number(hole[2]) : 0;
+      return domain?.map((v) => (typeof v === "number" ? v + offset : v)) ?? null;
+    });
+    if (domains.some((d) => d === null || d.length === 0)) continue;
+    // Single-hole templates cover every current use; expand the product.
+    let expanded = [template];
+    for (let h = 0; h < holes.length; h++) {
+      const next: string[] = [];
+      for (const partial of expanded) {
+        for (const value of domains[h]!) {
+          next.push(partial.replace(holes[h]![0], String(value)));
+        }
+      }
+      expanded = next;
+    }
+    dynamicDomRefs.push(...expanded);
+  }
+  const missingDomIds = [...new Set([...staticDomRefs, ...dynamicDomRefs])].filter(
+    (id) => !htmlIds.has(id),
+  );
   if (missingDomIds.length > 0) {
     throw new Error(`UI source references missing DOM ids: ${missingDomIds.join(", ")}`);
   }

@@ -1,5 +1,10 @@
 import { appendFile, mkdir } from "node:fs/promises";
-import { readBoundedBody, validateLogBatch } from "./log-ingest";
+import {
+  parseSessionId,
+  readBoundedBody,
+  SessionSeqTracker,
+  validateLogBatch,
+} from "./log-ingest";
 import index from "../packages/ui/index.html";
 
 const LOG_PATH = "data/log.jsonl";
@@ -10,8 +15,15 @@ const logDir = LOG_PATH.substring(0, LOG_PATH.lastIndexOf("/"));
 await mkdir(logDir, { recursive: true });
 await Bun.write(LOG_PATH, "");
 
-async function appendLogLine(line: string): Promise<void> {
-  await appendFile(LOG_PATH, line, "utf-8");
+const seqTracker = new SessionSeqTracker();
+
+// Serialize appends: concurrent flushes (multiple tabs) must not interleave
+// or reorder writes to the JSONL file.
+let logWriteChain: Promise<unknown> = Promise.resolve();
+function enqueueLogWrite(lines: string): Promise<void> {
+  const write = logWriteChain.then(() => appendFile(LOG_PATH, lines, "utf-8"));
+  logWriteChain = write.catch(() => {});
+  return write;
 }
 
 const server = Bun.serve({
@@ -42,10 +54,14 @@ const server = Bun.serve({
               status: validation.status,
             });
           }
-          const lines = validation.events
-            .map((event) => JSON.stringify(event))
-            .join("\n") + "\n";
-          await appendLogLine(lines);
+          const fresh = seqTracker.filterNew(
+            parseSessionId(req.url),
+            validation.events,
+          );
+          if (fresh.length === 0) return new Response("ok");
+          const lines =
+            fresh.map((event) => JSON.stringify(event)).join("\n") + "\n";
+          await enqueueLogWrite(lines);
           return new Response("ok");
         } catch {
           return new Response("error", { status: 500 });
