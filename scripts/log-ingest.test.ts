@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   MAX_LOG_BODY_BYTES,
   MAX_LOG_EVENTS,
+  MAX_LOG_SESSIONS,
+  parseSessionId,
   readBoundedBody,
+  SessionSeqTracker,
   validateLogBatch,
 } from "./log-ingest";
 
@@ -53,5 +56,59 @@ describe("log ingestion validation", () => {
     });
     const result = await readBoundedBody(request);
     expect(result).toEqual({ status: 413, message: "payload too large" });
+  });
+});
+
+describe("session seq dedupe", () => {
+  const ev = (seq: number) => ({ ...event, seq });
+
+  test("drops a retried batch at or below the high-water mark", () => {
+    const tracker = new SessionSeqTracker();
+    const batch = [ev(1), ev(2), ev(3)];
+    expect(tracker.filterNew("a", batch)).toEqual(batch);
+    expect(tracker.filterNew("a", batch)).toEqual([]);
+  });
+
+  test("keeps only the unseen tail of an overlapping batch", () => {
+    const tracker = new SessionSeqTracker();
+    tracker.filterNew("a", [ev(1), ev(2)]);
+    expect(tracker.filterNew("a", [ev(2), ev(3), ev(4)])).toEqual([
+      ev(3),
+      ev(4),
+    ]);
+  });
+
+  test("tracks sessions independently", () => {
+    const tracker = new SessionSeqTracker();
+    tracker.filterNew("a", [ev(5)]);
+    expect(tracker.filterNew("b", [ev(1)])).toEqual([ev(1)]);
+  });
+
+  test("keeps seq-less events and passes everything without a session", () => {
+    const tracker = new SessionSeqTracker();
+    tracker.filterNew("a", [ev(1)]);
+    expect(tracker.filterNew("a", [event])).toEqual([event]);
+    expect(tracker.filterNew(null, [ev(1)])).toEqual([ev(1)]);
+  });
+
+  test("evicts the oldest session past the capacity bound", () => {
+    const tracker = new SessionSeqTracker();
+    for (let i = 0; i <= MAX_LOG_SESSIONS; i++) {
+      tracker.filterNew(`s${i}`, [ev(1)]);
+    }
+    // s0 was evicted, so its seq 1 is accepted again; s1 is still tracked.
+    expect(tracker.filterNew("s1", [ev(1)])).toEqual([]);
+    expect(tracker.filterNew("s0", [ev(1)])).toEqual([ev(1)]);
+  });
+});
+
+describe("parseSessionId", () => {
+  test("reads the s query parameter", () => {
+    expect(parseSessionId("http://x/api/log/events?s=abc123")).toBe("abc123");
+  });
+
+  test("rejects missing or oversized ids", () => {
+    expect(parseSessionId("http://x/api/log/events")).toBeNull();
+    expect(parseSessionId(`http://x/?s=${"y".repeat(65)}`)).toBeNull();
   });
 });

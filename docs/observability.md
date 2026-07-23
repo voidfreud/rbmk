@@ -87,8 +87,14 @@ and forwarded to three registered sinks:
 2. **Annunciator lamps**: SIL_BLOK triggers clear the rod selection and light
    the power-interlock lamp; other event codes drive annunciator state.
 3. **JSONL persistence** (when `bun run start` is running): batched every
-   3 s or 100 events and POSTed to `POST /api/log/events`; a
-   `navigator.sendBeacon` on page unload prevents event loss. The full log is
+   3 s or 100 events (requests also capped at 768 KiB, under the server's
+   1 MiB limit) and POSTed to `POST /api/log/events?s=<session>`; a
+   `navigator.sendBeacon` on page unload sends what fits in the browser's
+   keepalive quota. The pending queue is bounded (2 000 events, oldest
+   dropped first) so a dead server cannot grow memory without limit. The
+   server serializes appends through a write queue and dedupes per session
+   on the event `seq` high-water mark, so a retried batch whose first write
+   succeeded cannot duplicate lines. The full log is
    downloadable from `GET /api/log/download` and lives at `data/log.jsonl`.
 The development endpoint rejects malformed batches, limits each request to 1 MiB and 100 events, and bounds event context and data payloads before appending anything.
 

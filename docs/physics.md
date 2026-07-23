@@ -10,7 +10,7 @@ sources). Summary of what is cited vs estimated.
 |---|---|---|---|
 | beta_eff | 0.005 | Bracketed 0.0045-0.0053: AECL NEACRP-A-1987-0831 uses 5.26e-3 (<https://oecd-nea.org/upload/docs/application/pdf/2020-07/neacrp-a-1987-0831.pdf>); accident-kinetics analyses cite ~0.0045 | medium-high |
 | 6-group beta_i, lambda_i | Keepin thermal U-235, rescaled to beta_eff | Keepin, Wimett & Zeigler, Phys. Rev. 107, 1044 (1957), <https://doi.org/10.1103/physrev.107.1044>; still standard per modern validation (Takahashi et al. 2021) | high |
-| Lambda (generation time) | 4.79e-4 s | AECL NEACRP-A-1987-0831, explicit kinetics-code input | high |
+| Generation time (GEN_TIME) | 4.79e-4 s | AECL NEACRP-A-1987-0831, explicit kinetics-code input | high |
 
 ## Reactivity coefficients
 
@@ -48,7 +48,7 @@ sources). Summary of what is cited vs estimated.
 | Thermal power | 3200 MW | Malko Table 1; NRC ML20202G309 | high |
 | Core 7 m x 11.8 m, 1661 channels, 211 rods | - | consistent across all sources | high |
 | Avg thermal flux | 1.2e14 n/cm2/s | IGDTP CAST-2017 (1.2e14); Plukiene et al. MCNPX (1.55-1.61e14) | high |
-| Inlet 270 C, outlet ~284 C, ~7 MPa | - | INSAG-7 direct | high |
+| Inlet 270 C, outlet ~284 C, ~7 MPa | - | INSAG-7 direct (real plant); the simulator fixes coolant saturation at T_SAT = 285.8 C, so the modeled rated outlet is ~285.8 C | high |
 | Core flow ~13300 kg/s | 8 MCPs x 8000 m3/h (INSAG-7) x ~0.74 t/m3 | high |
 
 ## Control and protection system (CPS)
@@ -61,7 +61,7 @@ sources). Summary of what is cited vs estimated.
 | Setpoint gradient | active setpoint ramps at 0.03 %/s default (panel gauge 0-0.35 %/s) | reference simulator's gradient gauge; real numeric limit unconfirmed | medium |
 | Protections | AZS (period < 10 s), AZM (power > 110%), both operator-blockable with logged warnings; AZ-1 setback drives AZ bank + setpoint to 50%; AZ-5 full scram excl. USP | Terminology (AZS/AZM) from operator-manual reconstructions; numeric setpoints ESTIMATED (not found in open sources); blockability documented by INSAG-7 | low-medium (numbers), high (structure) |
 | ORM | PRIZMA printout every ~5 min ONLY - no live gauge, no ORM protection pre-1986; 15-rod floor administrative | accidont.ru/ozr.html; controls research (docs/research/controls.md) | high |
-| Withdrawal restriction | >=5 rods selected: withdrawal refused (insertion never restricted); >=8 rods withdrawing: power interlock halts all + annunciates ("silovaya blokirovka"); ARM/AR/LAR automatic withdrawal is also held until AZ is cocked | TEZ L.24 (studfile SUZ manual mirror) and Rule 3.1.7 | high |
+| Withdrawal restriction | >=5 rods selected: withdrawal refused (UI-level TEZ L.24 selection limit; sim-core holds no selection state); >=8 non-AZ, non-regulator rods actively withdrawing: power interlock halts all + annunciates ("silovaya blokirovka"); ARM/AR/LAR automatic withdrawal is also held until AZ is cocked | TEZ L.24 (studfile SUZ manual mirror) and Rule 3.1.7 | high |
 | Regulator ladder | ARM 0.25-6% / AR 5-105% (one of 3 subgroups active) / LAR 10-100% (PRIMARY at power, in-core chambers, BLIND below ~10% - drops out). **We use 10% dropout / [0.1, 1.0] band** as coded. Research also cites LAR primary ~20-100% with blind/LAZ dead ~10-20% (docs/research/controls.md); open sources spread 10-20% — we pick the conservative lower edge so LAR still works at 15%. | pavrda.cz/62, topwar 269168, Gospromatomnadzor 1991 (00:28 failure); controls research | high (structure), medium (exact band edge) |
 | Rod speeds | 0.4 m/s all drives; LAR WITHDRAWS at 0.2 m/s | TEZ L.24 | high |
 | Startup period rule | withdrawal blocked while period < 60 s (below 5% power); PERIOD warn < 15 s (clear > 25 s); AZS trip floor 10 s (sources spread 5-10 s) | poznayka s27313, consultant.ru NP rule; warn threshold ESTIMATED | medium-high |

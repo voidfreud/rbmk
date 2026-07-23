@@ -2,6 +2,7 @@ import {
   CORE_HEIGHT,
   DISPLACER_LENGTH,
   N_AXIAL,
+  N_RODS,
   NODE_HEIGHT,
   ROD_ABS_WORTH_PER_M,
   ROD_DISP_WORTH_PER_M,
@@ -55,7 +56,8 @@ export function displacerInterval(rod: {
   return b > a ? [a, b] : null;
 }
 
-function overlapWithNode(
+/** Overlap [m] of a depth interval with axial node `nodeIndex` (0 = top). */
+export function overlapWithNode(
   interval: [number, number] | null,
   nodeIndex: number,
 ): number {
@@ -120,7 +122,7 @@ export function stepRodDrives(rods: RodState[], dt: number): void {
  * RR everywhere else. (The exact per-cell ChNPP-4 map exists on the 00:39
  * printout; this is a faithful-pattern approximation with correct counts.)
  */
-export function buildRods(count = 211): RodState[] {
+export function buildRods(count = N_RODS): RodState[] {
   // Round footprint d <= 8.07 gives 213 lattice positions; 211 cannot be
   // 4-fold symmetric (210 is not divisible by 4 - the real map was not
   // perfectly symmetric either), so drop one 180-degree pair to get an

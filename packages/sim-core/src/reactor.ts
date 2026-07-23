@@ -134,7 +134,7 @@ export class Reactor {
    * subcriticality at shutdown and zero at criticality by construction.
    */
   private ipkC = new Array<number>(6).fill(0);
-  private ipkPhoto = [0, 0];
+  private ipkPhoto = new Array<number>(PHOTO_BETA.length).fill(0);
   private lastRhoIpk = 0;
 
   /**
@@ -1420,7 +1420,7 @@ export class Reactor {
       );
       delayed += lam * this.ipkC[i]!;
     }
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < PHOTO_BETA.length; i++) {
       const lam = PHOTO_LAMBDA[i]!;
       this.ipkPhoto[i] = stepPrecursor(
         this.ipkPhoto[i]!,
@@ -1796,7 +1796,7 @@ export class Reactor {
         n,
       );
     }
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < PHOTO_BETA.length; i++) {
       this.ipkPhoto[i] = equilibriumPrecursor(
         PHOTO_BETA[i]!,
         PHOTO_LAMBDA[i]!,

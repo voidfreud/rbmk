@@ -118,3 +118,45 @@ export async function readBoundedBody(
   }
   return { body };
 }
+
+export const MAX_LOG_SESSIONS = 64;
+const MAX_SESSION_ID_LENGTH = 64;
+
+/** Extract the optional per-browser session id from the request URL. */
+export function parseSessionId(url: string): string | null {
+  const id = new URL(url, "http://localhost").searchParams.get("s");
+  return id !== null && id.length > 0 && id.length <= MAX_SESSION_ID_LENGTH
+    ? id
+    : null;
+}
+
+/**
+ * Per-session high-water mark of written event seqs. One browser session
+ * always emits events in seq order, so a retried batch (whose first write
+ * may have succeeded with the response lost) is idempotent: anything at or
+ * below the high-water mark is dropped instead of appended twice.
+ */
+export class SessionSeqTracker {
+  private highWater = new Map<string, number>();
+
+  /** Return the events not yet written for this session, newest last. */
+  filterNew(sessionId: string | null, events: SimEvent[]): SimEvent[] {
+    if (sessionId === null) return events;
+    const high = this.highWater.get(sessionId);
+    const fresh =
+      high === undefined
+        ? events
+        : events.filter((e) => typeof e.seq !== "number" || e.seq > high);
+    let max = high ?? 0;
+    for (const e of fresh) {
+      if (typeof e.seq === "number" && e.seq > max) max = e.seq;
+    }
+    // Refresh recency and bound the map (oldest session evicted first).
+    this.highWater.delete(sessionId);
+    this.highWater.set(sessionId, max);
+    if (this.highWater.size > MAX_LOG_SESSIONS) {
+      this.highWater.delete(this.highWater.keys().next().value!);
+    }
+    return fresh;
+  }
+}

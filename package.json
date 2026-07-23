@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "start": "bun run scripts/serve.ts",
-    "ui": "bun run start",
     "typecheck": "tsc --noEmit",
     "test": "bun test packages/sim-core/test",
     "check": "bun run typecheck && bun test",
